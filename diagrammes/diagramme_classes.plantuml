@@ -1,0 +1,110 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+package "Presentation (UI)" {
+  class MyApp
+  class DashboardPatientScreen
+  class DashboardDoctorScreen
+  class RealtimeMonitoringScreen
+  class DoctorSettingsScreen
+  class HelpScreen
+  class PrivacyScreen
+}
+
+package "Gestion d'état (Providers)" {
+  class AuthProvider {
+    +User? user
+    +String? role
+    +signIn(email, password)
+    +signOut()
+  }
+
+  class ThemeProvider {
+    -ThemeMode _themeMode
+    +ThemeMode themeMode
+    +bool isDarkMode
+    +loadTheme()
+    +setDarkMode(value)
+  }
+
+  class UserProfileProvider {
+    +bindAuth(auth)
+    +refreshProfile()
+  }
+}
+
+package "Services métier" {
+  class FirebaseService {
+    +signUp(email, password, userRole)
+    +signIn(email, password)
+    +signOut()
+    +getCurrentUser()
+    +getUserRole(uid)
+    +getUserProfile(uid)
+    +updateUserProfile(uid, data)
+    +getMeasurementRecords(uid, limit)
+    +streamMeasurementRecords(uid, limit)
+    +streamUserProfile(uid)
+    +createAlert(patientId, severity, message)
+    +getPatientAlerts(patientId)
+  }
+
+  class MonitoringService {
+    +Stream<Map<String, dynamic>> stream
+    +startMonitoring()
+    +stopMonitoring()
+    +dispose()
+  }
+
+  class SettingsService {
+    +getLanguage()
+    +setLanguage(code)
+    +getDarkMode()
+    +setDarkMode(value)
+    +getNotificationsEnabled()
+    +setNotificationsEnabled(value)
+  }
+}
+
+package "Routage" {
+  class RouteNames
+  class GoRouter
+}
+
+package "Theme" {
+  class AppTheme {
+    +ThemeData theme
+    +ThemeData darkTheme
+  }
+}
+
+MyApp --> GoRouter
+MyApp --> AppTheme
+MyApp --> AuthProvider
+MyApp --> ThemeProvider
+MyApp --> UserProfileProvider
+
+DashboardPatientScreen --> FirebaseService
+DashboardPatientScreen --> ThemeProvider
+RealtimeMonitoringScreen --> MonitoringService
+RealtimeMonitoringScreen --> FirebaseService
+DashboardDoctorScreen --> FirebaseService
+DoctorSettingsScreen --> SettingsService
+DoctorSettingsScreen --> ThemeProvider
+DoctorSettingsScreen --> FirebaseService
+
+AuthProvider --> FirebaseService
+ThemeProvider --> SettingsService
+UserProfileProvider --> FirebaseService
+
+note bottom of MyApp
+  Point d'entrée de l'application.
+  Configure le routeur et les thèmes.
+end note
+
+note right of FirebaseService
+  Service central d'accès à
+  Firebase Auth et Firestore.
+end note
+
+@enduml

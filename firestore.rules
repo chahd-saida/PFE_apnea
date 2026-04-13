@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAssignedDoctor(patientId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/doctors/$(request.auth.uid)/patients/$(patientId));
+    }
+
+    function isPatientAlert(alertData) {
+      return isSignedIn()
+        && alertData.patientId is string
+        && request.auth.uid == alertData.patientId;
+    }
+
+    function isDoctorAlert(alertData) {
+      return isSignedIn()
+        && alertData.patientId is string
+        && isAssignedDoctor(alertData.patientId)
+        && (
+          !(alertData.assignedDoctorId is string)
+          || alertData.assignedDoctorId == request.auth.uid
+        )
+        && (
+          !(alertData.doctorUid is string)
+          || alertData.doctorUid == request.auth.uid
+        );
+    }
+
+    function isPatientMeasurement(measurementData) {
+      return isSignedIn()
+        && measurementData.uid is string
+        && request.auth.uid == measurementData.uid;
+    }
+
+    function isDoctorMeasurement(measurementData) {
+      return isSignedIn()
+        && measurementData.uid is string
+        && isAssignedDoctor(measurementData.uid);
+    }
+
+    // User profile document: user can create and manage only their own profile.
+    match /users/{userId} {
+      allow create: if isSelf(userId)
+        && request.resource.data.role is string;
+
+      allow read, update, delete: if isSelf(userId);
+    }
+
+    // Measurements: patient can access own records, assigned doctor can read.
+    match /measurements/{measurementId} {
+      allow create: if isPatientMeasurement(request.resource.data);
+
+      allow update: if isPatientMeasurement(resource.data)
+        && isPatientMeasurement(request.resource.data);
+
+      allow read: if isPatientMeasurement(resource.data)
+        || isDoctorMeasurement(resource.data);
+
+      allow delete: if isPatientMeasurement(resource.data);
+    }
+
+    // Alerts: patient can access their own alerts, assigned doctor can read/write.
+    match /alerts/{alertId} {
+      allow create: if isPatientAlert(request.resource.data)
+        || isDoctorAlert(request.resource.data);
+
+      allow read: if isPatientAlert(resource.data)
+        || isDoctorAlert(resource.data);
+
+      allow update: if (isPatientAlert(resource.data) || isDoctorAlert(resource.data))
+        && (isPatientAlert(request.resource.data) || isDoctorAlert(request.resource.data));
+
+      allow delete: if isPatientAlert(resource.data) || isDoctorAlert(resource.data);
+    }
+  }
+}

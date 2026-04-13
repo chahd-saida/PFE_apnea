@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1038212712158",
+    "project_id": "apneafirebase",
+    "storage_bucket": "apneafirebase.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1038212712158:android:47466d1d317df8743f244f",
+        "android_client_info": {
+          "package_name": "com.example.apnea_project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBVibnAeKxbQ0MqTQ8_pLyUfYaV0CsC-dU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

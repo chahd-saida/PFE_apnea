@@ -1,0 +1,53 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+actor "Patient" as Patient
+actor "Médecin" as Medecin
+actor "Système Firebase" as Firebase
+
+rectangle "Application SleepApnea Detect" {
+  usecase "S'inscrire" as UC_Register
+  usecase "Se connecter" as UC_Login
+  usecase "Gérer son profil" as UC_Profile
+  usecase "Consulter le tableau de bord patient" as UC_PatientDashboard
+  usecase "Démarrer le monitoring en temps réel" as UC_Monitoring
+  usecase "Consulter historique" as UC_History
+  usecase "Consulter alertes" as UC_Alerts
+  usecase "Consulter le tableau de bord médecin" as UC_DoctorDashboard
+  usecase "Consulter la liste des patients" as UC_DoctorPatients
+  usecase "Consulter analyses et rapports" as UC_DoctorReports
+  usecase "Configurer les préférences" as UC_Settings
+  usecase "Se déconnecter" as UC_Logout
+}
+
+Patient --> UC_Register
+Patient --> UC_Login
+Patient --> UC_Profile
+Patient --> UC_PatientDashboard
+Patient --> UC_Monitoring
+Patient --> UC_History
+Patient --> UC_Alerts
+Patient --> UC_Settings
+Patient --> UC_Logout
+
+Medecin --> UC_Login
+Medecin --> UC_Profile
+Medecin --> UC_DoctorDashboard
+Medecin --> UC_DoctorPatients
+Medecin --> UC_DoctorReports
+Medecin --> UC_Alerts
+Medecin --> UC_Settings
+Medecin --> UC_Logout
+
+UC_Register --> Firebase
+UC_Login --> Firebase
+UC_Profile --> Firebase
+UC_Monitoring --> Firebase
+UC_History --> Firebase
+UC_Alerts --> Firebase
+UC_DoctorPatients --> Firebase
+UC_DoctorReports --> Firebase
+
+@enduml

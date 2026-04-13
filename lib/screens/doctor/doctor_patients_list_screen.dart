@@ -1,0 +1,235 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:apnea_project/router/app_router.dart';
+import 'package:provider/provider.dart';
+
+import 'package:apnea_project/providers/auth_provider.dart';
+import 'package:apnea_project/providers/user_profile_provider.dart';
+import 'package:apnea_project/services/firebase_service.dart';
+
+class DoctorPatientsListScreen extends StatelessWidget {
+  const DoctorPatientsListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+    final doctorProfile = useDoctorProfile(context);
+    final photoUrl = doctorProfile?.profileImageUrl;
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Mes Patients')),
+        body: const Center(
+          child: Text('Session expirée. Veuillez vous reconnecter.'),
+        ),
+      );
+    }
+
+    final firebaseService = FirebaseService();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mes Patients'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12.0),
+            child: InkWell(
+              onTap: () => context.pushNamed(RouteNames.doctorProfile),
+              borderRadius: BorderRadius.circular(20),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.white24,
+                backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                    ? NetworkImage(photoUrl)
+                    : null,
+                child: (photoUrl == null || photoUrl.isEmpty)
+                    ? const Icon(Icons.person, size: 18, color: Colors.white)
+                    : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: TextField(
+                decoration: InputDecoration(
+                  labelText: 'Rechercher...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                  ),
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: DropdownButton<String>(
+                value: 'Tous',
+                onChanged: (String? newValue) {},
+                items: <String>['Tous', 'Actifs', 'En alerte', 'Inactifs']
+                    .map<DropdownMenuItem<String>>((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text('Filtre: $value'),
+                      );
+                    })
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: firebaseService.streamDoctorPatients(user.uid),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Text(
+                      'Erreur chargement patients.',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                final patients = snapshot.data ?? <Map<String, dynamic>>[];
+                if (patients.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Text('Aucun patient assigné pour le moment.'),
+                  );
+                }
+
+                return Column(
+                  children: patients.map((patient) {
+                    final patientUid = patient['uid'] as String? ?? '';
+                    final fullName =
+                        (patient['fullName'] as String?)?.trim().isNotEmpty ==
+                            true
+                        ? patient['fullName'] as String
+                        : 'Patient';
+
+                    return FutureBuilder<DateTime?>(
+                      future: firebaseService
+                          .getPatientLastMeasurementTimestamp(patientUid),
+                      builder: (context, lastMeasurementSnapshot) {
+                        final lastDate = lastMeasurementSnapshot.data;
+                        final lastDateLabel = lastDate == null
+                            ? 'Aucune donnée'
+                            : '${lastDate.day.toString().padLeft(2, '0')}/${lastDate.month.toString().padLeft(2, '0')}';
+                        return _buildPatientEntry(
+                          context,
+                          patientId: patientUid,
+                          name: fullName,
+                          status: 'Actif',
+                          lastData: lastDateLabel,
+                          apneas: '--',
+                        );
+                      },
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Ajout de patient bientôt disponible.'),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.person_add),
+              label: const Text('Ajouter patient'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
+          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Patients'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.notifications),
+            label: 'Alertes',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.description),
+            label: 'Rapport',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Param.'),
+        ],
+        currentIndex: 1,
+        onTap: (index) {
+          switch (index) {
+            case 0:
+              context.goNamed(RouteNames.doctorDashboard);
+              break;
+            case 1:
+              context.goNamed(RouteNames.doctorPatients);
+              break;
+            case 2:
+              context.goNamed(RouteNames.doctorAlerts);
+              break;
+            case 3:
+              context.goNamed(RouteNames.doctorReports);
+              break;
+            case 4:
+              context.goNamed(RouteNames.doctorSettings);
+              break;
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildPatientEntry(
+    BuildContext context, {
+    required String patientId,
+    required String name,
+    required String status,
+    required String lastData,
+    required String apneas,
+  }) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      elevation: 2,
+      child: ListTile(
+        leading: const CircleAvatar(
+          backgroundColor: Colors.green,
+          child: Icon(Icons.person, color: Colors.white),
+        ),
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Statut: $status'),
+            Text('Dernière donnée: $lastData'),
+            Text('Apnées (7j): $apneas'),
+          ],
+        ),
+        trailing: const Icon(Icons.arrow_forward_ios),
+        onTap: () {
+          final encodedPatientId = Uri.encodeComponent(patientId);
+          context.pushNamed(
+            RouteNames.doctorPatientProfilePath,
+            pathParameters: {'patientId': encodedPatientId},
+          );
+        },
+      ),
+    );
+  }
+}

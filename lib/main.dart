@@ -1,0 +1,64 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+import 'firebase_options.dart';
+
+import 'package:apnea_project/providers/auth_provider.dart';
+import 'package:apnea_project/providers/theme_provider.dart';
+import 'package:apnea_project/providers/user_profile_provider.dart';
+import 'package:apnea_project/router/app_router.dart';
+import 'package:apnea_project/theme/app_theme.dart' as project_theme;
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  final authProvider = AuthProvider();
+  final themeProvider = ThemeProvider();
+  await themeProvider.loadTheme();
+  final appRouter = createAppRouter(
+    authProvider,
+    initialLocation: RouteNames.splash,
+  );
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+        ChangeNotifierProxyProvider<AuthProvider, UserProfileProvider>(
+          create: (_) => UserProfileProvider(),
+          update: (_, auth, userProfileProvider) {
+            final provider = userProfileProvider ?? UserProfileProvider();
+            provider.bindAuth(auth);
+            return provider;
+          },
+        ),
+        ChangeNotifierProvider<ThemeProvider>.value(value: themeProvider),
+      ],
+      child: MyApp(routerOverride: appRouter),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key, this.routerOverride});
+
+  final GoRouter? routerOverride;
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+    final router =
+        routerOverride ?? createAppRouter(context.read<AuthProvider>());
+
+    return MaterialApp.router(
+      title: 'SleepApnea Detect',
+      theme: project_theme.AppTheme.theme,
+      darkTheme: project_theme.AppTheme.darkTheme,
+      themeMode: themeProvider.themeMode,
+      routerConfig: router,
+    );
+  }
+}

@@ -1,0 +1,38 @@
+@startuml
+autonumber
+
+actor Utilisateur as User
+participant "LoginScreen" as Login
+participant "AuthProvider" as Auth
+participant "FirebaseService" as Firebase
+database "Firebase Auth / Firestore" as DB
+participant "AppRouter" as Router
+participant "Dashboard" as Dashboard
+
+User -> Login : Saisit l'email et le mot de passe
+Login -> Auth : signIn(email, password)
+Auth -> Firebase : signIn(email, password)
+Firebase -> DB : Authentifier l'utilisateur
+DB --> Firebase : UserCredential
+Firebase --> Auth : UserCredential
+
+Auth -> Firebase : getUserRole(uid)
+Firebase -> DB : Lire users/{uid}.role
+DB --> Firebase : rôle (patient ou médecin)
+Firebase --> Auth : role
+Auth --> Login : État connecté et rôle
+
+Login -> Router : Redirection selon le rôle
+alt rôle == "patient"
+  Router -> Dashboard : Ouvrir DashboardPatientScreen
+else rôle == "médecin"
+  Router -> Dashboard : Ouvrir DashboardDoctorScreen
+end
+
+Dashboard -> Firebase : Charger profil + mesures/alertes
+Firebase -> DB : Exécuter les requêtes Firestore
+DB --> Firebase : Données
+Firebase --> Dashboard : Flux et données
+Dashboard --> User : Afficher le tableau de bord
+
+@enduml
