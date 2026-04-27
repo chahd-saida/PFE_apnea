@@ -1,0 +1,114 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actorStyle awesome
+
+title Diagramme de cas d'utilisation - SleepApnea Detect (Flutter + Firebase)
+
+actor "Patient" as Patient
+actor "Medecin" as Doctor
+actor "Firebase Auth" as FirebaseAuth
+actor "Cloud Firestore" as Firestore
+
+rectangle "Application SleepApnea Detect" {
+  usecase "Se connecter" as UC_Login
+  usecase "Saisir email/mot de passe" as UC_InputCredentials
+  usecase "Verifier le role utilisateur" as UC_CheckRole
+  usecase "Rediriger vers dashboard adapte" as UC_Redirect
+  usecase "Recuperer mot de passe" as UC_ForgotPassword
+
+  usecase "Consulter dashboard patient" as UC_PatientDashboard
+  usecase "Suivre mesures temps reel" as UC_Realtime
+  usecase "Consulter historique des sessions" as UC_History
+  usecase "Consulter details d'une nuit" as UC_NightDetail
+  usecase "Consulter alertes patient" as UC_PatientAlerts
+  usecase "Exporter rapport PDF" as UC_ExportPDF
+  usecase "Partager/Envoyer rapport" as UC_ShareReport
+  usecase "Gerer profil patient" as UC_PatientProfile
+  usecase "Configurer preferences" as UC_PatientSettings
+  usecase "Consulter contenu relaxation" as UC_Relaxation
+
+  usecase "Consulter dashboard medecin" as UC_DoctorDashboard
+  usecase "Ajouter patient" as UC_AddPatient
+  usecase "Consulter liste patients" as UC_PatientList
+  usecase "Consulter profil patient" as UC_DoctorPatientProfile
+  usecase "Analyser nuit patient" as UC_DoctorAnalysis
+  usecase "Consulter centre d'alertes" as UC_DoctorAlerts
+  usecase "Messagerie medecin-patient" as UC_DoctorMessaging
+  usecase "Consulter rapports medicaux" as UC_DoctorReports
+  usecase "Saisir note/diagnostic" as UC_DoctorNote
+
+  usecase "Se deconnecter" as UC_Logout
+
+  usecase "Verifier droits d'acces (RBAC)" as UC_AccessControl
+  usecase "Lire/mettre a jour donnees profile" as UC_ProfileData
+  usecase "Lire/mettre a jour mesures" as UC_MeasurementsData
+  usecase "Lire/mettre a jour alertes" as UC_AlertsData
+  usecase "Lire/mettre a jour conversations" as UC_MessagesData
+}
+
+Patient --> UC_Login
+Doctor --> UC_Login
+
+Patient --> UC_PatientDashboard
+Patient --> UC_Realtime
+Patient --> UC_History
+Patient --> UC_PatientAlerts
+Patient --> UC_ExportPDF
+Patient --> UC_PatientProfile
+Patient --> UC_PatientSettings
+Patient --> UC_Relaxation
+Patient --> UC_Logout
+
+Doctor --> UC_DoctorDashboard
+Doctor --> UC_AddPatient
+Doctor --> UC_PatientList
+Doctor --> UC_DoctorPatientProfile
+Doctor --> UC_DoctorAnalysis
+Doctor --> UC_DoctorAlerts
+Doctor --> UC_DoctorMessaging
+Doctor --> UC_DoctorReports
+Doctor --> UC_DoctorNote
+Doctor --> UC_Logout
+
+UC_Login ..> UC_InputCredentials : <<include>>
+UC_Login ..> UC_CheckRole : <<include>>
+UC_Login ..> UC_Redirect : <<include>>
+UC_Login ..> UC_ForgotPassword : <<extend>>
+
+UC_PatientDashboard ..> UC_AccessControl : <<include>>
+UC_DoctorDashboard ..> UC_AccessControl : <<include>>
+UC_AddPatient ..> UC_AccessControl : <<include>>
+UC_DoctorAnalysis ..> UC_AccessControl : <<include>>
+UC_DoctorReports ..> UC_AccessControl : <<include>>
+UC_DoctorMessaging ..> UC_AccessControl : <<include>>
+UC_ExportPDF ..> UC_AccessControl : <<include>>
+
+UC_PatientProfile ..> UC_ProfileData : <<include>>
+UC_PatientSettings ..> UC_ProfileData : <<include>>
+UC_DoctorPatientProfile ..> UC_ProfileData : <<include>>
+
+UC_Realtime ..> UC_MeasurementsData : <<include>>
+UC_History ..> UC_MeasurementsData : <<include>>
+UC_NightDetail ..> UC_MeasurementsData : <<include>>
+UC_DoctorAnalysis ..> UC_MeasurementsData : <<include>>
+UC_DoctorReports ..> UC_MeasurementsData : <<include>>
+
+UC_PatientAlerts ..> UC_AlertsData : <<include>>
+UC_DoctorAlerts ..> UC_AlertsData : <<include>>
+
+UC_DoctorMessaging ..> UC_MessagesData : <<include>>
+
+UC_History ..> UC_NightDetail : <<extend>>
+UC_ExportPDF ..> UC_ShareReport : <<extend>>
+UC_DoctorAnalysis ..> UC_DoctorNote : <<extend>>
+
+FirebaseAuth --> UC_Login
+FirebaseAuth --> UC_Logout
+Firestore --> UC_ProfileData
+Firestore --> UC_MeasurementsData
+Firestore --> UC_AlertsData
+Firestore --> UC_MessagesData
+
+@enduml

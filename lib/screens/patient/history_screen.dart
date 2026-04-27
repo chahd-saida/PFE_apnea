@@ -166,19 +166,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
         onTap: (index) {
           switch (index) {
             case 0:
-              context.goNamed(RouteNames.patientDashboard);
+              context.go(RouteNames.patientDashboard);
               break;
             case 1:
-              context.goNamed(RouteNames.patientHistory);
+              context.go(RouteNames.patientHistory);
               break;
             case 2:
-              context.goNamed(RouteNames.realtimeMonitoring);
+              context.go(RouteNames.realtimeMonitoring);
               break;
             case 3:
-              context.goNamed(RouteNames.relaxation);
+              context.go(RouteNames.relaxation);
               break;
             case 4:
-              context.goNamed(RouteNames.patientSettings);
+              context.go(RouteNames.patientSettings);
               break;
           }
         },
@@ -203,10 +203,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
         trailing: const Icon(Icons.arrow_forward_ios),
         onTap: () {
-          context.pushNamed(
-            RouteNames.nightDetailPath,
-            pathParameters: {'nightId': Uri.encodeComponent(date)},
-          );
+          context.push(RouteNames.nightDetail(Uri.encodeComponent(date)));
         },
       ),
     );

@@ -209,7 +209,7 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
                                 scoreBgColor: _getScoreBgColor(score),
                                 isDarkMode: isDarkMode,
                                 onTap: () =>
-                                    context.goNamed(RouteNames.patientHistory),
+                                    context.go(RouteNames.patientHistory),
                               ),
                               const SizedBox(height: 16),
 
@@ -221,8 +221,8 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
                                 temperature: temperature,
                                 isDarkMode: isDarkMode,
                                 onAlerts: () =>
-                                    context.goNamed(RouteNames.patientAlerts),
-                                onMonitor: () => context.goNamed(
+                                    context.go(RouteNames.patientAlerts),
+                                onMonitor: () => context.go(
                                   RouteNames.realtimeMonitoring,
                                 ),
                               ),
@@ -242,7 +242,7 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
                                           _showLastSession = true;
                                         }
                                       });
-                                      context.goNamed(
+                                      context.go(
                                         RouteNames.realtimeMonitoring,
                                       );
                                     },
@@ -499,7 +499,7 @@ class _ScoreCard extends StatelessWidget {
                     },
                   ),
                   Text(
-                    '${score}%',
+                    '$score%',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -819,7 +819,7 @@ class _BottomNav extends StatelessWidget {
             RouteNames.relaxation,
             RouteNames.patientSettings,
           ];
-          context.goNamed(routes[i]);
+          context.go(routes[i]);
         },
         items: const [
           BottomNavigationBarItem(
@@ -932,7 +932,7 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: () => context.goNamed(RouteNames.realtimeMonitoring),
+            onPressed: () => context.go(RouteNames.realtimeMonitoring),
             icon: const Icon(Icons.play_arrow_rounded),
             label: const Text('Démarrer surveillance'),
             style: ElevatedButton.styleFrom(

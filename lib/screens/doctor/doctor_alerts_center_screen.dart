@@ -34,7 +34,7 @@ class DoctorAlertsCenterScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
             child: InkWell(
-              onTap: () => context.pushNamed(RouteNames.doctorProfile),
+              onTap: () => context.push(RouteNames.doctorProfile),
               borderRadius: BorderRadius.circular(20),
               child: CircleAvatar(
                 radius: 18,
@@ -141,11 +141,10 @@ class DoctorAlertsCenterScreen extends StatelessWidget {
                                   final encodedPatientId = Uri.encodeComponent(
                                     candidateId,
                                   );
-                                  context.pushNamed(
-                                    RouteNames.doctorPatientProfilePath,
-                                    pathParameters: {
-                                      'patientId': encodedPatientId,
-                                    },
+                                  context.push(
+                                    RouteNames.doctorPatientProfile(
+                                      encodedPatientId,
+                                    ),
                                   );
                                 },
                               ),
@@ -168,9 +167,8 @@ class DoctorAlertsCenterScreen extends StatelessWidget {
                             final encodedPatientId = Uri.encodeComponent(
                               candidateId,
                             );
-                            context.pushNamed(
-                              RouteNames.doctorPatientProfilePath,
-                              pathParameters: {'patientId': encodedPatientId},
+                            context.push(
+                              RouteNames.doctorPatientProfile(encodedPatientId),
                             );
                           },
                         ),
@@ -209,7 +207,7 @@ class DoctorAlertsCenterScreen extends StatelessWidget {
                     title: const Text('Contacts urgence'),
                     trailing: const Icon(Icons.arrow_forward_ios),
                     onTap: () {
-                      context.pushNamed(RouteNames.doctorMessages);
+                      context.push(RouteNames.doctorMessages);
                     },
                   ),
                 ],
@@ -237,19 +235,19 @@ class DoctorAlertsCenterScreen extends StatelessWidget {
         onTap: (index) {
           switch (index) {
             case 0:
-              context.goNamed(RouteNames.doctorDashboard);
+              context.go(RouteNames.doctorDashboard);
               break;
             case 1:
-              context.goNamed(RouteNames.doctorPatients);
+              context.go(RouteNames.doctorPatients);
               break;
             case 2:
-              context.goNamed(RouteNames.doctorAlerts);
+              context.go(RouteNames.doctorAlerts);
               break;
             case 3:
-              context.goNamed(RouteNames.doctorReports);
+              context.go(RouteNames.doctorReports);
               break;
             case 4:
-              context.goNamed(RouteNames.doctorSettings);
+              context.go(RouteNames.doctorSettings);
               break;
           }
         },

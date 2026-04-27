@@ -175,12 +175,11 @@ class DoctorPatientProfileScreen extends StatelessWidget {
                             title: Text(date),
                             subtitle: Text('Score: $score | Apnées: $apneas'),
                             onTap: () {
-                              context.pushNamed(
-                                RouteNames.doctorAnalysisPath,
-                                pathParameters: {
-                                  'patientId': Uri.encodeComponent(patientId),
-                                  'nightDate': Uri.encodeComponent(date),
-                                },
+                              context.push(
+                                RouteNames.doctorAnalysis(
+                                  Uri.encodeComponent(patientId),
+                                  Uri.encodeComponent(date),
+                                ),
                               );
                             },
                           ),

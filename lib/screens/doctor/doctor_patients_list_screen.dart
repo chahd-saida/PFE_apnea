@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
+import 'package:apnea_project/screens/doctor/add_patient_screen.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 
 class DoctorPatientsListScreen extends StatelessWidget {
@@ -33,7 +34,7 @@ class DoctorPatientsListScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
             child: InkWell(
-              onTap: () => context.pushNamed(RouteNames.doctorProfile),
+              onTap: () => context.push(RouteNames.doctorProfile),
               borderRadius: BorderRadius.circular(20),
               child: CircleAvatar(
                 radius: 18,
@@ -142,9 +143,10 @@ class DoctorPatientsListScreen extends StatelessWidget {
             const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Ajout de patient bientôt disponible.'),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AddPatientScreen(),
                   ),
                 );
               },
@@ -176,19 +178,19 @@ class DoctorPatientsListScreen extends StatelessWidget {
         onTap: (index) {
           switch (index) {
             case 0:
-              context.goNamed(RouteNames.doctorDashboard);
+              context.go(RouteNames.doctorDashboard);
               break;
             case 1:
-              context.goNamed(RouteNames.doctorPatients);
+              context.go(RouteNames.doctorPatients);
               break;
             case 2:
-              context.goNamed(RouteNames.doctorAlerts);
+              context.go(RouteNames.doctorAlerts);
               break;
             case 3:
-              context.goNamed(RouteNames.doctorReports);
+              context.go(RouteNames.doctorReports);
               break;
             case 4:
-              context.goNamed(RouteNames.doctorSettings);
+              context.go(RouteNames.doctorSettings);
               break;
           }
         },
@@ -224,10 +226,7 @@ class DoctorPatientsListScreen extends StatelessWidget {
         trailing: const Icon(Icons.arrow_forward_ios),
         onTap: () {
           final encodedPatientId = Uri.encodeComponent(patientId);
-          context.pushNamed(
-            RouteNames.doctorPatientProfilePath,
-            pathParameters: {'patientId': encodedPatientId},
-          );
+          context.push(RouteNames.doctorPatientProfile(encodedPatientId));
         },
       ),
     );

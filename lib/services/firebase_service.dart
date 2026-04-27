@@ -2,6 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:apnea_project/models/patient.dart';
+
 class FirebaseService {
   FirebaseService({FirebaseAuth? auth, FirebaseFirestore? firestore})
     : _auth = auth ?? FirebaseAuth.instance,
@@ -12,7 +14,6 @@ class FirebaseService {
 
   // ========== AUTHENTIFICATION ==========
 
-  /// Enregistrer un nouvel utilisateur
   Future<UserCredential> signUp({
     required String email,
     required String password,
@@ -29,7 +30,6 @@ class FirebaseService {
     }
   }
 
-  /// Connexion utilisateur
   Future<UserCredential> signIn({
     required String email,
     required String password,
@@ -45,17 +45,14 @@ class FirebaseService {
     }
   }
 
-  /// Déconnexion
   Future<void> signOut() async {
     await _auth.signOut();
   }
 
-  /// Obtenir l'utilisateur actuel
   User? getCurrentUser() {
     return _auth.currentUser;
   }
 
-  /// Enregistrer un utilisateur avec un profil plus complet.
   Future<UserCredential> registerUser({
     required String email,
     required String password,
@@ -88,9 +85,7 @@ class FirebaseService {
           await user.updatePhotoURL(trimmedProfileImageUrl);
         }
       }
-    } catch (_) {
-      // Ignore profile update errors to avoid breaking registration flow.
-    }
+    } catch (_) {}
 
     if (uid != null) {
       try {
@@ -113,7 +108,6 @@ class FirebaseService {
           'createdAt': DateTime.now(),
         }, SetOptions(merge: true));
       } on FirebaseException {
-        // Keep Auth and Firestore consistent: rollback Auth user if profile write fails.
         try {
           await user?.delete();
         } catch (_) {}
@@ -132,7 +126,6 @@ class FirebaseService {
       if (resolved != null) {
         return resolved;
       }
-
       return null;
     } catch (e) {
       debugPrint('Erreur récupération rôle: $e');
@@ -141,9 +134,7 @@ class FirebaseService {
   }
 
   String? _resolveRoleFromProfile(Map<String, dynamic>? data) {
-    if (data == null) {
-      return null;
-    }
+    if (data == null) return null;
 
     final candidates = <dynamic>[
       data['role'],
@@ -166,7 +157,6 @@ class FirebaseService {
 
   // ========== FIRESTORE ==========
 
-  /// Récupérer le profil utilisateur
   Future<Map<String, dynamic>?> getUserProfile(String uid) async {
     try {
       final doc = await _firestore.collection('users').doc(uid).get();
@@ -177,7 +167,53 @@ class FirebaseService {
     }
   }
 
-  /// Mettre à jour le profil utilisateur
+  String newDocumentId(String collectionPath) {
+    return _firestore.collection(collectionPath).doc().id;
+  }
+
+  Future<void> addPatient(Patient patient) async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw FirebaseAuthException(
+          code: 'not-authenticated',
+          message: 'Utilisateur non authentifié.',
+        );
+      }
+
+      if (patient.doctorUid == null || patient.doctorUid!.isEmpty) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'invalid-argument',
+          message: 'doctorUid manquant pour le patient.',
+        );
+      }
+
+      if (patient.doctorUid != currentUser.uid) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'permission-denied',
+          message: 'Le patient doit être rattaché au médecin connecté.',
+        );
+      }
+
+      final ref = _firestore.collection('users').doc(patient.id);
+      final existing = await ref.get();
+      if (existing.exists) {
+        throw FirebaseException(
+          plugin: 'cloud_firestore',
+          code: 'already-exists',
+          message: 'Un utilisateur avec cet identifiant existe déjà.',
+        );
+      }
+
+      await ref.set(patient.toFirestore());
+    } catch (e) {
+      debugPrint('Erreur ajout patient: $e');
+      rethrow;
+    }
+  }
+
   Future<void> updateUserProfile(String uid, Map<String, dynamic> data) async {
     try {
       await _firestore.collection('users').doc(uid).update(data);
@@ -245,23 +281,25 @@ class FirebaseService {
     }
   }
 
-  /// Récupérer les alertes des patients
+  // ========== ALERTS ==========
+
   Future<List<Map<String, dynamic>>> getPatientAlerts(String patientId) async {
     try {
       final snapshot = await _firestore
           .collection('alerts')
           .where('patientId', isEqualTo: patientId)
-          .orderBy('timestamp', descending: true)
+          .orderBy('createdAt', descending: true)
           .get();
 
-      return snapshot.docs.map((doc) => doc.data()).toList();
+      return snapshot.docs
+          .map((doc) => <String, dynamic>{...doc.data(), 'id': doc.id})
+          .toList();
     } catch (e) {
       debugPrint('Erreur récupération alertes: $e');
       return [];
     }
   }
 
-  /// Créer une nouvelle alerte
   Future<void> createAlert({
     required String patientId,
     required String severity,
@@ -272,7 +310,7 @@ class FirebaseService {
         'patientId': patientId,
         'severity': severity,
         'message': message,
-        'timestamp': DateTime.now(),
+        'createdAt': FieldValue.serverTimestamp(),
         'read': false,
       });
     } catch (e) {
@@ -281,21 +319,27 @@ class FirebaseService {
     }
   }
 
-  /// Stream real-time des alertes
+  Future<void> createAlertWithData(Map<String, dynamic> alertData) async {
+    try {
+      await _firestore.collection('alerts').add(alertData);
+    } catch (e) {
+      debugPrint('Erreur création alerte: $e');
+      rethrow;
+    }
+  }
+
   Stream<QuerySnapshot> getAlertsStream(String patientId) {
     return _firestore
         .collection('alerts')
         .where('patientId', isEqualTo: patientId)
-        .orderBy('timestamp', descending: true)
+        .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
   Stream<Map<String, dynamic>?> streamUserProfile(String uid) {
     return _firestore.collection('users').doc(uid).snapshots().map((doc) {
       final data = doc.data();
-      if (data == null) {
-        return null;
-      }
+      if (data == null) return null;
       return <String, dynamic>{...data, 'uid': doc.id};
     });
   }
@@ -315,20 +359,12 @@ class FirebaseService {
           items.sort((a, b) {
             final at = _extractDateTime(a['timestamp']);
             final bt = _extractDateTime(b['timestamp']);
-            if (at == null && bt == null) {
-              return 0;
-            }
-            if (at == null) {
-              return 1;
-            }
-            if (bt == null) {
-              return -1;
-            }
+            if (at == null && bt == null) return 0;
+            if (at == null) return 1;
+            if (bt == null) return -1;
             return bt.compareTo(at);
           });
-          if (items.length > limit) {
-            return items.sublist(0, limit);
-          }
+          if (items.length > limit) return items.sublist(0, limit);
           return items;
         });
   }
@@ -350,26 +386,31 @@ class FirebaseService {
       items.sort((a, b) {
         final at = _extractDateTime(a['timestamp']);
         final bt = _extractDateTime(b['timestamp']);
-        if (at == null && bt == null) {
-          return 0;
-        }
-        if (at == null) {
-          return 1;
-        }
-        if (bt == null) {
-          return -1;
-        }
+        if (at == null && bt == null) return 0;
+        if (at == null) return 1;
+        if (bt == null) return -1;
         return bt.compareTo(at);
       });
 
-      if (items.length > limit) {
-        return items.sublist(0, limit);
-      }
-
+      if (items.length > limit) return items.sublist(0, limit);
       return items;
     } catch (e) {
       debugPrint('Erreur récupération mesures: $e');
       return <Map<String, dynamic>>[];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getMeasurementById(String measurementId) async {
+    try {
+      final doc = await _firestore
+          .collection('measurements')
+          .doc(measurementId)
+          .get();
+      if (!doc.exists) return null;
+      return <String, dynamic>{...?doc.data(), 'id': doc.id};
+    } catch (e) {
+      debugPrint('Erreur récupération mesure: $e');
+      return null;
     }
   }
 
@@ -381,6 +422,10 @@ class FirebaseService {
     required double averageSpo2,
   }) async {
     final durationMinutes = endTime.difference(startTime).inMinutes;
+    final score = _computeSleepScore(
+      averageSpo2: averageSpo2,
+      averageHeartRate: averageHeartRate,
+    );
     await _firestore.collection('measurements').add({
       'uid': uid,
       'timestamp': endTime,
@@ -391,10 +436,7 @@ class FirebaseService {
       'avgSpo2': averageSpo2,
       'heartRate': averageHeartRate.round(),
       'spo2': averageSpo2.round(),
-      'score': _computeSleepScore(
-        averageSpo2: averageSpo2,
-        averageHeartRate: averageHeartRate,
-      ),
+      'score': score,
       'apneas': 0,
     });
   }
@@ -424,10 +466,7 @@ class FirebaseService {
           .map((doc) => <String, dynamic>{...doc.data(), 'uid': doc.id})
           .toList();
 
-      if (patients.isNotEmpty) {
-        return patients;
-      }
-
+      if (patients.isNotEmpty) return patients;
       return <Map<String, dynamic>>[];
     });
   }
@@ -441,9 +480,7 @@ class FirebaseService {
           .where('uid', isEqualTo: patientUid)
           .get();
 
-      if (snapshot.docs.isEmpty) {
-        return null;
-      }
+      if (snapshot.docs.isEmpty) return null;
 
       DateTime? latest;
       for (final doc in snapshot.docs) {
@@ -460,16 +497,198 @@ class FirebaseService {
     }
   }
 
+  // ========== MESSAGING ==========
+
+  Stream<List<Map<String, dynamic>>> streamConversations(String uid) {
+    return _firestore
+        .collection('conversations')
+        .where('participants', arrayContains: uid)
+        .orderBy('lastMessageAt', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => <String, dynamic>{...doc.data(), 'id': doc.id})
+              .toList(),
+        );
+  }
+
+  Stream<List<Map<String, dynamic>>> streamMessages(String conversationId) {
+    return _firestore
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => <String, dynamic>{...doc.data(), 'id': doc.id})
+              .toList(),
+        );
+  }
+
+  Future<String> getOrCreateConversation({
+    required String doctorUid,
+    required String patientUid,
+  }) async {
+    final query = await _firestore
+        .collection('conversations')
+        .where('doctorUid', isEqualTo: doctorUid)
+        .where('patientUid', isEqualTo: patientUid)
+        .get();
+
+    if (query.docs.isNotEmpty) return query.docs.first.id;
+
+    final doctorDoc = await _firestore.collection('users').doc(doctorUid).get();
+    final patientDoc = await _firestore
+        .collection('users')
+        .doc(patientUid)
+        .get();
+
+    final doctorName =
+        (doctorDoc.data()?['fullName'] as String?)?.trim() ?? 'Médecin';
+    final patientName =
+        (patientDoc.data()?['fullName'] as String?)?.trim() ?? 'Patient';
+
+    final ref = await _firestore.collection('conversations').add({
+      'doctorUid': doctorUid,
+      'patientUid': patientUid,
+      'participants': [doctorUid, patientUid],
+      'doctorName': doctorName,
+      'patientName': patientName,
+      'lastMessage': '',
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    return ref.id;
+  }
+
+  Future<void> sendMessage({
+    required String conversationId,
+    required String senderId,
+    required String senderName,
+    required String text,
+  }) async {
+    final batch = _firestore.batch();
+
+    final msgRef = _firestore
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
+        .doc();
+
+    batch.set(msgRef, {
+      'senderId': senderId,
+      'senderName': senderName,
+      'text': text.trim(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    final convRef = _firestore.collection('conversations').doc(conversationId);
+    batch.update(convRef, {
+      'lastMessage': text.trim().length > 60
+          ? '${text.trim().substring(0, 60)}...'
+          : text.trim(),
+      'lastMessageAt': FieldValue.serverTimestamp(),
+    });
+
+    await batch.commit();
+  }
+
+  // ========== NOTES / DIAGNOSIS ==========
+
+  Future<void> saveDoctorNote({
+    required String patientId,
+    required String doctorUid,
+    required String doctorName,
+    required String note,
+    String? measurementId,
+    String? diagnosis,
+  }) async {
+    await _firestore.collection('notes').add({
+      'patientId': patientId,
+      'doctorUid': doctorUid,
+      'doctorName': doctorName,
+      'note': note.trim(),
+      'diagnosis': diagnosis?.trim(),
+      'measurementId': measurementId,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Stream<List<Map<String, dynamic>>> streamPatientNotes(String patientId) {
+    return _firestore
+        .collection('notes')
+        .where('patientId', isEqualTo: patientId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => <String, dynamic>{...doc.data(), 'id': doc.id})
+              .toList(),
+        );
+  }
+
+  Future<List<Map<String, dynamic>>> getPatientNotes(String patientId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('notes')
+          .where('patientId', isEqualTo: patientId)
+          .orderBy('createdAt', descending: true)
+          .get();
+      return snapshot.docs
+          .map((doc) => <String, dynamic>{...doc.data(), 'id': doc.id})
+          .toList();
+    } catch (e) {
+      debugPrint('Erreur récupération notes: $e');
+      return [];
+    }
+  }
+
+  // ========== STATISTICS ==========
+
+  Future<Map<String, dynamic>> getPatientStats(String uid) async {
+    final records = await getMeasurementRecords(uid: uid, limit: 30);
+    if (records.isEmpty) {
+      return {
+        'totalSessions': 0,
+        'avgScore': 0,
+        'avgSpo2': 0,
+        'avgHeartRate': 0,
+        'totalApneas': 0,
+        'lastSession': null,
+      };
+    }
+
+    double totalScore = 0;
+    double totalSpo2 = 0;
+    double totalHR = 0;
+    int totalApneas = 0;
+
+    for (final r in records) {
+      totalScore += (r['score'] as num?)?.toDouble() ?? 0;
+      totalSpo2 += (r['avgSpo2'] ?? r['spo2'] as num?)?.toDouble() ?? 0;
+      totalHR += (r['avgHeartRate'] ?? r['heartRate'] as num?)?.toDouble() ?? 0;
+      totalApneas += (r['apneas'] as num?)?.toInt() ?? 0;
+    }
+
+    final count = records.length;
+    return {
+      'totalSessions': count,
+      'avgScore': (totalScore / count).round(),
+      'avgSpo2': (totalSpo2 / count).toStringAsFixed(1),
+      'avgHeartRate': (totalHR / count).round(),
+      'totalApneas': totalApneas,
+      'lastSession': records.first['timestamp'],
+    };
+  }
+
+  // ========== HELPERS ==========
+
   DateTime? _extractDateTime(dynamic value) {
-    if (value is Timestamp) {
-      return value.toDate();
-    }
-    if (value is DateTime) {
-      return value;
-    }
-    if (value is String) {
-      return DateTime.tryParse(value);
-    }
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
     return null;
   }
 

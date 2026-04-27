@@ -80,6 +80,12 @@ class RouteNames {
       '/doctor-patient-profile/$patientId';
   static String doctorAnalysis(String patientId, String nightDate) =>
       '/doctor-analysis/$patientId/$nightDate';
+    static String meditationDetail(String title) =>
+      '/meditation-detail/${Uri.encodeComponent(title)}';
+    static String videoDetail(String title) =>
+      '/video-detail/${Uri.encodeComponent(title)}';
+    static String articleDetail(String title) =>
+      '/article-detail/${Uri.encodeComponent(title)}';
 }
 
 GoRouter createAppRouter(

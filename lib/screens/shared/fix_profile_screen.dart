@@ -31,7 +31,7 @@ class FixProfileScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: () => context.goNamed(RouteNames.login),
+                onPressed: () => context.go(RouteNames.login),
                 icon: const Icon(Icons.login),
                 label: const Text('Se reconnecter'),
               ),

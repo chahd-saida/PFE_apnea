@@ -83,22 +83,13 @@ class _RelaxationScreenState extends State<RelaxationScreen>
     // Navigate to appropriate detail screen based on type
     switch (type) {
       case 'meditation':
-        context.goNamed(
-          RouteNames.meditationDetailPath,
-          pathParameters: {'title': title},
-        );
+        context.go(RouteNames.meditationDetail(title));
         break;
       case 'video':
-        context.goNamed(
-          RouteNames.videoDetailPath,
-          pathParameters: {'title': title},
-        );
+        context.go(RouteNames.videoDetail(title));
         break;
       case 'article':
-        context.goNamed(
-          RouteNames.articleDetailPath,
-          pathParameters: {'title': title},
-        );
+        context.go(RouteNames.articleDetail(title));
         break;
     }
   }
@@ -140,7 +131,7 @@ class _RelaxationScreenState extends State<RelaxationScreen>
                 subtitle: const Text('Créer une séance sur mesure'),
                 onTap: () {
                   Navigator.pop(context);
-                  context.goNamed(RouteNames.createMeditation);
+                  context.go(RouteNames.createMeditation);
                 },
               ),
               ListTile(
@@ -152,7 +143,7 @@ class _RelaxationScreenState extends State<RelaxationScreen>
                 subtitle: const Text('Ajouter une vidéo apaisante'),
                 onTap: () {
                   Navigator.pop(context);
-                  context.goNamed(RouteNames.addVideo);
+                  context.go(RouteNames.addVideo);
                 },
               ),
               ListTile(
@@ -161,7 +152,7 @@ class _RelaxationScreenState extends State<RelaxationScreen>
                 subtitle: const Text('Partager des conseils'),
                 onTap: () {
                   Navigator.pop(context);
-                  context.goNamed(RouteNames.addArticle);
+                  context.go(RouteNames.addArticle);
                 },
               ),
             ],
@@ -355,19 +346,19 @@ class _RelaxationScreenState extends State<RelaxationScreen>
         onTap: (index) {
           switch (index) {
             case 0:
-              context.goNamed(RouteNames.patientDashboard);
+              context.go(RouteNames.patientDashboard);
               break;
             case 1:
-              context.goNamed(RouteNames.patientHistory);
+              context.go(RouteNames.patientHistory);
               break;
             case 2:
-              context.goNamed(RouteNames.realtimeMonitoring);
+              context.go(RouteNames.realtimeMonitoring);
               break;
             case 3:
-              context.goNamed(RouteNames.relaxation);
+              context.go(RouteNames.relaxation);
               break;
             case 4:
-              context.goNamed(RouteNames.patientSettings);
+              context.go(RouteNames.patientSettings);
               break;
           }
         },

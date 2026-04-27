@@ -56,7 +56,7 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
   }
 
   Future<void> _logout() async {
-    context.pushNamed(RouteNames.logout);
+    context.push(RouteNames.logout);
   }
 
   Future<void> _deleteAccount() async {
@@ -68,7 +68,7 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
     if (!mounted) {
       return;
     }
-    context.goNamed(RouteNames.login);
+    context.go(RouteNames.login);
   }
 
   @override
@@ -159,7 +159,7 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                           title: const Text('Aide et FAQ'),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
-                            context.pushNamed(RouteNames.help);
+                            context.push(RouteNames.help);
                           },
                         ),
                         ListTile(
@@ -167,7 +167,7 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                           title: const Text('Politique de confidentialité'),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
-                            context.pushNamed(RouteNames.privacy);
+                            context.push(RouteNames.privacy);
                           },
                         ),
                         ListTile(
@@ -229,16 +229,16 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
         onTap: (index) {
           switch (index) {
             case 0:
-              context.goNamed(RouteNames.doctorDashboard);
+              context.go(RouteNames.doctorDashboard);
               break;
             case 1:
-              context.goNamed(RouteNames.doctorPatients);
+              context.go(RouteNames.doctorPatients);
               break;
             case 2:
-              context.goNamed(RouteNames.doctorAlerts);
+              context.go(RouteNames.doctorAlerts);
               break;
             case 3:
-              context.goNamed(RouteNames.doctorSettings);
+              context.go(RouteNames.doctorSettings);
               break;
           }
         },

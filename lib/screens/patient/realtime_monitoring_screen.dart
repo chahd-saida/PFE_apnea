@@ -13,6 +13,7 @@ import 'package:apnea_project/providers/theme_provider.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/services/monitoring_service.dart';
+import 'package:apnea_project/services/websocket_service.dart';
 
 class RealtimeMonitoringScreen extends StatefulWidget {
   const RealtimeMonitoringScreen({super.key, this.monitoringService});
@@ -28,6 +29,7 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
     with TickerProviderStateMixin {
   late final MonitoringService _monitoringService;
   final FirebaseService _firebaseService = FirebaseService();
+  final WebSocketService _wsService = WebSocketService();
 
   StreamSubscription<Map<String, dynamic>>? _streamSubscription;
   bool _isMonitoring = false;
@@ -81,8 +83,40 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
     // Start animations
     _startAnimations();
 
-    // Check connection status
-    _checkConnectionStatus();
+    _wsService.onDonnees = (data) {
+      if (!mounted) return;
+      final donnees = data['donnees'] as Map<String, dynamic>?;
+      final ia = data['ia'] as Map<String, dynamic>?;
+
+      if (donnees != null) {
+        setState(() {
+          // Mettre a jour les valeurs affichees
+          final bpm = (donnees['bpm'] as num?)?.toInt() ?? 0;
+          final spo2 = (donnees['spo2'] as num?)?.toInt() ?? 0;
+          final temp = (donnees['temperature'] as num?)?.toDouble() ?? 36.5;
+
+          if (bpm > 0) _heartRates.add(bpm);
+          if (spo2 > 0) _spo2Values.add(spo2);
+          _temperatures.add(temp);
+
+          _isConnected = true;
+
+          // Alarme IA
+          if (ia != null && ia['apnee'] == true) {
+            final sev = ia['severite'] as String? ?? '';
+            if (sev == 'modere' || sev == 'severe') {
+              _addEvent(
+                'Apnee $sev detectee par IA',
+                'critical',
+                Icons.warning,
+              );
+            }
+          }
+        });
+      }
+    };
+
+    _wsService.connecter('patient_01');
   }
 
   void _startAnimations() async {
@@ -102,6 +136,7 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
   void dispose() {
     _streamSubscription?.cancel();
     _graphTimer?.cancel();
+    _wsService.deconnecter();
     _pulseController.dispose();
     _fadeController.dispose();
     _slideController.dispose();
@@ -304,7 +339,7 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
             if (context.canPop()) {
               context.pop();
             } else {
-              context.goNamed(RouteNames.patientDashboard);
+              context.go(RouteNames.patientDashboard);
             }
           },
         ),
@@ -340,7 +375,7 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
-              context.goNamed(RouteNames.patientSettings);
+              context.go(RouteNames.patientSettings);
             },
           ),
         ],
@@ -441,19 +476,19 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
         onTap: (index) {
           switch (index) {
             case 0:
-              context.goNamed(RouteNames.patientDashboard);
+              context.go(RouteNames.patientDashboard);
               break;
             case 1:
-              context.goNamed(RouteNames.patientHistory);
+              context.go(RouteNames.patientHistory);
               break;
             case 2:
-              context.goNamed(RouteNames.realtimeMonitoring);
+              context.go(RouteNames.realtimeMonitoring);
               break;
             case 3:
-              context.goNamed(RouteNames.relaxation);
+              context.go(RouteNames.relaxation);
               break;
             case 4:
-              context.goNamed(RouteNames.patientSettings);
+              context.go(RouteNames.patientSettings);
               break;
           }
         },

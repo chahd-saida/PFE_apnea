@@ -1,0 +1,265 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+
+hide empty members
+
+title Diagramme de classes - Couche presentation, providers, services et modeles
+
+package "Presentation (Flutter UI)" {
+  class LoginScreen {
+    - _firebaseService: FirebaseService
+    - _selectedRole: String?
+    - _isLoading: bool
+    + _login(): Future<void>
+  }
+
+  class AddPatientScreen {
+    - _firebaseService: FirebaseService
+    - _isSaving: bool
+    + _savePatient(): Future<void>
+    + _computeAge(dob: DateTime): int
+  }
+
+  class ExportReportScreen {
+    - _firebaseService: FirebaseService
+    - _pdfReportService: PdfReportService
+    - _selectedDateRange: DateTimeRange?
+    + _generateAndSavePdf(): Future<File?>
+    + _onShare(): Future<void>
+    + _onPreviewPdf(): Future<void>
+  }
+
+  class RealtimeMonitoringScreen
+  class DoctorPatientsListScreen
+  class DoctorAnalysisScreen
+}
+
+package "State Management (Provider)" {
+  class AuthProvider {
+    - _firebaseService: FirebaseService
+    - _auth: FirebaseAuth?
+    - _user: User?
+    - _role: String?
+    - _isLoadingRole: bool
+    + user: User?
+    + role: String?
+    + isLoggedIn: bool
+    + isDoctor: bool
+    + isLoadingRole: bool
+    + clearSession(): void
+    + fetchRole(uid: String): Future<void>
+  }
+
+  class UserProfileProvider {
+    - _firebaseService: FirebaseService
+    - _activeUid: String?
+    - _user: Map<String, dynamic>?
+    - _isLoading: bool
+    - _lastError: String?
+    + user: Map<String, dynamic>?
+    + fullName: String
+    + role: String
+    + doctorUid: String?
+    + bindAuth(authProvider: AuthProvider): void
+    + updateProfile(updates: Map<String, dynamic>): Future<void>
+    + refreshProfile(): Future<void>
+    + clear(): Future<void>
+  }
+
+  class ThemeProvider {
+    - _settingsService: SettingsService
+    - _themeMode: ThemeMode
+    + themeMode: ThemeMode
+    + isDarkMode: bool
+    + loadTheme(): Future<void>
+    + setDarkMode(value: bool): Future<void>
+  }
+}
+
+package "Routing" {
+  class RouteNames {
+    {static} + splash: String
+    {static} + login: String
+    {static} + patientDashboard: String
+    {static} + doctorDashboard: String
+    {static} + doctorAnalysisPath: String
+    {static} + nightDetailPath: String
+    {static} + doctorAnalysis(patientId: String, nightDate: String): String
+  }
+
+  class AppRouterFactory {
+    {static} + createAppRouter(authProvider: AuthProvider, initialLocation: String): GoRouter
+  }
+}
+
+package "Services" {
+  class FirebaseService {
+    - _auth: FirebaseAuth
+    - _firestore: FirebaseFirestore
+    + signIn(email: String, password: String): Future<UserCredential>
+    + signUp(email: String, password: String, userRole: String): Future<UserCredential>
+    + signOut(): Future<void>
+    + registerUser(...): Future<UserCredential>
+    + getUserRole(uid: String): Future<String?>
+    + getUserProfile(uid: String): Future<Map<String, dynamic>?>
+    + addPatient(patient: PatientModel): Future<void>
+    + updateUserProfile(uid: String, data: Map<String, dynamic>): Future<void>
+    + streamUserProfile(uid: String): Stream<Map<String, dynamic>?>
+    + getMeasurementRecords(uid: String, limit: int): Future<List<Map<String, dynamic>>>
+    + streamMeasurementRecords(uid: String, limit: int): Stream<List<Map<String, dynamic>>>
+    + saveMonitoringSession(...): Future<void>
+    + getPatientStats(uid: String): Future<Map<String, dynamic>>
+    + streamDoctorPatients(doctorUid: String): Stream<List<Map<String, dynamic>>>
+    + streamDoctorAlerts(doctorUid: String): Stream<List<Map<String, dynamic>>>
+    + streamConversations(uid: String): Stream<List<Map<String, dynamic>>>
+    + streamMessages(conversationId: String): Stream<List<Map<String, dynamic>>>
+    + getOrCreateConversation(doctorUid: String, patientUid: String): Future<String>
+    + sendMessage(conversationId: String, senderId: String, senderName: String, text: String): Future<void>
+    + saveDoctorNote(...): Future<void>
+    + getPatientNotes(patientId: String): Future<List<Map<String, dynamic>>>
+  }
+
+  enum AlertSeverity {
+    info
+    warning
+    critical
+  }
+
+  class AlertThresholds {
+    {static} + spo2Critical: double
+    {static} + spo2Warning: double
+    {static} + heartRateLow: double
+    {static} + heartRateHigh: double
+    {static} + apneaEventsCritical: int
+    {static} + apneaEventsWarning: int
+  }
+
+  class AlertService {
+    - _firebaseService: FirebaseService
+    + checkAndCreateAlerts(patientId: String, avgSpo2: double, avgHeartRate: double, apneaEvents: int, assignedDoctorId: String?): Future<void>
+    + markAlertAsRead(alertId: String): Future<void>
+    + markAllAlertsAsRead(patientId: String): Future<void>
+    + deleteAlert(alertId: String): Future<void>
+    + streamPatientAlerts(patientId: String): Stream<List<Map<String, dynamic>>>
+    + getSeverityLabel(severity: String): String
+    + getAlertTypeLabel(type: String): String
+  }
+
+  class MonitoringService {
+    - _controller: StreamController<Map<String, dynamic>>
+    - _timer: Timer?
+    + stream: Stream<Map<String, dynamic>>
+    + startMonitoring(): void
+    + stopMonitoring(): void
+    + isMonitoring: bool
+    + dispose(): void
+  }
+
+  class SettingsService {
+    + getDarkMode(): Future<bool>
+    + setDarkMode(value: bool): Future<void>
+    + getNotificationsEnabled(): Future<bool>
+    + setNotificationsEnabled(value: bool): Future<void>
+    + getRemindersEnabled(): Future<bool>
+    + setRemindersEnabled(value: bool): Future<void>
+    + getLanguage(): Future<String>
+    + setLanguage(code: String): Future<void>
+  }
+
+  class PdfReportService {
+    + generatePdfReport(patient: PdfPatient, data: ReportData): Future<Uint8List>
+    + savePdfToLocal(bytes: Uint8List, fileName: String): Future<File>
+    + sharePdf(bytes: Uint8List, fileName: String): Future<void>
+  }
+}
+
+package "Modeles" {
+  class PatientModel as "models.Patient" {
+    + id: String
+    + nom: String
+    + prenom: String
+    + age: int
+    + sexe: String
+    + dateNaissance: DateTime?
+    + telephone: String?
+    + email: String?
+    + notesMedicales: String?
+    + doctorUid: String?
+    + fullName: String
+    + toFirestore(): Map<String, dynamic>
+  }
+
+  class PdfPatient as "pdf.Patient" {
+    + id: String
+    + fullName: String
+    + age: int?
+    + gender: String?
+    + medicalId: String?
+  }
+
+  class ReportData {
+    + doctorName: String
+    + generatedAt: DateTime
+    + patientId: String?
+    + patientFullName: String?
+    + patientAge: int?
+    + patientGender: String?
+    + patientMedicalId: String?
+    + startDate: DateTime?
+    + endDate: DateTime?
+    + averageSpo2: double?
+    + averageHeartRate: double?
+    + totalApneas: int?
+    + totalSessions: int?
+    + measurements: List<Map<String, dynamic>>
+    + notes: List<Map<String, dynamic>>
+    + includeClinicalData: bool
+    + includeSignalGraphs: bool
+    + includeApneaEvents: bool
+    + includeDoctorDiagnosis: bool
+    + includeRecommendations: bool
+  }
+}
+
+' Heritages principaux
+AuthProvider --|> ChangeNotifier
+UserProfileProvider --|> ChangeNotifier
+ThemeProvider --|> ChangeNotifier
+
+' Associations / dependances couche presentation
+LoginScreen ..> AuthProvider : utilise
+LoginScreen ..> FirebaseService : authentifie
+LoginScreen ..> RouteNames : navigation
+
+AddPatientScreen ..> AuthProvider : lit user.uid
+AddPatientScreen ..> FirebaseService : addPatient()
+AddPatientScreen ..> PatientModel : construit
+
+ExportReportScreen ..> AuthProvider : lit user
+ExportReportScreen ..> FirebaseService : lit stats/mesures/notes
+ExportReportScreen ..> PdfReportService : genere/sauvegarde
+ExportReportScreen ..> ReportData : compose
+
+DoctorAnalysisScreen ..> AuthProvider : contexte
+DoctorAnalysisScreen ..> UserProfileProvider : profil
+DoctorAnalysisScreen ..> FirebaseService : mesures/notes
+DoctorPatientsListScreen ..> FirebaseService : streamDoctorPatients()
+RealtimeMonitoringScreen ..> MonitoringService : flux capteurs
+
+' Composition / agregation providers-services
+AuthProvider *-- FirebaseService
+UserProfileProvider *-- FirebaseService
+ThemeProvider *-- SettingsService
+AlertService *-- FirebaseService
+
+' Services -> modeles
+FirebaseService ..> PatientModel : persiste
+PdfReportService ..> PdfPatient
+PdfReportService ..> ReportData
+
+' Router
+AppRouterFactory ..> AuthProvider : refreshListenable
+AppRouterFactory ..> RouteNames
+
+@enduml

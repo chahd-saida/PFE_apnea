@@ -1,0 +1,155 @@
+@startuml
+skinparam shadowing false
+
+title Diagrammes de sequence - Scenarios reels
+
+' ============================================================================
+' Scenario 1 : Connexion + resolution de role + redirection
+' Base reelle: LoginScreen._login(), FirebaseService.signIn(), AuthProvider.fetchRole(), app_router redirect
+' ============================================================================
+
+actor Utilisateur as User
+participant "LoginScreen" as Login
+participant "FirebaseService" as FirebaseService
+participant "Firebase Auth" as FirebaseAuth
+participant "AuthProvider" as AuthProvider
+participant "Cloud Firestore" as Firestore
+participant "GoRouter" as Router
+
+User -> Login : Saisit email, mot de passe, role choisi
+User -> Login : Cliquer sur "Connexion"
+Login -> Login : Validation formulaire
+
+alt Formulaire invalide
+  Login --> User : Affiche erreurs de validation
+else Formulaire valide
+  Login -> FirebaseService : signIn(email, password)
+  FirebaseService -> FirebaseAuth : signInWithEmailAndPassword()
+  FirebaseAuth --> FirebaseService : UserCredential
+  FirebaseService --> Login : UserCredential
+
+  Login -> AuthProvider : fetchRole(user.uid)
+  AuthProvider -> FirebaseService : getUserRole(uid)
+  FirebaseService -> Firestore : users/{uid}.get()
+  Firestore --> FirebaseService : role (doctor|patient|null)
+  FirebaseService --> AuthProvider : role
+  AuthProvider --> Login : role resolu
+
+  alt Role invalide/inconnu
+    Login -> Router : goNamed(fixProfile)
+    Router --> User : Ecran correction profil
+  else Role choisi != role du compte
+    Login -> FirebaseService : signOut()
+    Login -> AuthProvider : clearSession()
+    Login --> User : Erreur "role non correspondant"
+  else Role patient
+    Login -> Router : goNamed(patientDashboard)
+    Router --> User : Dashboard patient
+  else Role medecin
+    Login -> Router : goNamed(doctorDashboard)
+    Router --> User : Dashboard medecin
+  end
+end
+
+newpage
+
+' ============================================================================
+' Scenario 2 : Ajout patient par medecin
+' Base reelle: AddPatientScreen._savePatient(), Patient.toFirestore(), FirebaseService.addPatient()
+' ============================================================================
+
+actor Medecin as Doctor
+participant "AddPatientScreen" as AddPatient
+participant "AuthProvider" as Session
+participant "models.Patient" as PatientModel
+participant "FirebaseService" as Fs
+participant "Cloud Firestore" as Db
+
+Doctor -> AddPatient : Remplit formulaire patient
+Doctor -> AddPatient : Cliquer "Ajouter"
+AddPatient -> AddPatient : _onFormChanged() + validations
+
+alt Donnees invalides
+  AddPatient --> Doctor : Snackbar erreur champs
+else Donnees valides
+  AddPatient -> Session : lire user.uid (doctorUid)
+  alt Session expiree
+    AddPatient --> Doctor : Snackbar "reconnectez-vous"
+  else Session valide
+    AddPatient -> Fs : newDocumentId("users")
+    Fs --> AddPatient : generatedId
+
+    AddPatient -> PatientModel : construire Patient(..., doctorUid)
+    AddPatient -> Fs : addPatient(patient)
+    Fs -> Fs : verifier auth.currentUser
+    Fs -> Fs : verifier patient.doctorUid == currentUser.uid
+    Fs -> PatientModel : toFirestore()
+    PatientModel --> Fs : map patient
+    Fs -> Db : users/{patient.id}.create(map)
+
+    alt Ecriture OK
+      Db --> Fs : success
+      Fs --> AddPatient : success
+      AddPatient --> Doctor : Snackbar succes + pop()
+    else Permission/ref deja existante/autre erreur
+      Db --> Fs : FirebaseException
+      Fs --> AddPatient : exception
+      AddPatient --> Doctor : Snackbar echec detaille
+    end
+  end
+end
+
+newpage
+
+' ============================================================================
+' Scenario 3 : Export et partage de rapport PDF (patient)
+' Base reelle: ExportReportScreen._generateAndSavePdf(), FirebaseService.*, PdfReportService.*
+' ============================================================================
+
+actor Patient as PatientActor
+participant "ExportReportScreen" as Export
+participant "AuthProvider" as Auth
+participant "FirebaseService" as DataService
+participant "Cloud Firestore" as FirestoreDb
+participant "PdfReportService" as PdfService
+participant "Service OS Share" as ShareOS
+
+PatientActor -> Export : Choisit periode/options
+PatientActor -> Export : Cliquer "Telecharger" / "Partager" / "Envoyer"
+Export -> Auth : lire user
+
+alt Utilisateur non connecte
+  Export --> PatientActor : Erreur "session expiree"
+else Utilisateur connecte
+  Export -> DataService : getUserProfile(uid)
+  DataService -> FirestoreDb : users/{uid}.get()
+  FirestoreDb --> DataService : profil
+
+  Export -> DataService : getPatientStats(uid)
+  DataService -> FirestoreDb : measurements.where(uid)
+  FirestoreDb --> DataService : stats calculees
+
+  Export -> DataService : getMeasurementRecords(uid, limit=100)
+  DataService -> FirestoreDb : measurements.where(uid).get()
+  FirestoreDb --> DataService : liste mesures
+
+  Export -> DataService : getPatientNotes(uid)
+  DataService -> FirestoreDb : notes.where(patientId)
+  FirestoreDb --> DataService : liste notes
+
+  Export -> Export : construire ReportData
+  Export -> PdfService : generatePdfReport(patient, reportData)
+  PdfService --> Export : pdfBytes
+  Export -> PdfService : savePdfToLocal(pdfBytes, fileName)
+  PdfService --> Export : file
+
+  alt Action = partage/envoi
+    Export -> ShareOS : shareXFiles(file)
+    ShareOS --> Export : ok
+    Export --> PatientActor : Confirmation partage
+  else Action = telechargement local
+    Export --> PatientActor : Confirmation telechargement
+  end
+end
+
+@enduml

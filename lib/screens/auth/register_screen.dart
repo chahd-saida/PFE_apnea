@@ -137,11 +137,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       // Redirect based on actual role from Firestore
       if (role == 'doctor') {
-        context.goNamed(RouteNames.doctorDashboard);
+        context.go(RouteNames.doctorDashboard);
       } else if (role == 'patient') {
-        context.goNamed(RouteNames.patientDashboard);
+        context.go(RouteNames.patientDashboard);
       } else {
-        context.goNamed(RouteNames.fixProfile);
+        context.go(RouteNames.fixProfile);
       }
     } on FirebaseAuthException catch (e) {
       if (!mounted) {
@@ -368,40 +368,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 15),
 
-                Row(
-                  children: [
-                    const Text('Sexe: '),
-                    Radio<String>(
-                      value: 'H',
-                      groupValue: _selectedGender,
-                      onChanged: (String? value) {
-                        setState(() {
-                          _selectedGender = value;
-                        });
-                      },
-                    ),
-                    const Text('H'),
-                    Radio<String>(
-                      value: 'F',
-                      groupValue: _selectedGender,
-                      onChanged: (String? value) {
-                        setState(() {
-                          _selectedGender = value;
-                        });
-                      },
-                    ),
-                    const Text('F'),
-                    Radio<String>(
-                      value: 'Autre',
-                      groupValue: _selectedGender,
-                      onChanged: (String? value) {
-                        setState(() {
-                          _selectedGender = value;
-                        });
-                      },
-                    ),
-                    const Text('Autre'),
-                  ],
+                RadioGroup<String>(
+                  groupValue: _selectedGender,
+                  onChanged: (String? value) {
+                    setState(() {
+                      _selectedGender = value;
+                    });
+                  },
+                  child: Row(
+                    children: [
+                      const Text('Sexe: '),
+                      const Radio<String>(value: 'H'),
+                      const Text('H'),
+                      const Radio<String>(value: 'F'),
+                      const Text('F'),
+                      const Radio<String>(value: 'Autre'),
+                      const Text('Autre'),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 15),
                 TextFormField(
@@ -599,7 +583,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 10),
                 TextButton(
                   onPressed: () {
-                    context.goNamed(RouteNames.login);
+                    context.go(RouteNames.login);
                   },
                   child: const Text('Déjà un compte ? Se connecter'),
                 ),

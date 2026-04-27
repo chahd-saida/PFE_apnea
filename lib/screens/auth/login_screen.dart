@@ -56,7 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final resolvedRole = authProvider.role;
       if (resolvedRole != 'doctor' && resolvedRole != 'patient') {
-        context.goNamed(RouteNames.fixProfile);
+        context.go(RouteNames.fixProfile);
         return;
       }
 
@@ -69,9 +69,9 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       if (resolvedRole == 'doctor') {
-        context.goNamed(RouteNames.doctorDashboard);
+        context.go(RouteNames.doctorDashboard);
       } else {
-        context.goNamed(RouteNames.patientDashboard);
+        context.go(RouteNames.patientDashboard);
       }
     } on FirebaseAuthException catch (e) {
       if (!mounted) {
@@ -335,13 +335,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     TextButton(
                       onPressed: () {
-                        context.pushNamed(RouteNames.register);
+                        context.push(RouteNames.register);
                       },
                       child: const Text('S\'inscrire'),
                     ),
                     TextButton(
                       onPressed: () {
-                        context.pushNamed(RouteNames.forgotPassword);
+                        context.push(RouteNames.forgotPassword);
                       },
                       child: const Text('Mot de passe oublié?'),
                     ),

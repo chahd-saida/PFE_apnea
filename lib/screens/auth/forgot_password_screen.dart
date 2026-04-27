@@ -33,7 +33,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             content: Text('Lien de réinitialisation envoyé à votre email.'),
           ),
         );
-        context.goNamed(RouteNames.login); // Go back to login screen
+        context.go(RouteNames.login); // Go back to login screen
       } on FirebaseAuthException catch (e) {
         if (!mounted) {
           return;
@@ -107,7 +107,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 const SizedBox(height: 10),
                 TextButton(
                   onPressed: () {
-                    context.goNamed(RouteNames.login);
+                    context.go(RouteNames.login);
                   },
                   child: const Text('← Retour au login'),
                 ),

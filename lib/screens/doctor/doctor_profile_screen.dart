@@ -136,7 +136,7 @@ class DoctorProfileScreen extends StatelessWidget {
         appBar: AppBar(title: const Text('Profil Médecin')),
         body: Center(
           child: ElevatedButton(
-            onPressed: () => context.goNamed(RouteNames.accessDenied),
+            onPressed: () => context.go(RouteNames.accessDenied),
             child: const Text('Accès refusé'),
           ),
         ),

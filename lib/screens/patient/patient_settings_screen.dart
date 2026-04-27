@@ -89,7 +89,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
   }
 
   Future<void> _logout() async {
-    context.pushNamed(RouteNames.logout);
+    context.push(RouteNames.logout);
   }
 
   Future<void> _deleteAccount() async {
@@ -101,7 +101,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
     if (!mounted) {
       return;
     }
-    context.goNamed(RouteNames.login);
+    context.go(RouteNames.login);
   }
 
   String? _validatePassword(String value) {
@@ -214,7 +214,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                           title: const Text('Modifier profil'),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
-                            context.pushNamed(RouteNames.patientProfile);
+                            context.push(RouteNames.patientProfile);
                           },
                         ),
                         ListTile(
@@ -324,7 +324,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                           title: const Text('Centre d\'alertes'),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
-                            context.pushNamed(RouteNames.patientAlerts);
+                            context.push(RouteNames.patientAlerts);
                           },
                         ),
                         SwitchListTile(
@@ -359,7 +359,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                           title: const Text('Gérer appareils'),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
-                            context.pushNamed(RouteNames.patientDevices);
+                            context.push(RouteNames.patientDevices);
                           },
                         ),
                         ListTile(
@@ -367,7 +367,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                           title: const Text('Guide de connexion'),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
-                            context.pushNamed(RouteNames.help);
+                            context.push(RouteNames.help);
                           },
                         ),
                       ],
@@ -449,7 +449,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                           title: const Text('Aide et FAQ'),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
-                            context.pushNamed(RouteNames.help);
+                            context.push(RouteNames.help);
                           },
                         ),
                         ListTile(
@@ -457,7 +457,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                           title: const Text('Politique de confidentialité'),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
-                            context.pushNamed(RouteNames.privacy);
+                            context.push(RouteNames.privacy);
                           },
                         ),
                         ListTile(
@@ -523,19 +523,19 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
         onTap: (index) {
           switch (index) {
             case 0:
-              context.goNamed(RouteNames.patientDashboard);
+              context.go(RouteNames.patientDashboard);
               break;
             case 1:
-              context.goNamed(RouteNames.patientHistory);
+              context.go(RouteNames.patientHistory);
               break;
             case 2:
-              context.goNamed(RouteNames.realtimeMonitoring);
+              context.go(RouteNames.realtimeMonitoring);
               break;
             case 3:
-              context.goNamed(RouteNames.relaxation);
+              context.go(RouteNames.relaxation);
               break;
             case 4:
-              context.goNamed(RouteNames.patientSettings);
+              context.go(RouteNames.patientSettings);
               break;
           }
         },

@@ -1,0 +1,134 @@
+@startuml
+title Diagramme d'activite global - Parcours Medecin et generation de rapport
+
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #F9FBFF
+  BorderColor #2F4F6F
+  ArrowColor #2F4F6F
+  DiamondBackgroundColor #FFF7E6
+  DiamondBorderColor #C28B2C
+  StartColor #2E8B57
+  EndColor #B22222
+}
+
+start
+
+:Utilisateur lance l'application;
+:Systeme initialise Flutter + Firebase;
+:Afficher SplashScreen;
+
+if (Utilisateur authentifie ?) then (non)
+  :Afficher LoginScreen;
+  :Saisie email / mot de passe / role;
+  :Validation formulaire;
+
+  if (Identifiants valides ?) then (oui)
+    :FirebaseService.signIn();
+    :AuthProvider.fetchRole(uid);
+  else (non)
+    :Afficher erreur de connexion;
+    repeat
+      :Nouvelle tentative de connexion;
+      :Saisie des informations;
+      :Validation + signIn;
+    repeat while (Connexion echouee ?) is (oui)
+    :AuthProvider.fetchRole(uid);
+  endif
+else (oui)
+  :AuthProvider restaure session;
+  :AuthProvider.fetchRole(uid) si necessaire;
+endif
+
+if (Role = medecin ?) then (oui)
+  :GoRouter redirige vers Dashboard medecin;
+else (non)
+  :Redirection vers ecran non medecin\n(patient dashboard / access denied / fix profile);
+  stop
+endif
+
+:Dashboard medecin;
+:Choisir module "Patients";
+:Afficher liste patients (stream Firestore);
+
+repeat
+  if (Action = Ajouter patient ?) then (oui)
+    :Ouvrir AddPatientScreen;
+    :Saisir informations patient;
+    :Valider formulaire;
+
+    if (Formulaire valide ET session valide ?) then (oui)
+      :Construire objet Patient;
+      :FirebaseService.addPatient();
+
+      if (Creation Firestore reussie ?) then (oui)
+        :Afficher confirmation;
+      else (non)
+        :Afficher erreur (permission / duplicate / autre);
+      endif
+    else (non)
+      :Afficher erreurs de saisie ou session;
+    endif
+
+    :Rafraichir liste patients;
+  endif
+
+  :Selectionner un patient dans la liste;
+  :Afficher profil patient;
+
+  if (Analyser une nuit ?) then (oui)
+    :Ouvrir ecran d'analyse (DoctorAnalysisScreen);
+    :Consulter mesures + notes;
+    if (Ajouter note/diagnostic ?) then (oui)
+      :FirebaseService.saveDoctorNote();
+    endif
+  endif
+
+  if (Generer rapport ?) then (oui)
+    :Ouvrir module rapports/export;
+
+    fork
+      :Charger profil patient;
+    fork again
+      :Charger statistiques patient;
+    fork again
+      :Charger mesures (periode selectionnee);
+    fork again
+      :Charger notes cliniques;
+    end fork
+
+    :Composer ReportData;
+    :PdfReportService.generatePdfReport();
+
+    if (PDF genere avec succes ?) then (oui)
+      :PdfReportService.savePdfToLocal();
+
+      if (Exporter / partager ?) then (oui)
+        :Choisir canal (partage, envoi);
+        :shareXFiles / Printing;
+        :Afficher confirmation export/partage;
+      else (non)
+        :Conserver rapport localement;
+      endif
+    else (non)
+      :Afficher erreur generation PDF;
+    endif
+  endif
+
+repeat while (Traiter un autre patient ?) is (oui)
+
+:Retour tableau de bord medecin;
+:Fin du processus de gestion/rapport;
+stop
+
+' Notes de coherence
+note right
+  Logique alignee sur :
+  - app_router.dart (auth + role-based routing)
+  - add_patient_screen.dart (creation patient)
+  - doctor_patients_list_screen.dart (selection patient)
+  - doctor_analysis_screen.dart (analyse + notes)
+  - export_report_screen.dart + pdf_report_service.dart
+end note
+
+@enduml

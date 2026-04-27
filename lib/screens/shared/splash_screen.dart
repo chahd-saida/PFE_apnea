@@ -33,7 +33,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final role = auth.role;
 
     if (!isLoggedIn) {
-      context.goNamed(RouteNames.login);
+      context.go(RouteNames.login);
       return;
     }
     if (isLoadingRole) {
@@ -41,14 +41,14 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
     if (role == 'doctor') {
-      context.goNamed(RouteNames.doctorDashboard);
+      context.go(RouteNames.doctorDashboard);
       return;
     }
     if (role == 'patient') {
-      context.goNamed(RouteNames.patientDashboard);
+      context.go(RouteNames.patientDashboard);
       return;
     }
-    context.goNamed(RouteNames.fixProfile);
+    context.go(RouteNames.fixProfile);
   }
 
   @override

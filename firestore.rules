@@ -9,9 +9,17 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isDoctor() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor';
+    }
+
     function isAssignedDoctor(patientId) {
       return isSignedIn()
-        && exists(/databases/$(database)/documents/doctors/$(request.auth.uid)/patients/$(patientId));
+        && exists(/databases/$(database)/documents/users/$(patientId))
+        && get(/databases/$(database)/documents/users/$(patientId)).data.role == 'patient'
+        && get(/databases/$(database)/documents/users/$(patientId)).data.doctorUid == request.auth.uid;
     }
 
     function isPatientAlert(alertData) {
@@ -49,9 +57,21 @@ service cloud.firestore {
     // User profile document: user can create and manage only their own profile.
     match /users/{userId} {
       allow create: if isSelf(userId)
-        && request.resource.data.role is string;
+        && request.resource.data.role is string
+        || (
+          isSignedIn()
+          && request.resource.data.role == 'patient'
+          && request.resource.data.doctorUid == request.auth.uid
+        );
 
-      allow read, update, delete: if isSelf(userId);
+      allow read, update: if isSelf(userId)
+        || (
+          isSignedIn()
+          && resource.data.role == 'patient'
+          && resource.data.doctorUid == request.auth.uid
+        );
+
+      allow delete: if isSelf(userId);
     }
 
     // Measurements: patient can access own records, assigned doctor can read.

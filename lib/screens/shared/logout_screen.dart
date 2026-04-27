@@ -31,7 +31,7 @@ class _LogoutScreenState extends State<LogoutScreen> {
       return;
     }
     context.read<AuthProvider>().clearSession();
-    context.goNamed(RouteNames.login);
+    context.go(RouteNames.login);
   }
 
   @override
