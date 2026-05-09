@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:apnea_project/router/app_router.dart';
+import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
 
 class DoctorPatientProfileScreen extends StatelessWidget {
   const DoctorPatientProfileScreen({super.key, required this.patientId});
@@ -72,12 +74,14 @@ class DoctorPatientProfileScreen extends StatelessWidget {
             body: const Center(
               child: Text('Erreur chargement profil patient.'),
             ),
+            floatingActionButton: const DoctorChatbotFAB(),
           );
         }
         if (!userSnapshot.hasData) {
           return Scaffold(
             appBar: AppBar(title: const Text('Profil Patient')),
             body: const Center(child: CircularProgressIndicator()),
+            floatingActionButton: const DoctorChatbotFAB(),
           );
         }
 
@@ -119,7 +123,7 @@ class DoctorPatientProfileScreen extends StatelessWidget {
                       ),
                       Text(
                         age != null ? 'Age: $age ans' : 'Age: Non renseigné',
-                        style: const TextStyle(color: Colors.grey),
+                        style: const TextStyle(color: AppColors.textMedium),
                       ),
                     ],
                   ),
@@ -191,6 +195,7 @@ class DoctorPatientProfileScreen extends StatelessWidget {
               ],
             ),
           ),
+          floatingActionButton: const DoctorChatbotFAB(),
         );
       },
     );

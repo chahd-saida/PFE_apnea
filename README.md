@@ -44,3 +44,5 @@ All Firestore reads/writes are routed through `FirebaseService`.
 3. Add provider state only if shared across multiple screens.
 4. Register a route in `createRouter(...)` in `main.dart`.
 5. Add/update widget tests for route behavior or primary interactions.
+"# MyappPfe" 
+"# MyappPfe" 

@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:apnea_project/models/patient.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
 
 class AddPatientScreen extends StatefulWidget {
   const AddPatientScreen({super.key});
@@ -115,7 +117,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Veuillez corriger les champs invalides.'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -126,7 +128,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Session expirée. Reconnectez-vous.'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -162,7 +164,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Patient ajouté avec succès.'),
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.success,
         ),
       );
       Navigator.of(context).pop();
@@ -182,7 +184,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Échec de sauvegarde: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
     } finally {
@@ -347,6 +349,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
           ),
         ),
       ),
+      floatingActionButton: const DoctorChatbotFAB(),
     );
   }
 }

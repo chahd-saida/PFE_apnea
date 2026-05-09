@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:apnea_project/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:apnea_project/providers/locale_provider.dart';
 import 'package:apnea_project/providers/theme_provider.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/services/settings_service.dart';
+import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
 
 class DoctorSettingsScreen extends StatefulWidget {
   const DoctorSettingsScreen({super.key});
@@ -18,7 +22,6 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
   final SettingsService _settingsService = SettingsService();
   final FirebaseService _firebaseService = FirebaseService();
   bool _isLoading = true;
-  String _language = 'fr';
   bool _notificationsEnabled = true;
 
   @override
@@ -28,14 +31,12 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
   }
 
   Future<void> _loadSettings() async {
-    final language = await _settingsService.getLanguage();
     final notificationsEnabled = await _settingsService
         .getNotificationsEnabled();
     if (!mounted) {
       return;
     }
     setState(() {
-      _language = language;
       _notificationsEnabled = notificationsEnabled;
       _isLoading = false;
     });
@@ -46,13 +47,7 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
   }
 
   Future<void> _onLanguageChanged(String code) async {
-    await _settingsService.setLanguage(code);
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _language = code;
-    });
+    await context.read<LocaleProvider>().setLocaleCode(code);
   }
 
   Future<void> _logout() async {
@@ -74,9 +69,17 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
+    final localeProvider = context.watch<LocaleProvider>();
+    final l10n = AppLocalizations.of(context)!;
+    final languageCode = localeProvider.languageCode;
+    final languageName = switch (languageCode) {
+      'en' => l10n.languageEnglish,
+      'ar' => l10n.languageArabic,
+      _ => l10n.languageFrench,
+    };
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Paramètres')),
+      appBar: AppBar(title: Text(l10n.settingsTitle)),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -84,9 +87,9 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '⚙️ Préférences de l\'application',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  Text(
+                    l10n.appPreferencesTitle,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 10),
                   Card(
@@ -95,20 +98,22 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                       children: [
                         ListTile(
                           leading: const Icon(Icons.language),
-                          title: const Text('Langue'),
-                          subtitle: Text(
-                            _language == 'fr' ? 'Français' : _language,
-                          ),
+                          title: Text(l10n.languageLabel),
+                          subtitle: Text(languageName),
                           trailing: DropdownButton<String>(
-                            value: _language,
-                            items: const [
+                            value: languageCode,
+                            items: [
                               DropdownMenuItem(
                                 value: 'fr',
-                                child: Text('Français'),
+                                child: Text(l10n.languageFrench),
                               ),
                               DropdownMenuItem(
                                 value: 'en',
-                                child: Text('English'),
+                                child: Text(l10n.languageEnglish),
+                              ),
+                              DropdownMenuItem(
+                                value: 'ar',
+                                child: Text(l10n.languageArabic),
                               ),
                             ],
                             onChanged: (value) {
@@ -120,14 +125,14 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                           ),
                         ),
                         SwitchListTile(
-                          title: const Text('Mode sombre'),
+                          title: Text(l10n.darkModeLabel),
                           value: themeProvider.isDarkMode,
                           onChanged: (bool value) {
                             _onDarkModeChanged(value);
                           },
                         ),
                         SwitchListTile(
-                          title: const Text('Notifications'),
+                          title: Text(l10n.notificationsLabel),
                           value: _notificationsEnabled,
                           onChanged: (value) async {
                             await _settingsService.setNotificationsEnabled(
@@ -145,9 +150,9 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  const Text(
-                    'ℹ️ Informations et Support',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  Text(
+                    l10n.infoSupportTitle,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 10),
                   Card(
@@ -156,7 +161,7 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                       children: [
                         ListTile(
                           leading: const Icon(Icons.help_outline),
-                          title: const Text('Aide et FAQ'),
+                          title: Text(l10n.helpFaqLabel),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
                             context.push(RouteNames.help);
@@ -164,7 +169,7 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                         ),
                         ListTile(
                           leading: const Icon(Icons.privacy_tip_outlined),
-                          title: const Text('Politique de confidentialité'),
+                          title: Text(l10n.privacyPolicyLabel),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
                             context.push(RouteNames.privacy);
@@ -172,12 +177,12 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                         ),
                         ListTile(
                           leading: const Icon(Icons.info_outline),
-                          title: const Text('À propos'),
+                          title: Text(l10n.aboutLabel),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Page À propos en préparation.'),
+                              SnackBar(
+                                content: Text(l10n.aboutInProgressMessage),
                               ),
                             );
                           },
@@ -192,9 +197,9 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                         ElevatedButton.icon(
                           onPressed: _logout,
                           icon: const Icon(Icons.logout),
-                          label: const Text('Déconnexion'),
+                          label: Text(l10n.logoutLabel),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
+                            backgroundColor: AppColors.error,
                             minimumSize: const Size(200, 50),
                           ),
                         ),
@@ -202,7 +207,7 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                         OutlinedButton.icon(
                           onPressed: _deleteAccount,
                           icon: const Icon(Icons.delete_forever),
-                          label: const Text('Supprimer compte'),
+                          label: Text(l10n.deleteAccountLabel),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size(200, 50),
                           ),
@@ -214,16 +219,26 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                 ],
               ),
             ),
+      floatingActionButton: const DoctorChatbotFAB(),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Patients'),
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.notifications_active),
-            label: 'Alertes',
+            icon: const Icon(Icons.home),
+            label: l10n.homeLabel,
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Param.'),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.people),
+            label: l10n.patientsLabel,
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.notifications_active),
+            label: l10n.alertsLabel,
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.settings),
+            label: l10n.settingsShortLabel,
+          ),
         ],
         currentIndex: 3,
         onTap: (index) {

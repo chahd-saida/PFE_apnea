@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:apnea_project/l10n/app_localizations.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/theme/app_dimensions.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,6 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isPasswordVisible = false;
 
   Future<void> _login() async {
+    final l10n = AppLocalizations.of(context)!;
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -41,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final User? user = userCredential.user;
       if (user == null) {
-        throw StateError('Erreur de connexion');
+        throw StateError(l10n.loginErrorGeneric);
       }
 
       if (!mounted) {
@@ -63,8 +67,12 @@ class _LoginScreenState extends State<LoginScreen> {
       if (_selectedRole != null && _selectedRole != resolvedRole) {
         await _firebaseService.signOut();
         authProvider.clearSession();
+
+        final resolvedRoleLabel = resolvedRole == 'doctor'
+            ? l10n.roleDoctor
+            : l10n.rolePatient;
         throw StateError(
-          'Le rôle sélectionné ne correspond pas à ce compte (${resolvedRole == 'doctor' ? 'Médecin' : 'Patient'}).',
+          l10n.roleMismatchError(resolvedRoleLabel),
         );
       }
 
@@ -77,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) {
         return;
       }
-      final message = _mapAuthError(e);
+      final message = _mapAuthError(AppLocalizations.of(context)!, e);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
@@ -93,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Une erreur inattendue est survenue')),
+        SnackBar(content: Text(AppLocalizations.of(context)!.unexpectedError)),
       );
     } finally {
       if (mounted) {
@@ -104,21 +112,21 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  String _mapAuthError(FirebaseAuthException e) {
+  String _mapAuthError(AppLocalizations l10n, FirebaseAuthException e) {
     switch (e.code) {
       case 'user-not-found':
-        return 'Aucun compte trouvé avec cet email.';
+        return l10n.loginUserNotFound;
       case 'wrong-password':
       case 'invalid-credential':
-        return 'Email ou mot de passe incorrect.';
+        return l10n.loginWrongCredentials;
       case 'invalid-email':
-        return 'Email invalide.';
+        return l10n.loginInvalidEmail;
       case 'operation-not-allowed':
       case 'configuration-not-found':
       case 'CONFIGURATION_NOT_FOUND':
-        return 'Firebase Auth n\'est pas configuré (active Email/Mot de passe dans Firebase Console > Authentication > Sign-in method).';
+        return l10n.firebaseAuthNotConfigured;
       default:
-        return e.message ?? 'Erreur de connexion';
+        return e.message ?? l10n.loginErrorGeneric;
     }
   }
 
@@ -132,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final theme = Theme.of(context);
 
     return InkWell(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
       onTap: () {
         setState(() {
           _selectedRole = value;
@@ -146,7 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
           color: isSelected
               ? theme.colorScheme.primary.withValues(alpha: 0.12)
               : theme.cardColor,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
           border: Border.all(
             color: isSelected ? theme.colorScheme.primary : theme.dividerColor,
             width: isSelected ? 2 : 1,
@@ -186,8 +194,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Connexion')),
+      appBar: AppBar(title: Text(l10n.loginTitle)),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -196,17 +206,17 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.local_hospital, size: 80, color: Colors.blue),
+                const Icon(Icons.local_hospital, size: 80, color: AppColors.primary),
                 const SizedBox(height: 20),
-                const Text(
-                  'SleepApnea Detect',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                Text(
+                  l10n.appTitle,
+                  style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 30),
                 FormField<String>(
                   validator: (_) {
                     if (_selectedRole == null) {
-                      return 'Veuillez sélectionner un rôle';
+                      return l10n.roleRequiredError;
                     }
                     return null;
                   },
@@ -214,9 +224,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Rôle :',
-                          style: TextStyle(fontWeight: FontWeight.w600),
+                        Text(
+                          l10n.roleLabel,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 8),
                         Row(
@@ -225,7 +235,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: _buildRoleCard(
                                 fieldState: state,
                                 value: 'patient',
-                                label: 'Patient',
+                                label: l10n.rolePatient,
                                 icon: Icons.person,
                               ),
                             ),
@@ -234,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: _buildRoleCard(
                                 fieldState: state,
                                 value: 'doctor',
-                                label: 'Médecin',
+                                label: l10n.roleDoctor,
                                 icon: Icons.local_hospital,
                               ),
                             ),
@@ -258,16 +268,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email),
+                  decoration: InputDecoration(
+                    labelText: l10n.emailLabel,
+                    prefixIcon: const Icon(Icons.email),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Veuillez entrer votre email';
+                      return l10n.emailRequiredError;
                     }
                     if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                      return 'Veuillez entrer un email valide';
+                      return l10n.emailInvalidError;
                     }
                     return null;
                   },
@@ -278,7 +288,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: _passwordController,
                   obscureText: !_isPasswordVisible,
                   decoration: InputDecoration(
-                    labelText: 'Mot de passe',
+                    labelText: l10n.passwordLabel,
                     prefixIcon: const Icon(Icons.lock),
                     suffixIcon: IconButton(
                       icon: Icon(
@@ -286,6 +296,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ? Icons.visibility_off
                             : Icons.visibility,
                       ),
+                      tooltip: _isPasswordVisible
+                          ? l10n.hidePasswordTooltip
+                          : l10n.showPasswordTooltip,
                       onPressed: () {
                         setState(() {
                           _isPasswordVisible = !_isPasswordVisible;
@@ -295,10 +308,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Veuillez entrer votre mot de passe';
+                      return l10n.passwordRequiredError;
                     }
                     if (value.length < 6) {
-                      return 'Le mot de passe doit contenir au moins 6 caractères';
+                      return l10n.passwordMin6Error;
                     }
                     return null;
                   },
@@ -308,26 +321,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     ? const CircularProgressIndicator()
                     : ElevatedButton(
                         onPressed: _login,
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 50),
-                        ),
-                        child: const Text(
-                          'Se connecter',
-                          style: TextStyle(fontSize: 18),
-                        ),
+                        child: Text(l10n.loginButton),
                       ),
                 const SizedBox(height: 10),
                 TextButton(
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Connexion biométrique bientôt disponible.',
-                        ),
-                      ),
+                      SnackBar(content: Text(l10n.biometricSoonMessage)),
                     );
                   },
-                  child: const Text('Connexion biométrique'),
+                  child: Text(l10n.biometricLoginLabel),
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -337,13 +340,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: () {
                         context.push(RouteNames.register);
                       },
-                      child: const Text('S\'inscrire'),
+                      child: Text(l10n.signUpButton),
                     ),
                     TextButton(
                       onPressed: () {
                         context.push(RouteNames.forgotPassword);
                       },
-                      child: const Text('Mot de passe oublié?'),
+                      child: Text(l10n.forgotPasswordButton),
                     ),
                   ],
                 ),

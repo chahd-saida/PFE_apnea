@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:apnea_project/l10n/app_localizations.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
+import 'package:apnea_project/theme/app_colors.dart';
 
 class AccessDeniedScreen extends StatelessWidget {
   const AccessDeniedScreen({super.key});
@@ -15,26 +17,27 @@ class AccessDeniedScreen extends StatelessWidget {
         ? RouteNames.doctorDashboard
         : RouteNames.patientDashboard;
 
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Acces refuse')),
+      appBar: AppBar(title: Text(l10n.accessDeniedTitle)),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.lock_outline, size: 72, color: Colors.red),
+              const Icon(Icons.lock_outline, size: 72, color: AppColors.error),
               const SizedBox(height: 12),
-              const Text(
-                'Vous n\'avez pas l\'autorisation d\'acceder a cette page.',
+              Text(
+                l10n.accessDeniedMessage,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16),
+                style: Theme.of(context).textTheme.bodyLarge,
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: () => context.go(homeRoute),
                 icon: const Icon(Icons.home),
-                label: const Text('Retour a l\'accueil'),
+                label: Text(l10n.backToHomeButton),
               ),
             ],
           ),

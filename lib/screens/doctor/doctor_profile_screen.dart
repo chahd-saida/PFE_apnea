@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
+import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
 
 class DoctorProfileScreen extends StatelessWidget {
   const DoctorProfileScreen({super.key});
@@ -167,7 +169,7 @@ class DoctorProfileScreen extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: 52,
-                    backgroundColor: Colors.blue.shade100,
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                     backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
                         ? NetworkImage(photoUrl)
                         : null,
@@ -175,7 +177,7 @@ class DoctorProfileScreen extends StatelessWidget {
                         ? const Icon(
                             Icons.local_hospital,
                             size: 56,
-                            color: Colors.blue,
+                            color: AppColors.primary,
                           )
                         : null,
                   ),
@@ -190,7 +192,7 @@ class DoctorProfileScreen extends StatelessWidget {
                   ),
                   const Text(
                     'Médecin / Doctor',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                    style: TextStyle(fontSize: 16, color: AppColors.textMedium),
                   ),
                 ],
               ),
@@ -253,6 +255,7 @@ class DoctorProfileScreen extends StatelessWidget {
           ],
         ),
       ),
+      floatingActionButton: const DoctorChatbotFAB(),
     );
   }
 }

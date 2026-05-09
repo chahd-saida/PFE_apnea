@@ -354,7 +354,9 @@ class FirebaseService {
         .snapshots()
         .map((snapshot) {
           final items = snapshot.docs
-              .map((doc) => <String, dynamic>{...doc.data(), 'id': doc.id})
+              .map(
+                (doc) => <String, dynamic>{...doc.data(), 'id': doc.id},
+              ) // ← 'id' ajouté
               .toList();
           items.sort((a, b) {
             final at = _extractDateTime(a['timestamp']);
@@ -406,11 +408,12 @@ class FirebaseService {
           .collection('measurements')
           .doc(measurementId)
           .get();
+      debugPrint('📄 getMeasurementById($measurementId) exists=${doc.exists}');
       if (!doc.exists) return null;
       return <String, dynamic>{...?doc.data(), 'id': doc.id};
     } catch (e) {
-      debugPrint('Erreur récupération mesure: $e');
-      return null;
+      debugPrint('❌ getMeasurementById error: $e');
+      rethrow; // ← remonte l'erreur → FutureBuilder.hasError → message d'erreur affiché
     }
   }
 
@@ -421,24 +424,29 @@ class FirebaseService {
     required double averageHeartRate,
     required double averageSpo2,
   }) async {
-    final durationMinutes = endTime.difference(startTime).inMinutes;
-    final score = _computeSleepScore(
-      averageSpo2: averageSpo2,
-      averageHeartRate: averageHeartRate,
-    );
-    await _firestore.collection('measurements').add({
-      'uid': uid,
-      'timestamp': endTime,
-      'startTime': startTime,
-      'endTime': endTime,
-      'durationMinutes': durationMinutes,
-      'avgHeartRate': averageHeartRate,
-      'avgSpo2': averageSpo2,
-      'heartRate': averageHeartRate.round(),
-      'spo2': averageSpo2.round(),
-      'score': score,
-      'apneas': 0,
-    });
+    try {
+      final durationMinutes = endTime.difference(startTime).inMinutes;
+      final score = _computeSleepScore(
+        averageSpo2: averageSpo2,
+        averageHeartRate: averageHeartRate,
+      );
+      await _firestore.collection('measurements').add({
+        'uid': uid,
+        'timestamp': Timestamp.fromDate(endTime), // ← fix: Timestamp
+        'startTime': Timestamp.fromDate(startTime), // ← fix: Timestamp
+        'endTime': Timestamp.fromDate(endTime), // ← fix: Timestamp
+        'durationMinutes': durationMinutes,
+        'avgHeartRate': averageHeartRate,
+        'avgSpo2': averageSpo2,
+        'heartRate': averageHeartRate.round(),
+        'spo2': averageSpo2.round(),
+        'score': score,
+        'apneas': 0,
+      });
+    } catch (e) {
+      debugPrint('❌ saveMonitoringSession error: $e');
+      rethrow; // remonte l'erreur pour la voir dans les logs
+    }
   }
 
   Stream<List<Map<String, dynamic>>> streamDoctorAlerts(String doctorUid) {

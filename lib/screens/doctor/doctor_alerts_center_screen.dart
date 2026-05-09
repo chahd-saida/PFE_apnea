@@ -6,7 +6,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
+import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
 import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/theme/app_colors.dart';
 
 class DoctorAlertsCenterScreen extends StatelessWidget {
   const DoctorAlertsCenterScreen({super.key});
@@ -61,7 +63,7 @@ class DoctorAlertsCenterScreen extends StatelessWidget {
                 if (snapshot.hasError) {
                   return const Text(
                     'Erreur chargement alertes.',
-                    style: TextStyle(color: Colors.red),
+                    style: TextStyle(color: AppColors.error),
                   );
                 }
                 if (!snapshot.hasData) {
@@ -84,7 +86,7 @@ class DoctorAlertsCenterScreen extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.red,
+                        color: AppColors.error,
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -99,7 +101,7 @@ class DoctorAlertsCenterScreen extends StatelessWidget {
                       return Card(
                         elevation: 2,
                         child: ListTile(
-                          leading: const Icon(Icons.warning, color: Colors.red),
+                          leading: const Icon(Icons.warning, color: AppColors.error),
                           title: Text(
                             '🚨 ${patientName?.isNotEmpty == true ? patientName : 'Patient inconnu'}',
                           ),
@@ -216,6 +218,7 @@ class DoctorAlertsCenterScreen extends StatelessWidget {
           ],
         ),
       ),
+      floatingActionButton: const DoctorChatbotFAB(),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         items: const [

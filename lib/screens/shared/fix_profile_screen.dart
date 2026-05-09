@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:apnea_project/router/app_router.dart';
+import 'package:apnea_project/theme/app_colors.dart';
 
 class FixProfileScreen extends StatelessWidget {
   const FixProfileScreen({super.key});
@@ -17,7 +18,7 @@ class FixProfileScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.orange),
+              const Icon(Icons.error_outline, size: 64, color: AppColors.warning),
               const SizedBox(height: 16),
               const Text(
                 'Votre profil est incomplet ou votre role est introuvable.',

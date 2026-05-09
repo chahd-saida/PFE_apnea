@@ -4,8 +4,11 @@ import 'package:apnea_project/router/app_router.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'package:apnea_project/l10n/app_localizations.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/widgets/patient_chatbot_fab.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -45,8 +48,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Historique des Nuits')),
+      appBar: AppBar(title: Text(l10n.historyTitle)),
       body: Column(
         children: [
           Padding(
@@ -55,7 +60,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               children: [
                 TextField(
                   decoration: InputDecoration(
-                    labelText: 'Rechercher...',
+                    labelText: l10n.searchHint,
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8.0),
@@ -65,16 +70,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: DropdownButton<String>(
-                    value: 'Toutes',
+                    value: l10n.filterAll,
                     onChanged: (String? newValue) {},
-                    items: <String>['Toutes', 'Bonnes', 'Moyennes', 'Mauvaises']
-                        .map<DropdownMenuItem<String>>((String value) {
+                    items:
+                        <String>[
+                          l10n.filterAll,
+                          l10n.filterGood,
+                          l10n.filterFair,
+                          l10n.filterBad,
+                        ].map<DropdownMenuItem<String>>((String value) {
                           return DropdownMenuItem<String>(
                             value: value,
                             child: Text('Filtre: $value'),
                           );
-                        })
-                        .toList(),
+                        }).toList(),
                   ),
                 ),
               ],
@@ -85,10 +94,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
               future: _historyFuture,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return const Center(
+                  return Center(
                     child: Text(
-                      'Impossible de charger l\'historique.',
-                      style: TextStyle(color: Colors.red),
+                      l10n.historyLoadError,
+                      style: const TextStyle(color: AppColors.error),
                     ),
                   );
                 }
@@ -101,13 +110,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   return RefreshIndicator(
                     onRefresh: _refreshHistory,
                     child: ListView(
-                      children: const [
-                        SizedBox(height: 120),
+                      children: [
+                        const SizedBox(height: 120),
                         Center(
                           child: Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 24.0),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24.0,
+                            ),
                             child: Text(
-                              'Aucun historique trouvé. Lancez une première surveillance pour voir les données ici.',
+                              l10n.historyEmpty,
                               textAlign: TextAlign.center,
                             ),
                           ),
@@ -124,7 +135,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     itemCount: entries.length,
                     itemBuilder: (context, index) {
                       final entry = entries[index];
-                      final date = _formatDate(entry['timestamp']);
+                      print(
+                        'Clés disponibles : ${entry.keys}',
+                      ); // ← AJOUTEZ CECI
+                      final id = entry['id'] as String; // ← ID Firestore
+                      print('>>> ID Firestore : $id');
+                      print('>>> ID récupéré : $id');
+                      final date = _formatDate(
+                        entry['timestamp'],
+                        l10n.unknownDate,
+                      );
                       final score =
                           _extractInt(entry, ['score', 'sleepScore']) ?? 0;
                       final apneas =
@@ -135,10 +155,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           '0';
                       return _buildNightEntry(
                         context,
+                        id,
                         date,
-                        '$score/100',
+                        score,
                         apneas,
-                      );
+                      ); // ← on passe l’ID
                     },
                   ),
                 );
@@ -147,20 +168,30 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
         ],
       ),
+      floatingActionButton: const PatientChatbotFAB(),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'Historique',
+            icon: const Icon(Icons.home),
+            label: l10n.homeLabel,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.monitor_heart),
-            label: 'Surveil.',
+            icon: const Icon(Icons.history),
+            label: l10n.historyLabel,
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.spa), label: 'Détente'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Param.'),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.monitor_heart),
+            label: l10n.monitoringShortLabel,
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.spa),
+            label: l10n.relaxationLabel,
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.settings),
+            label: l10n.settingsShortLabel,
+          ),
         ],
         currentIndex: 1,
         onTap: (index) {
@@ -188,10 +219,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   static Widget _buildNightEntry(
     BuildContext context,
+    String id,
     String date,
-    String score,
+    int score,
     String apneas,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8.0),
       elevation: 2,
@@ -199,19 +232,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
         title: Text(date, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [Text('Score: $score'), Text('Apnées: $apneas')],
+          children: [
+            Text(l10n.scoreEntry('$score/100')),
+            Text(l10n.apneasEntry(apneas)),
+          ],
         ),
         trailing: const Icon(Icons.arrow_forward_ios),
+
         onTap: () {
-          context.push(RouteNames.nightDetail(Uri.encodeComponent(date)));
+          debugPrint('>>> Navigation vers nightDetail: $id');
+          context.push(RouteNames.nightDetail(id));
         },
       ),
     );
   }
 
-  static String _formatDate(dynamic value) {
+  static String _formatDate(dynamic value, String unknownLabel) {
     if (value == null) {
-      return 'Date inconnue';
+      return unknownLabel;
     }
     DateTime? date;
     if (value is DateTime) {
@@ -222,7 +260,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       date = value.toDate();
     }
     if (date == null) {
-      return 'Date inconnue';
+      return unknownLabel;
     }
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }

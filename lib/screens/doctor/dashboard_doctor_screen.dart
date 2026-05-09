@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
+import 'package:apnea_project/l10n/app_localizations.dart';
+import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
 
 class DashboardDoctorScreen extends StatefulWidget {
   const DashboardDoctorScreen({super.key});
@@ -10,7 +12,8 @@ class DashboardDoctorScreen extends StatefulWidget {
   State<DashboardDoctorScreen> createState() => _DashboardDoctorScreenState();
 }
 
-class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with SingleTickerProviderStateMixin {
+class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _ecgController;
 
   @override
@@ -30,9 +33,11 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final doctorProfile = useDoctorProfile(context);
     final doctorName = doctorProfile?.fullName ?? 'Médecin';
-    final clinicName = doctorProfile?.clinicName ?? 'Centre de Pneumologie et Sommeil';
+    final clinicName =
+        doctorProfile?.clinicName ?? 'Centre de Pneumologie et Sommeil';
     final photoUrl = doctorProfile?.profileImageUrl;
 
     return Scaffold(
@@ -48,25 +53,37 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 24),
-                  _buildSectionTitle('Aperçu Global', Icons.dashboard_rounded),
+                  _buildSectionTitle(
+                    l10n.sectionOverview,
+                    Icons.dashboard_rounded,
+                  ),
                   const SizedBox(height: 16),
-                  _buildStatsGrid(),
+                  _buildStatsGrid(l10n),
                   const SizedBox(height: 30),
-                  _buildSectionTitle('IA & Analyse de Risque', Icons.psychology),
+                  _buildSectionTitle(l10n.sectionAIAnalysis, Icons.psychology),
                   const SizedBox(height: 16),
-                  _buildAIAnalysisSection(),
+                  _buildAIAnalysisSection(l10n),
                   const SizedBox(height: 30),
-                  _buildSectionTitle('Signal ECG en Temps Réel', Icons.monitor_heart),
+                  _buildSectionTitle(
+                    l10n.sectionECGSignal,
+                    Icons.monitor_heart,
+                  ),
                   const SizedBox(height: 16),
-                  _buildECGSection(),
+                  _buildECGSection(l10n),
                   const SizedBox(height: 30),
-                  _buildSectionTitle('Patients Critiques', Icons.warning_amber_rounded),
+                  _buildSectionTitle(
+                    l10n.sectionCriticalPatients,
+                    Icons.warning_amber_rounded,
+                  ),
                   const SizedBox(height: 16),
                   _buildCriticalAlerts(context),
                   const SizedBox(height: 30),
-                  _buildSectionTitle('Actions Rapides', Icons.flash_on_rounded),
+                  _buildSectionTitle(
+                    l10n.sectionQuickActions,
+                    Icons.flash_on_rounded,
+                  ),
                   const SizedBox(height: 16),
-                  _buildQuickActions(context),
+                  _buildQuickActions(context, l10n),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -74,11 +91,17 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(context),
+      floatingActionButton: const DoctorChatbotFAB(),
+      bottomNavigationBar: _buildBottomNav(context, l10n),
     );
   }
 
-  Widget _buildCustomHeader(String name, String clinic, String? photoUrl, BuildContext context) {
+  Widget _buildCustomHeader(
+    String name,
+    String clinic,
+    String? photoUrl,
+    BuildContext context,
+  ) {
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 20,
@@ -93,7 +116,11 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
           end: Alignment.bottomRight,
         ),
         boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 15, offset: Offset(0, 8)),
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 15,
+            offset: Offset(0, 8),
+          ),
         ],
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(32),
@@ -119,7 +146,11 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.business_center, color: Colors.white70, size: 16),
+                    const Icon(
+                      Icons.business_center,
+                      color: Colors.white70,
+                      size: 16,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -147,15 +178,25 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
                   color: Colors.white,
                   shape: BoxShape.circle,
                   boxShadow: [
-                    BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 4)),
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
                   ],
                 ),
                 child: CircleAvatar(
                   radius: 26,
                   backgroundColor: const Color(0xFFE2E8F0),
-                  backgroundImage: (photoUrl != null && photoUrl.isNotEmpty) ? NetworkImage(photoUrl) : null,
+                  backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                      ? NetworkImage(photoUrl)
+                      : null,
                   child: (photoUrl == null || photoUrl.isEmpty)
-                      ? const Icon(Icons.person, color: Color(0xFF64748B), size: 30)
+                      ? const Icon(
+                          Icons.person,
+                          color: Color(0xFF64748B),
+                          size: 30,
+                        )
                       : null,
                 ),
               ),
@@ -166,24 +207,49 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
     );
   }
 
-  Widget _buildStatsGrid() {
+  Widget _buildStatsGrid(AppLocalizations l10n) {
     return GridView.count(
       crossAxisCount: 2,
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.4,
+      childAspectRatio: 1.3,
       children: [
-        _buildStatCard('Patients', '24', Icons.people_alt, const Color(0xFF3B82F6)),
-        _buildStatCard('Critiques', '2', Icons.notification_important, const Color(0xFFEF4444)),
-        _buildStatCard('IA Analysés', '15', Icons.biotech, const Color(0xFF8B5CF6)),
-        _buildStatCard('Rapports PDF', '8', Icons.picture_as_pdf, const Color(0xFF10B981)),
+        _buildStatCard(
+          l10n.statPatients,
+          '24',
+          Icons.people_alt,
+          const Color(0xFF3B82F6),
+        ),
+        _buildStatCard(
+          l10n.statCritical,
+          '2',
+          Icons.notification_important,
+          const Color(0xFFEF4444),
+        ),
+        _buildStatCard(
+          l10n.statAIAnalyzed,
+          '15',
+          Icons.biotech,
+          const Color(0xFF8B5CF6),
+        ),
+        _buildStatCard(
+          l10n.statPDFReports,
+          '8',
+          Icons.picture_as_pdf,
+          const Color(0xFF10B981),
+        ),
       ],
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -206,7 +272,10 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.15), shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
                 child: Icon(icon, color: color, size: 22),
               ),
               Icon(Icons.arrow_outward, color: Colors.grey.shade400, size: 16),
@@ -215,19 +284,27 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
           const Spacer(),
           Text(
             value,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF0F172A),
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             title,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAIAnalysisSection() {
+  Widget _buildAIAnalysisSection(AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -238,7 +315,11 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: const Color(0xFF6D28D9).withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 6)),
+          BoxShadow(
+            color: const Color(0xFF6D28D9).withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
         ],
       ),
       child: Column(
@@ -248,14 +329,25 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
             children: [
               Container(
                 padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Prédiction IA des Risques',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  l10n.aiRiskPrediction,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -268,7 +360,11 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
           const SizedBox(height: 8),
           const Text(
             '85% de risque de crise d\'apnée (IA basée sur chute SpO2 combinée)',
-            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 16),
           ClipRRect(
@@ -285,7 +381,7 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
     );
   }
 
-  Widget _buildECGSection() {
+  Widget _buildECGSection(AppLocalizations l10n) {
     return Container(
       height: 180,
       width: double.infinity,
@@ -293,25 +389,23 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
         color: const Color(0xFF0F172A),
         borderRadius: BorderRadius.circular(20),
         boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5)),
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: Offset(0, 5),
+          ),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: Stack(
           children: [
-            Positioned.fill(
-              child: CustomPaint(
-                painter: GridPainter(),
-              ),
-            ),
+            Positioned.fill(child: CustomPaint(painter: GridPainter())),
             Positioned.fill(
               child: AnimatedBuilder(
                 animation: _ecgController,
                 builder: (context, child) {
-                  return CustomPaint(
-                    painter: EcgPainter(_ecgController.value),
-                  );
+                  return CustomPaint(painter: EcgPainter(_ecgController.value));
                 },
               ),
             ),
@@ -323,17 +417,33 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
                   Container(
                     width: 10,
                     height: 10,
-                    decoration: const BoxDecoration(color: Color(0xFF10B981), shape: BoxShape.circle),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF10B981),
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 8),
-                  const Text('Direct - SpO2 96%', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  Text(
+                    l10n.ecgLiveLabel,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ),
             const Positioned(
               top: 16,
               right: 16,
-              child: Text('BPM 72', style: TextStyle(color: Color(0xFF10B981), fontSize: 20, fontWeight: FontWeight.w900)),
+              child: Text(
+                'BPM 72',
+                style: TextStyle(
+                  color: Color(0xFF10B981),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
           ],
         ),
@@ -370,8 +480,10 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
     required String time,
     required bool isCritical,
   }) {
-    Color statusColor = isCritical ? const Color(0xFFEF4444) : const Color(0xFFF59E0B);
-    
+    Color statusColor = isCritical
+        ? const Color(0xFFEF4444)
+        : const Color(0xFFF59E0B);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -385,19 +497,32 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           backgroundColor: statusColor.withValues(alpha: 0.15),
-          child: Icon(isCritical ? Icons.warning_rounded : Icons.notifications_active, color: statusColor),
+          child: Icon(
+            isCritical ? Icons.warning_rounded : Icons.notifications_active,
+            color: statusColor,
+          ),
         ),
-        title: Text(patientName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text(
+          patientName,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 4),
             Text(alert, style: const TextStyle(color: Color(0xFF475569))),
             const SizedBox(height: 6),
-            Text(time, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+            Text(
+              time,
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+            ),
           ],
         ),
-        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey),
+        trailing: const Icon(
+          Icons.arrow_forward_ios_rounded,
+          size: 16,
+          color: Colors.grey,
+        ),
         onTap: () {
           final encodedPatientId = Uri.encodeComponent('sample-patient-id');
           context.push(RouteNames.doctorPatientProfile(encodedPatientId));
@@ -406,19 +531,49 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
     );
   }
 
-  Widget _buildQuickActions(BuildContext context) {
+  Widget _buildQuickActions(BuildContext context, AppLocalizations l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _buildActionButton(context, 'PDF', Icons.picture_as_pdf_rounded, const Color(0xFF3B82F6), () => context.go(RouteNames.doctorReports)),
-        _buildActionButton(context, 'Patients', Icons.people_alt_rounded, const Color(0xFF10B981), () => context.go(RouteNames.doctorPatients)),
-        _buildActionButton(context, 'Stats', Icons.analytics_rounded, const Color(0xFF8B5CF6), () => context.go(RouteNames.doctorMessages)),
-        _buildActionButton(context, 'Paramètres', Icons.settings_rounded, const Color(0xFF64748B), () => context.go(RouteNames.doctorSettings)),
+        _buildActionButton(
+          context,
+          l10n.quickActionPDF,
+          Icons.picture_as_pdf_rounded,
+          const Color(0xFF3B82F6),
+          () => context.go(RouteNames.doctorReports),
+        ),
+        _buildActionButton(
+          context,
+          l10n.patientsLabel,
+          Icons.people_alt_rounded,
+          const Color(0xFF10B981),
+          () => context.go(RouteNames.doctorPatients),
+        ),
+        _buildActionButton(
+          context,
+          l10n.quickActionStats,
+          Icons.analytics_rounded,
+          const Color(0xFF8B5CF6),
+          () => context.go(RouteNames.doctorMessages),
+        ),
+        _buildActionButton(
+          context,
+          l10n.settingsTitle,
+          Icons.settings_rounded,
+          const Color(0xFF64748B),
+          () => context.go(RouteNames.doctorSettings),
+        ),
       ],
     );
   }
 
-  Widget _buildActionButton(BuildContext context, String label, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildActionButton(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -432,7 +587,14 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
             child: Icon(icon, color: color, size: 28),
           ),
           const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF475569),
+            ),
+          ),
         ],
       ),
     );
@@ -455,7 +617,7 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
     );
   }
 
-  Widget _buildBottomNav(BuildContext context) {
+  Widget _buildBottomNav(BuildContext context, AppLocalizations l10n) {
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -464,24 +626,64 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen> with Sing
           color: const Color(0xFF1E3A8A),
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
-            BoxShadow(color: const Color(0xFF1E3A8A).withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 10)),
+            BoxShadow(
+              color: const Color(0xFF1E3A8A).withValues(alpha: 0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
           ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(context, Icons.home_rounded, 'Accueil', true, () {}),
-            _buildNavItem(context, Icons.people_rounded, 'Patients', false, () => context.go(RouteNames.doctorPatients)),
-            _buildNavItem(context, Icons.notifications_rounded, 'Alertes', false, () => context.go(RouteNames.doctorAlerts)),
-            _buildNavItem(context, Icons.insert_chart_rounded, 'Rapport', false, () => context.go(RouteNames.doctorReports)),
-            _buildNavItem(context, Icons.settings_rounded, 'Profil', false, () => context.go(RouteNames.doctorSettings)),
+            _buildNavItem(
+              context,
+              Icons.home_rounded,
+              l10n.homeLabel,
+              true,
+              () {},
+            ),
+            _buildNavItem(
+              context,
+              Icons.people_rounded,
+              l10n.patientsLabel,
+              false,
+              () => context.go(RouteNames.doctorPatients),
+            ),
+            _buildNavItem(
+              context,
+              Icons.notifications_rounded,
+              l10n.alertsLabel,
+              false,
+              () => context.go(RouteNames.doctorAlerts),
+            ),
+            _buildNavItem(
+              context,
+              Icons.insert_chart_rounded,
+              l10n.navReport,
+              false,
+              () => context.go(RouteNames.doctorReports),
+            ),
+            _buildNavItem(
+              context,
+              Icons.settings_rounded,
+              l10n.navProfileLabel,
+              false,
+              () => context.go(RouteNames.doctorSettings),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildNavItem(BuildContext context, IconData icon, String label, bool isSelected, VoidCallback onTap) {
+  Widget _buildNavItem(
+    BuildContext context,
+    IconData icon,
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -548,7 +750,7 @@ class EcgPainter extends CustomPainter {
       path.lineTo(startX + cycleWidth * 0.4, midY + 10); // Q
       path.lineTo(startX + cycleWidth * 0.5, midY - 60); // R
       path.lineTo(startX + cycleWidth * 0.6, midY + 30); // S
-      path.lineTo(startX + cycleWidth * 0.7, midY); 
+      path.lineTo(startX + cycleWidth * 0.7, midY);
       path.lineTo(startX + cycleWidth * 0.8, midY - 15); // T
       path.lineTo(startX + cycleWidth * 0.9, midY);
       path.lineTo(startX + cycleWidth, midY);
@@ -574,5 +776,6 @@ class EcgPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant EcgPainter oldDelegate) => oldDelegate.progress != progress;
+  bool shouldRepaint(covariant EcgPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

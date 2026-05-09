@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:apnea_project/l10n/app_localizations.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/services/alert_service.dart';
+import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/widgets/patient_chatbot_fab.dart';
 
 class PatientAlertsScreen extends StatefulWidget {
   const PatientAlertsScreen({super.key});
@@ -20,8 +23,9 @@ class _PatientAlertsScreenState extends State<PatientAlertsScreen> {
   Future<void> _markAllRead(String patientId) async {
     await _alertService.markAllAlertsAsRead(patientId);
     if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Toutes les alertes marquées comme lues.')),
+      SnackBar(content: Text(l10n.alertsAllMarkedRead)),
     );
   }
 
@@ -30,10 +34,11 @@ class _PatientAlertsScreenState extends State<PatientAlertsScreen> {
       await _alertService.deleteAlert(alertId);
     } catch (_) {
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erreur lors de la suppression.'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: Text(l10n.alertDeleteError),
+          backgroundColor: AppColors.error,
         ),
       );
     }
@@ -41,25 +46,26 @@ class _PatientAlertsScreenState extends State<PatientAlertsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final user = context.watch<AuthProvider>().user;
 
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Centre d\'Alertes')),
-        body: const Center(child: Text('Session expirée.')),
+        appBar: AppBar(title: Text(l10n.alertsCenterTitle)),
+        body: Center(child: Text(l10n.sessionExpiredMessage)),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Centre d\'Alertes'),
+        title: Text(l10n.alertsCenterTitle),
         actions: [
           TextButton.icon(
             onPressed: () => _markAllRead(user.uid),
             icon: const Icon(Icons.done_all, color: Colors.white, size: 18),
-            label: const Text(
-              'Tout lire',
-              style: TextStyle(color: Colors.white, fontSize: 13),
+            label: Text(
+              l10n.markAllReadButton,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
             ),
           ),
         ],
@@ -68,12 +74,12 @@ class _PatientAlertsScreenState extends State<PatientAlertsScreen> {
         stream: _alertService.streamPatientAlerts(user.uid),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return const Center(
+            return Center(
               child: Padding(
-                padding: EdgeInsets.all(24),
+                padding: const EdgeInsets.all(24),
                 child: Text(
-                  'Impossible de charger les alertes.',
-                  style: TextStyle(color: Colors.red),
+                  l10n.alertsLoadError,
+                  style: const TextStyle(color: AppColors.error),
                 ),
               ),
             );
@@ -86,7 +92,7 @@ class _PatientAlertsScreenState extends State<PatientAlertsScreen> {
           final alerts = snapshot.data ?? [];
 
           if (alerts.isEmpty) {
-            return _buildEmptyState();
+            return _buildEmptyState(l10n);
           }
 
           final criticals = alerts
@@ -107,30 +113,26 @@ class _PatientAlertsScreenState extends State<PatientAlertsScreen> {
             children: [
               if (criticals.isNotEmpty) ...[
                 _buildSectionHeader(
-                  '🚨 Critiques (${criticals.length})',
-                  Colors.red,
+                  l10n.alertsCriticalSection(criticals.length),
+                  AppColors.error,
                 ),
                 const SizedBox(height: 8),
-                ...criticals.map(
-                  (a) => _buildAlertCard(a, context),
-                ),
+                ...criticals.map((a) => _buildAlertCard(a, context)),
                 const SizedBox(height: 20),
               ],
               if (warnings.isNotEmpty) ...[
                 _buildSectionHeader(
-                  '⚠️ Avertissements (${warnings.length})',
-                  Colors.orange,
+                  l10n.alertsWarningSection(warnings.length),
+                  AppColors.warning,
                 ),
                 const SizedBox(height: 8),
-                ...warnings.map(
-                  (a) => _buildAlertCard(a, context),
-                ),
+                ...warnings.map((a) => _buildAlertCard(a, context)),
                 const SizedBox(height: 20),
               ],
               if (infos.isNotEmpty) ...[
                 _buildSectionHeader(
-                  'ℹ️ Informations (${infos.length})',
-                  Colors.blue,
+                  l10n.alertsInfoSection(infos.length),
+                  AppColors.primary,
                 ),
                 const SizedBox(height: 8),
                 ...infos.map((a) => _buildAlertCard(a, context)),
@@ -141,20 +143,15 @@ class _PatientAlertsScreenState extends State<PatientAlertsScreen> {
           );
         },
       ),
+      floatingActionButton: const PatientChatbotFAB(),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'Historique',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.monitor_heart),
-            label: 'Surveil.',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.spa), label: 'Détente'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Param.'),
+        items: [
+          BottomNavigationBarItem(icon: const Icon(Icons.home), label: l10n.homeLabel),
+          BottomNavigationBarItem(icon: const Icon(Icons.history), label: l10n.historyLabel),
+          BottomNavigationBarItem(icon: const Icon(Icons.monitor_heart), label: l10n.monitoringShortLabel),
+          BottomNavigationBarItem(icon: const Icon(Icons.spa), label: l10n.relaxationLabel),
+          BottomNavigationBarItem(icon: const Icon(Icons.settings), label: l10n.settingsShortLabel),
         ],
         currentIndex: 0,
         onTap: (index) {
@@ -180,7 +177,7 @@ class _PatientAlertsScreenState extends State<PatientAlertsScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(AppLocalizations l10n) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -191,25 +188,25 @@ class _PatientAlertsScreenState extends State<PatientAlertsScreen> {
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
+                color: AppColors.success.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.check_circle_outline,
                 size: 48,
-                color: Colors.green,
+                color: AppColors.success,
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
-              'Aucune alerte active',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Text(
+              l10n.noActiveAlertsTitle,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
-              'Tout va bien ! Vos paramètres vitaux sont dans les limites normales.',
+              l10n.allVitalsNormalMessage,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(color: AppColors.textMedium),
             ),
           ],
         ),
@@ -232,6 +229,7 @@ class _PatientAlertsScreenState extends State<PatientAlertsScreen> {
     Map<String, dynamic> alert,
     BuildContext context,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     final severity = alert['severity'] as String? ?? 'info';
     final message = alert['message'] as String? ?? 'Alerte';
     final isRead = alert['read'] as bool? ?? false;
@@ -245,19 +243,19 @@ class _PatientAlertsScreenState extends State<PatientAlertsScreen> {
 
     switch (severity) {
       case 'critical':
-        severityColor = Colors.red;
+        severityColor = AppColors.error;
         severityIcon = Icons.warning_rounded;
-        bgColor = Colors.red.shade50;
+        bgColor = AppColors.error.withValues(alpha: 0.1);
         break;
       case 'warning':
-        severityColor = Colors.orange;
+        severityColor = AppColors.warning;
         severityIcon = Icons.error_outline_rounded;
-        bgColor = Colors.orange.shade50;
+        bgColor = AppColors.warning.withValues(alpha: 0.1);
         break;
       default:
-        severityColor = Colors.blue;
+        severityColor = AppColors.primary;
         severityIcon = Icons.info_outline_rounded;
-        bgColor = Colors.blue.shade50;
+        bgColor = AppColors.primary.withValues(alpha: 0.1);
     }
 
     return Dismissible(
@@ -266,24 +264,24 @@ class _PatientAlertsScreenState extends State<PatientAlertsScreen> {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
-        color: Colors.red.shade100,
-        child: const Icon(Icons.delete_outline, color: Colors.red),
+        color: AppColors.error.withValues(alpha: 0.1),
+        child: const Icon(Icons.delete_outline, color: AppColors.error),
       ),
       confirmDismiss: (_) async {
         return await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Supprimer l\'alerte'),
-            content: const Text('Voulez-vous supprimer cette alerte ?'),
+            title: Text(l10n.deleteAlertDialogTitle),
+            content: Text(l10n.deleteAlertDialogContent),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Annuler'),
+                child: Text(l10n.cancelButton),
               ),
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Supprimer'),
+                style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                child: Text(l10n.deleteButton),
               ),
             ],
           ),
@@ -354,7 +352,7 @@ class _PatientAlertsScreenState extends State<PatientAlertsScreen> {
                   createdAt,
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.grey.shade600,
+                    color: AppColors.textMedium,
                   ),
                 ),
               ],

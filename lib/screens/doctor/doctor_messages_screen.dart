@@ -6,6 +6,8 @@ import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
 
 class DoctorMessagesScreen extends StatefulWidget {
   const DoctorMessagesScreen({super.key});
@@ -111,6 +113,7 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
       body: _selectedConversationId == null
           ? _buildConversationList(user.uid)
           : _buildChatView(user.uid, doctorName),
+      floatingActionButton: const DoctorChatbotFAB(),
     );
   }
 
@@ -138,7 +141,7 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
                   Icon(
                     Icons.chat_bubble_outline,
                     size: 64,
-                    color: Colors.grey.shade400,
+                    color: AppColors.textLight,
                   ),
                   const SizedBox(height: 16),
                   const Text(
@@ -152,7 +155,7 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
                   Text(
                     'Les patients peuvent vous contacter via leur application.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey.shade600),
+                    style: TextStyle(color: AppColors.textMedium),
                   ),
                 ],
               ),
@@ -177,11 +180,11 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
                 vertical: 4,
               ),
               leading: CircleAvatar(
-                backgroundColor: Colors.blue.shade100,
+                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                 child: Text(
                   patientName.isNotEmpty ? patientName[0].toUpperCase() : 'P',
                   style: TextStyle(
-                    color: Colors.blue.shade700,
+                    color: AppColors.primary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -194,9 +197,9 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
                 lastMessage.isEmpty ? 'Aucun message' : lastMessage,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                style: TextStyle(color: AppColors.textMedium, fontSize: 13),
               ),
-              trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+              trailing: const Icon(Icons.chevron_right, color: AppColors.textMedium),
               onTap: () {
                 setState(() {
                   _selectedConversationId = convId;
@@ -273,7 +276,7 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isMe ? Colors.blue.shade600 : Colors.grey.shade200,
+          color: isMe ? AppColors.primary : AppColors.surfaceLight,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -298,7 +301,7 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
               time,
               style: TextStyle(
                 fontSize: 11,
-                color: isMe ? Colors.white70 : Colors.grey.shade500,
+                color: isMe ? Colors.white70 : AppColors.textLight,
               ),
             ),
           ],
@@ -330,9 +333,9 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
                 minLines: 1,
                 decoration: InputDecoration(
                   hintText: 'Écrire un message...',
-                  hintStyle: TextStyle(color: Colors.grey.shade400),
+                  hintStyle: TextStyle(color: AppColors.textLight),
                   filled: true,
-                  fillColor: Colors.grey.shade100,
+                  fillColor: AppColors.surfaceLight,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 10,
@@ -353,7 +356,7 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade600,
+                  color: AppColors.primary,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.send, color: Colors.white, size: 20),

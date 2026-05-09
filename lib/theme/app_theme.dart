@@ -1,294 +1,452 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart';
+import 'app_dimensions.dart';
+import 'app_text_styles.dart';
 
+// Central theme configuration. Aligned with the doctor dashboard design tokens.
+// Usage: MaterialApp(theme: AppTheme.theme, darkTheme: AppTheme.darkTheme)
 class AppTheme {
-  // Colors
-  static const Color primary = Color(0xFF0077B6);
-  static const Color secondary = Color(0xFF00B4D8);
-  static const Color background = Color(0xFFF0F4F8);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color darkBackground = Color(0xFF0E151B);
-  static const Color darkSurface = Color(0xFF121E27);
-  static const Color success = Color(0xFF2E7D32);
-  static const Color warning = Color(0xFFF57C00);
-  static const Color danger = Color(0xFFC62828);
-  static const Color textPrimary = Color(0xFF0D1B2A);
-  static const Color textSecondary = Color(0xFF546E7A);
-  static const Color darkTextPrimary = Color(0xFFE8EEF2);
-  static const Color darkTextSecondary = Color(0xFFA7B4BE);
+  AppTheme._();
 
-  // Typography
-  static const TextStyle screenTitle = TextStyle(
-    fontSize: 20,
-    fontWeight: FontWeight.bold,
-    color: textPrimary,
-  );
-
-  static const TextStyle sectionHeader = TextStyle(
-    fontSize: 16,
-    fontWeight: FontWeight.w600,
-    color: textPrimary,
-  );
-
-  static const TextStyle bodyText = TextStyle(
-    fontSize: 14,
-    fontWeight: FontWeight.normal,
-    color: textSecondary,
-  );
-
-  static const TextStyle metricValue = TextStyle(
-    fontSize: 28,
-    fontWeight: FontWeight.bold,
-    color: primary,
-  );
-
-  static const TextStyle screenTitleDark = TextStyle(
-    fontSize: 20,
-    fontWeight: FontWeight.bold,
-    color: darkTextPrimary,
-  );
-
-  static const TextStyle sectionHeaderDark = TextStyle(
-    fontSize: 16,
-    fontWeight: FontWeight.w600,
-    color: darkTextPrimary,
-  );
-
-  static const TextStyle bodyTextDark = TextStyle(
-    fontSize: 14,
-    fontWeight: FontWeight.normal,
-    color: darkTextSecondary,
-  );
-
-  // Spacing
-  static const double xs = 4.0;
-  static const double sm = 8.0;
-  static const double md = 16.0;
-  static const double lg = 24.0;
-  static const double xl = 32.0;
-
-  // Border Radius
-  static const double cardRadius = 16.0;
-  static const double buttonRadius = 12.0;
-  static const double inputRadius = 10.0;
-  static const double fabRadius = 28.0;
-
-  // Elevations
-  static const double cardElevation = 2.0;
-
-  // Theme Data
+  // -------------------------------------------------------------------------
+  // Light theme
+  // -------------------------------------------------------------------------
   static ThemeData get theme {
     return ThemeData(
       useMaterial3: true,
-      scaffoldBackgroundColor: background,
+      scaffoldBackgroundColor: AppColors.background,
+
+      // Color scheme
       colorScheme: const ColorScheme.light(
-        primary: primary,
-        secondary: secondary,
-        surface: surface,
-        error: danger,
+        primary: AppColors.primary,
+        secondary: AppColors.primaryLight,
+        surface: AppColors.surface,
+        error: AppColors.error,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
-        onSurface: textPrimary,
+        onSurface: AppColors.textDark,
         onError: Colors.white,
       ),
+
+      // AppBar — solid primary color matching header gradient start
       appBarTheme: const AppBarTheme(
-        backgroundColor: primary,
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: TextStyle(
-          color: Colors.white,
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
+        titleTextStyle: AppTextStyles.appBarTitle,
         iconTheme: IconThemeData(color: Colors.white),
       ),
+
+      // Cards
       cardTheme: CardThemeData(
-        color: surface,
-        elevation: cardElevation,
+        color: AppColors.surface,
+        elevation: AppDimensions.xs / 2,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(cardRadius),
+          borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
         ),
+        shadowColor: Colors.black12,
       ),
+
+      // Elevated buttons
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: primary,
+          backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
           elevation: 0,
+          minimumSize: const Size(double.infinity, AppDimensions.buttonHeight),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(buttonRadius),
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: md, vertical: sm),
-          textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppDimensions.md,
+            vertical: AppDimensions.sm,
+          ),
+          textStyle: AppTextStyles.buttonLabel,
         ),
       ),
+
+      // Outlined buttons
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: primary,
-          side: const BorderSide(color: primary),
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: AppColors.primary),
+          minimumSize: const Size(double.infinity, AppDimensions.buttonHeight),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(buttonRadius),
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: md, vertical: sm),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppDimensions.md,
+            vertical: AppDimensions.sm,
+          ),
           textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
       ),
+
+      // Text buttons
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+      ),
+
+      // Input fields
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surface,
+        fillColor: AppColors.surface,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(inputRadius),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+          borderSide: const BorderSide(color: AppColors.surfaceLight),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+          borderSide: const BorderSide(color: AppColors.surfaceLight),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(inputRadius),
-          borderSide: const BorderSide(color: primary),
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+          borderSide: const BorderSide(color: AppColors.error),
         ),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: md,
-          vertical: sm,
+          horizontal: AppDimensions.md,
+          vertical: AppDimensions.sm + 4,
         ),
       ),
+
+      // Bottom navigation bar — matches dashboard pill style
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: surface,
-        selectedItemColor: primary,
-        unselectedItemColor: Color(0xFF90A4AE),
+        backgroundColor: AppColors.surface,
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.textMedium,
         type: BottomNavigationBarType.fixed,
+        elevation: 0,
       ),
+
+      // Text theme mapped to AppTextStyles
       textTheme: const TextTheme(
-        headlineSmall: screenTitle,
-        titleMedium: sectionHeader,
-        bodyMedium: bodyText,
+        displayLarge: AppTextStyles.displayLarge,
+        headlineMedium: AppTextStyles.headlineMedium,
+        titleLarge: AppTextStyles.titleLarge,
+        titleMedium: AppTextStyles.titleMedium,
+        titleSmall: AppTextStyles.titleSmall,
+        bodyLarge: AppTextStyles.bodyLarge,
+        bodyMedium: AppTextStyles.bodyMedium,
+        bodySmall: AppTextStyles.bodySmall,
+        labelLarge: AppTextStyles.labelLarge,
+        labelSmall: AppTextStyles.labelSmall,
+      ),
+
+      // Divider
+      dividerTheme: const DividerThemeData(
+        color: AppColors.surfaceLight,
+        thickness: 1,
+        space: AppDimensions.md,
+      ),
+
+      // ListTile
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: AppDimensions.md,
+          vertical: AppDimensions.xs,
+        ),
+      ),
+
+      // Icon
+      iconTheme: const IconThemeData(color: AppColors.textMedium),
+
+      // Chip
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.surfaceLight,
+        labelStyle: AppTextStyles.labelSmall,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
+        ),
       ),
     );
   }
 
-  static final ThemeData darkTheme = ThemeData(
-    useMaterial3: true,
-    scaffoldBackgroundColor: darkBackground,
-    colorScheme: const ColorScheme.dark(
-      primary: primary,
-      secondary: secondary,
-      surface: darkSurface,
-      error: danger,
-      onPrimary: Colors.white,
-      onSecondary: Colors.white,
-      onSurface: darkTextPrimary,
-      onError: Colors.white,
-    ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: darkSurface,
-      foregroundColor: darkTextPrimary,
-      elevation: 0,
-      centerTitle: true,
-      titleTextStyle: TextStyle(
-        color: darkTextPrimary,
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
+  // -------------------------------------------------------------------------
+  // Dark theme
+  // -------------------------------------------------------------------------
+  static ThemeData get darkTheme {
+    return ThemeData(
+      useMaterial3: true,
+      scaffoldBackgroundColor: AppColors.darkBackground,
+
+      colorScheme: const ColorScheme.dark(
+        primary: AppColors.primaryLight,
+        secondary: AppColors.primaryLight,
+        surface: AppColors.darkSurface,
+        error: AppColors.error,
+        onPrimary: Colors.white,
+        onSecondary: Colors.white,
+        onSurface: AppColors.darkTextPrimary,
+        onError: Colors.white,
       ),
-      iconTheme: IconThemeData(color: darkTextPrimary),
-    ),
-    cardTheme: CardThemeData(
-      color: darkSurface,
-      elevation: cardElevation,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(cardRadius),
-      ),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
+
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppColors.darkSurface,
+        foregroundColor: AppColors.darkTextPrimary,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(buttonRadius),
+        centerTitle: true,
+        titleTextStyle: TextStyle(
+          color: AppColors.darkTextPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: md, vertical: sm),
-        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        iconTheme: IconThemeData(color: AppColors.darkTextPrimary),
       ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: primary,
-        side: const BorderSide(color: primary),
+
+      cardTheme: CardThemeData(
+        color: AppColors.darkSurface,
+        elevation: AppDimensions.xs / 2,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(buttonRadius),
+          borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: md, vertical: sm),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
       ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: darkSurface,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(inputRadius),
-        borderSide: BorderSide(color: Colors.grey.shade700),
+
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primaryLight,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          minimumSize: const Size(double.infinity, AppDimensions.buttonHeight),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+          ),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppDimensions.md,
+            vertical: AppDimensions.sm,
+          ),
+          textStyle: AppTextStyles.buttonLabel,
+        ),
       ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(inputRadius),
-        borderSide: const BorderSide(color: primary),
+
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primaryLight,
+          side: const BorderSide(color: AppColors.primaryLight),
+          minimumSize: const Size(double.infinity, AppDimensions.buttonHeight),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+          ),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppDimensions.md,
+            vertical: AppDimensions.sm,
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: md, vertical: sm),
-    ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: darkSurface,
-      selectedItemColor: primary,
-      unselectedItemColor: Color(0xFF90A4AE),
-      type: BottomNavigationBarType.fixed,
-    ),
-    textTheme: const TextTheme(
-      headlineSmall: screenTitleDark,
-      titleMedium: sectionHeaderDark,
-      bodyMedium: bodyTextDark,
-    ),
+
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primaryLight,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+      ),
+
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.darkSurface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+          borderSide: const BorderSide(color: AppColors.textMedium),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+          borderSide: const BorderSide(color: AppColors.textMedium),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+          borderSide: const BorderSide(color: AppColors.primaryLight, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+          borderSide: const BorderSide(color: AppColors.error),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppDimensions.md,
+          vertical: AppDimensions.sm + 4,
+        ),
+        labelStyle: const TextStyle(color: AppColors.darkTextSecondary),
+        hintStyle: const TextStyle(color: AppColors.darkTextSecondary),
+      ),
+
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: AppColors.darkSurface,
+        selectedItemColor: AppColors.primaryLight,
+        unselectedItemColor: AppColors.darkTextSecondary,
+        type: BottomNavigationBarType.fixed,
+        elevation: 0,
+      ),
+
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(
+          fontSize: 26,
+          fontWeight: FontWeight.w800,
+          color: AppColors.darkTextPrimary,
+        ),
+        headlineMedium: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: AppColors.darkTextPrimary,
+        ),
+        titleLarge: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: AppColors.darkTextPrimary,
+        ),
+        titleMedium: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: AppColors.darkTextPrimary,
+        ),
+        titleSmall: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: AppColors.darkTextPrimary,
+        ),
+        bodyLarge: TextStyle(fontSize: 15, color: AppColors.darkTextSecondary),
+        bodyMedium: TextStyle(fontSize: 14, color: AppColors.darkTextSecondary),
+        bodySmall: TextStyle(fontSize: 13, color: AppColors.darkTextSecondary),
+        labelLarge: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: AppColors.darkTextSecondary,
+        ),
+        labelSmall: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppColors.darkTextSecondary,
+        ),
+      ),
+
+      dividerTheme: const DividerThemeData(
+        color: AppColors.textMedium,
+        thickness: 1,
+        space: AppDimensions.md,
+      ),
+
+      listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: AppDimensions.md,
+          vertical: AppDimensions.xs,
+        ),
+      ),
+
+      iconTheme: const IconThemeData(color: AppColors.darkTextSecondary),
+
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.darkSurface,
+        labelStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppColors.darkTextSecondary,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
+        ),
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Static helper decorations (reused across screens)
+  // -------------------------------------------------------------------------
+
+  /// Header gradient: primary navy → blue accent (matches doctor dashboard header)
+  static const LinearGradient headerGradient = LinearGradient(
+    colors: [AppColors.primary, AppColors.primaryLight],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
   );
 
-  // Component Styles
-  static BoxDecoration getCardDecoration() {
-    return BoxDecoration(
-      color: surface,
-      borderRadius: BorderRadius.circular(cardRadius),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.1),
-          blurRadius: 4,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    );
-  }
+  /// AI / analytics section gradient: dark purple → purple
+  static const LinearGradient aiSectionGradient = LinearGradient(
+    colors: [AppColors.aiDark, AppColors.aiPrimary],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 
-  static BoxDecoration getPrimaryButtonDecoration() {
-    return BoxDecoration(
-      color: primary,
-      borderRadius: BorderRadius.circular(buttonRadius),
-      boxShadow: [
-        BoxShadow(
-          color: primary.withValues(alpha: 0.3),
-          blurRadius: 4,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    );
-  }
-
-  static BoxDecoration getSecondaryButtonDecoration() {
-    return BoxDecoration(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(buttonRadius),
-      border: Border.all(color: primary),
-    );
-  }
-
-  static BoxDecoration getStatusBadgeDecoration(Color color) {
-    return BoxDecoration(
+  /// Standard card shadow matching doctor dashboard stat cards
+  static List<BoxShadow> cardShadow(Color color) => [
+    BoxShadow(
       color: color.withValues(alpha: 0.1),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withValues(alpha: 0.3)),
-    );
-  }
+      blurRadius: 15,
+      offset: const Offset(0, 5),
+    ),
+  ];
 
-  static TextStyle getStatusBadgeTextStyle(Color color) {
-    return TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600);
+  /// Default card shadow (color-neutral)
+  static const List<BoxShadow> defaultCardShadow = [
+    BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3)),
+  ];
+
+  /// Status badge decoration — tinted background + border
+  static BoxDecoration statusBadgeDecoration(Color color) => BoxDecoration(
+    color: color.withValues(alpha: 0.1),
+    borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
+    border: Border.all(color: color.withValues(alpha: 0.3)),
+  );
+  // -------------------------------------------------------------------------
+  // Static shortcuts for colors (using AppColors)
+  // -------------------------------------------------------------------------
+  static Color get primary => AppColors.primary;
+  static Color get primaryLight => AppColors.primaryLight;
+  static Color get secondary => AppColors.primaryLight; // alias
+  static Color get success => AppColors.success;
+  static Color get danger => AppColors.error; // alias error
+  static Color get warning => AppColors.warning;
+  static Color get background => AppColors.background;
+  static Color get surface => AppColors.surface;
+  static Color get textDark => AppColors.textDark;
+  static Color get textBody => AppColors.textBody;
+  static Color get textMedium => AppColors.textMedium;
+  static Color get textLight => AppColors.textLight;
+  static Color get darkBackground => AppColors.darkBackground;
+  static Color get darkSurface => AppColors.darkSurface;
+  static Color get darkTextPrimary => AppColors.darkTextPrimary;
+  static Color get darkTextSecondary => AppColors.darkTextSecondary;
+
+  // -------------------------------------------------------------------------
+  // Static shortcuts for dimensions (using AppDimensions)
+  // -------------------------------------------------------------------------
+  static double get xs => AppDimensions.xs;
+  static double get sm => AppDimensions.sm;
+  static double get md => AppDimensions.md;
+  static double get lg => AppDimensions.lg;
+  static double get xl => AppDimensions.xl;
+  static double get radiusXs => AppDimensions.radiusXs;
+  static double get radiusSm => AppDimensions.radiusSm;
+  static double get radiusMd => AppDimensions.radiusMd;
+  static double get radiusLg => AppDimensions.radiusLg;
+  static double get radiusXl => AppDimensions.radiusXl;
+  static double get buttonHeight => AppDimensions.buttonHeight;
+  static double get buttonHeightSm => AppDimensions.buttonHeightSm;
+  static double get screenPadding => AppDimensions.screenPadding;
+  static double get cardPadding => AppDimensions.cardPadding;
+
+  // -------------------------------------------------------------------------
+  // Static shortcuts for text styles (using AppTextStyles)
+  // -------------------------------------------------------------------------
+  static TextStyle get screenTitle => AppTextStyles.headlineMedium;
+  static TextStyle get sectionHeader => AppTextStyles.titleLarge;
+  static TextStyle get metricValue => AppTextStyles.metricValue;
+  static TextStyle get bodyLarge => AppTextStyles.bodyLarge;
+  static TextStyle get bodyMedium => AppTextStyles.bodyMedium;
+
+  // -------------------------------------------------------------------------
+  // Common card decoration (matching doctor dashboard style)
+  // -------------------------------------------------------------------------
+  static BoxDecoration getCardDecoration({Color? backgroundColor}) {
+    return BoxDecoration(
+      color: backgroundColor ?? Colors.white,
+      borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+      boxShadow: defaultCardShadow,
+    );
   }
 }

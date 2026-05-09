@@ -30,6 +30,9 @@ import 'package:apnea_project/screens/shared/help_screen.dart';
 import 'package:apnea_project/screens/shared/logout_screen.dart';
 import 'package:apnea_project/screens/shared/privacy_screen.dart';
 import 'package:apnea_project/screens/shared/splash_screen.dart';
+import 'package:apnea_project/screens/shared/chatbot_screen.dart';
+import 'package:apnea_project/screens/doctor/doctor_chatbot_screen.dart';
+import 'package:apnea_project/screens/patient/patient_chatbot_screen.dart';
 
 class RouteNames {
   static const authPrefix = '/auth';
@@ -80,12 +83,15 @@ class RouteNames {
       '/doctor-patient-profile/$patientId';
   static String doctorAnalysis(String patientId, String nightDate) =>
       '/doctor-analysis/$patientId/$nightDate';
-    static String meditationDetail(String title) =>
+  static String meditationDetail(String title) =>
       '/meditation-detail/${Uri.encodeComponent(title)}';
-    static String videoDetail(String title) =>
+  static String videoDetail(String title) =>
       '/video-detail/${Uri.encodeComponent(title)}';
-    static String articleDetail(String title) =>
+  static String articleDetail(String title) =>
       '/article-detail/${Uri.encodeComponent(title)}';
+  static const chatbot = '/chatbot';
+  static const patientChatbot = '/patient-chatbot';
+  static const doctorChatbot = '/doctor-chatbot';
 }
 
 GoRouter createAppRouter(
@@ -137,10 +143,11 @@ GoRouter createAppRouter(
         builder: (context, state) => const HistoryScreen(),
       ),
       GoRoute(
-        path: RouteNames.nightDetailPath,
-        name: RouteNames.nightDetailPath,
-        builder: (context, state) =>
-            NightDetailScreen(nightId: state.pathParameters['nightId']!),
+        path: RouteNames.nightDetailPath, // '/night-detail/:nightId'
+        builder: (context, state) {
+          final nightId = state.pathParameters['nightId'] ?? '';
+          return NightDetailScreen(nightId: nightId);
+        },
       ),
       GoRoute(
         path: RouteNames.relaxation,
@@ -290,6 +297,21 @@ GoRouter createAppRouter(
         name: RouteNames.fixProfile,
         builder: (context, state) => const FixProfileScreen(),
       ),
+      GoRoute(
+        path: RouteNames.chatbot,
+        name: RouteNames.chatbot,
+        builder: (context, state) => const ChatbotScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.patientChatbot,
+        name: RouteNames.patientChatbot,
+        builder: (context, state) => const PatientChatbotScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.doctorChatbot,
+        name: RouteNames.doctorChatbot,
+        builder: (context, state) => const DoctorChatbotScreen(),
+      ),
     ],
     redirect: (context, state) {
       final isLoggedIn = authProvider.user != null;
@@ -305,6 +327,7 @@ GoRouter createAppRouter(
         RouteNames.doctorMessages,
         RouteNames.doctorProfile,
         RouteNames.doctorSettings,
+        RouteNames.doctorChatbot,
         '/doctor-patient-profile/',
         '/doctor-analysis/',
       ];
@@ -317,6 +340,7 @@ GoRouter createAppRouter(
         RouteNames.patientProfile,
         RouteNames.realtimeMonitoring,
         RouteNames.relaxation,
+        RouteNames.patientChatbot,
         '/meditation-detail/',
         '/video-detail/',
         '/article-detail/',
@@ -336,19 +360,7 @@ GoRouter createAppRouter(
       final isPatientRoute = patientOnlyPrefixes.any(location.startsWith);
 
       if (location == RouteNames.splash) {
-        if (!isLoggedIn) {
-          return RouteNames.login;
-        }
-        if (isLoadingRole) {
-          return null;
-        }
-        if (role == 'doctor') {
-          return RouteNames.doctorDashboard;
-        }
-        if (role == 'patient') {
-          return RouteNames.patientDashboard;
-        }
-        return RouteNames.fixProfile;
+        return null; // Let SplashScreen handle navigation via its internal timer
       }
 
       if (!isLoggedIn && !isAuthRoute) {

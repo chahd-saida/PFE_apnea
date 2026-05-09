@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:apnea_project/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:provider/provider.dart';
 
+import 'package:apnea_project/providers/locale_provider.dart';
 import 'package:apnea_project/providers/theme_provider.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/services/settings_service.dart';
+import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/widgets/patient_chatbot_fab.dart';
 
 class PatientSettingsScreen extends StatefulWidget {
   const PatientSettingsScreen({super.key});
@@ -28,7 +32,6 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
   bool _showPasswordForm = false;
   bool _isUpdatingPassword = false;
   String? _passwordError;
-  String _language = 'fr';
 
   @override
   void initState() {
@@ -48,14 +51,12 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
     final notificationsEnabled = await _settingsService
         .getNotificationsEnabled();
     final remindersEnabled = await _settingsService.getRemindersEnabled();
-    final language = await _settingsService.getLanguage();
     if (!mounted) {
       return;
     }
     setState(() {
       _notificationsEnabled = notificationsEnabled;
       _remindersEnabled = remindersEnabled;
-      _language = language;
       _isLoading = false;
     });
   }
@@ -79,13 +80,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
   }
 
   Future<void> _onLanguageChanged(String code) async {
-    await _settingsService.setLanguage(code);
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _language = code;
-    });
+    await context.read<LocaleProvider>().setLocaleCode(code);
   }
 
   Future<void> _logout() async {
@@ -104,15 +99,15 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
     context.go(RouteNames.login);
   }
 
-  String? _validatePassword(String value) {
+  String? _validatePassword(AppLocalizations l10n, String value) {
     final trimmed = value.trim();
     if (trimmed.length < 8) {
-      return 'Le mot de passe doit contenir au moins 8 caractères.';
+      return l10n.passwordMinLengthError;
     }
     final hasLetter = RegExp(r'[A-Za-z]').hasMatch(trimmed);
     final hasNumber = RegExp(r'\d').hasMatch(trimmed);
     if (!hasLetter || !hasNumber) {
-      return 'Le mot de passe doit contenir des lettres et des chiffres.';
+      return l10n.passwordLettersNumbersError;
     }
     return null;
   }
@@ -121,6 +116,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
     if (_isUpdatingPassword) {
       return;
     }
+    final l10n = AppLocalizations.of(context)!;
 
     final currentPassword = _currentPasswordController.text.trim();
     final newPassword = _newPasswordController.text.trim();
@@ -130,19 +126,19 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
         newPassword.isEmpty ||
         confirmPassword.isEmpty) {
       setState(() {
-        _passwordError = 'Veuillez remplir tous les champs.';
+        _passwordError = l10n.passwordFillAllFieldsError;
       });
       return;
     }
 
     if (newPassword != confirmPassword) {
       setState(() {
-        _passwordError = 'La confirmation ne correspond pas au mot de passe.';
+        _passwordError = l10n.passwordConfirmationMismatchError;
       });
       return;
     }
 
-    final validationError = _validatePassword(newPassword);
+    final validationError = _validatePassword(l10n, newPassword);
     if (validationError != null) {
       setState(() {
         _passwordError = validationError;
@@ -174,7 +170,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mot de passe mis à jour avec succès.')),
+        SnackBar(content: Text(l10n.passwordUpdateSuccessMessage)),
       );
     } catch (e) {
       if (!mounted) {
@@ -182,7 +178,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
       }
       setState(() {
         _isUpdatingPassword = false;
-        _passwordError = 'Erreur lors de la mise à jour: $e';
+        _passwordError = l10n.passwordUpdateError(e.toString());
       });
     }
   }
@@ -190,9 +186,17 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
+    final localeProvider = context.watch<LocaleProvider>();
+    final l10n = AppLocalizations.of(context)!;
+    final languageCode = localeProvider.languageCode;
+    final languageName = switch (languageCode) {
+      'en' => l10n.languageEnglish,
+      'ar' => l10n.languageArabic,
+      _ => l10n.languageFrench,
+    };
     
     return Scaffold(
-      appBar: AppBar(title: const Text('Paramètres')),
+      appBar: AppBar(title: Text(l10n.settingsTitle)),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -200,9 +204,9 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '👤 Mon Compte',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  Text(
+                    l10n.accountTitle,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 10),
                   Card(
@@ -211,7 +215,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                       children: [
                         ListTile(
                           leading: const Icon(Icons.person),
-                          title: const Text('Modifier profil'),
+                          title: Text(l10n.editProfileLabel),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
                             context.push(RouteNames.patientProfile);
@@ -219,7 +223,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                         ),
                         ListTile(
                           leading: const Icon(Icons.lock),
-                          title: const Text('Changer mot de passe'),
+                          title: Text(l10n.changePasswordLabel),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
                             setState(() {
@@ -229,14 +233,12 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                         ),
                         ListTile(
                           leading: const Icon(Icons.fingerprint),
-                          title: const Text('Connexion biométrique'),
+                          title: Text(l10n.biometricLoginLabel),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Connexion biométrique bientôt disponible.',
-                                ),
+                              SnackBar(
+                                content: Text(l10n.biometricSoonMessage),
                               ),
                             );
                           },
@@ -251,12 +253,12 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.red.shade50,
+                          color: AppColors.error.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           _passwordError!,
-                          style: TextStyle(color: Colors.red.shade700),
+                          style: const TextStyle(color: AppColors.error),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -270,24 +272,24 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                             TextField(
                               controller: _currentPasswordController,
                               obscureText: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Mot de passe actuel',
+                              decoration: InputDecoration(
+                                labelText: l10n.currentPasswordLabel,
                               ),
                             ),
                             const SizedBox(height: 12),
                             TextField(
                               controller: _newPasswordController,
                               obscureText: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Nouveau mot de passe',
+                              decoration: InputDecoration(
+                                labelText: l10n.newPasswordLabel,
                               ),
                             ),
                             const SizedBox(height: 12),
                             TextField(
                               controller: _confirmPasswordController,
                               obscureText: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Confirmer le nouveau mot de passe',
+                              decoration: InputDecoration(
+                                labelText: l10n.confirmNewPasswordLabel,
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -299,8 +301,8 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                                     : _handlePasswordChange,
                                 child: Text(
                                   _isUpdatingPassword
-                                      ? 'Mise à jour...'
-                                      : 'Mettre à jour',
+                                      ? l10n.updatingLabel
+                                      : l10n.updateLabel,
                                 ),
                               ),
                             ),
@@ -310,9 +312,9 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                     ),
                   ],
                   const SizedBox(height: 30),
-                  const Text(
-                    '🔔 Notifications',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  Text(
+                    l10n.notificationsTitle,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 10),
                   Card(
@@ -321,21 +323,21 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                       children: [
                         ListTile(
                           leading: const Icon(Icons.notifications_active),
-                          title: const Text('Centre d\'alertes'),
+                          title: Text(l10n.alertsCenterLabel),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
                             context.push(RouteNames.patientAlerts);
                           },
                         ),
                         SwitchListTile(
-                          title: const Text('Alertes apnée'),
+                          title: Text(l10n.apneaAlertsLabel),
                           value: _notificationsEnabled,
                           onChanged: (bool value) {
                             _onNotificationsChanged(value);
                           },
                         ),
                         SwitchListTile(
-                          title: const Text('Rappels'),
+                          title: Text(l10n.remindersLabel),
                           value: _remindersEnabled,
                           onChanged: (bool value) {
                             _onRemindersChanged(value);
@@ -345,9 +347,9 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  const Text(
-                    '🔌 Capteurs',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  Text(
+                    l10n.sensorsTitle,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 10),
                   Card(
@@ -356,7 +358,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                       children: [
                         ListTile(
                           leading: const Icon(Icons.devices_other),
-                          title: const Text('Gérer appareils'),
+                          title: Text(l10n.manageDevicesLabel),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
                             context.push(RouteNames.patientDevices);
@@ -364,7 +366,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                         ),
                         ListTile(
                           leading: const Icon(Icons.help_outline),
-                          title: const Text('Guide de connexion'),
+                          title: Text(l10n.connectionGuideLabel),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
                             context.push(RouteNames.help);
@@ -374,9 +376,9 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  const Text(
-                    '⚙️ Préférences de l\'application',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  Text(
+                    l10n.appPreferencesTitle,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 10),
                   Card(
@@ -385,20 +387,22 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                       children: [
                         ListTile(
                           leading: const Icon(Icons.language),
-                          title: const Text('Langue'),
-                          subtitle: Text(
-                            _language == 'fr' ? 'Français' : _language,
-                          ),
+                          title: Text(l10n.languageLabel),
+                          subtitle: Text(languageName),
                           trailing: DropdownButton<String>(
-                            value: _language,
-                            items: const [
+                            value: languageCode,
+                            items: [
                               DropdownMenuItem(
                                 value: 'fr',
-                                child: Text('Français'),
+                                child: Text(l10n.languageFrench),
                               ),
                               DropdownMenuItem(
                                 value: 'en',
-                                child: Text('English'),
+                                child: Text(l10n.languageEnglish),
+                              ),
+                              DropdownMenuItem(
+                                value: 'ar',
+                                child: Text(l10n.languageArabic),
                               ),
                             ],
                             onChanged: (value) {
@@ -410,14 +414,14 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                           ),
                         ),
                         SwitchListTile(
-                          title: const Text('Mode sombre'),
+                          title: Text(l10n.darkModeLabel),
                           value: themeProvider.isDarkMode,
                           onChanged: (bool value) {
                             _onDarkModeChanged(value);
                           },
                         ),
                         SwitchListTile(
-                          title: const Text('Notifications'),
+                          title: Text(l10n.notificationsLabel),
                           value: _notificationsEnabled,
                           onChanged: (value) async {
                             await _settingsService.setNotificationsEnabled(
@@ -435,9 +439,9 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  const Text(
-                    'ℹ️ Informations et Support',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  Text(
+                    l10n.infoSupportTitle,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 10),
                   Card(
@@ -446,7 +450,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                       children: [
                         ListTile(
                           leading: const Icon(Icons.help_outline),
-                          title: const Text('Aide et FAQ'),
+                          title: Text(l10n.helpFaqLabel),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
                             context.push(RouteNames.help);
@@ -454,7 +458,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                         ),
                         ListTile(
                           leading: const Icon(Icons.privacy_tip_outlined),
-                          title: const Text('Politique de confidentialité'),
+                          title: Text(l10n.privacyPolicyLabel),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
                             context.push(RouteNames.privacy);
@@ -462,12 +466,12 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                         ),
                         ListTile(
                           leading: const Icon(Icons.info_outline),
-                          title: const Text('À propos'),
+                          title: Text(l10n.aboutLabel),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Page À propos en préparation.'),
+                              SnackBar(
+                                content: Text(l10n.aboutInProgressMessage),
                               ),
                             );
                           },
@@ -482,9 +486,9 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                         ElevatedButton.icon(
                           onPressed: _logout,
                           icon: const Icon(Icons.logout),
-                          label: const Text('Déconnexion'),
+                          label: Text(l10n.logoutLabel),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
+                            backgroundColor: AppColors.error,
                             minimumSize: const Size(200, 50),
                           ),
                         ),
@@ -492,7 +496,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                         OutlinedButton.icon(
                           onPressed: _deleteAccount,
                           icon: const Icon(Icons.delete_forever),
-                          label: const Text('Supprimer compte'),
+                          label: Text(l10n.deleteAccountLabel),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size(200, 50),
                           ),
@@ -504,20 +508,30 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                 ],
               ),
             ),
+      floatingActionButton: const PatientChatbotFAB(),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'Historique',
+            icon: const Icon(Icons.home),
+            label: l10n.homeLabel,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.monitor_heart),
-            label: 'Surveil.',
+            icon: const Icon(Icons.history),
+            label: l10n.historyLabel,
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.spa), label: 'Détente'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Param.'),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.monitor_heart),
+            label: l10n.monitoringShortLabel,
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.spa),
+            label: l10n.relaxationLabel,
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.settings),
+            label: l10n.settingsShortLabel,
+          ),
         ],
         currentIndex: 4,
         onTap: (index) {

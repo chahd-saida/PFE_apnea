@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/widgets/patient_chatbot_fab.dart';
 
 class PatientProfileScreen extends StatefulWidget {
   const PatientProfileScreen({super.key});
@@ -316,12 +318,12 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                 children: [
                   CircleAvatar(
                     radius: 50,
-                    backgroundColor: Colors.blue.shade100,
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                     backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
                         ? NetworkImage(photoUrl)
                         : null,
                     child: (photoUrl == null || photoUrl.isEmpty)
-                        ? const Icon(Icons.person, size: 60, color: Colors.blue)
+                        ? const Icon(Icons.person, size: 60, color: AppColors.primary)
                         : null,
                   ),
                   const SizedBox(height: 10),
@@ -334,7 +336,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                   ),
                   Text(
                     roleLabel,
-                    style: const TextStyle(fontSize: 16, color: Colors.grey),
+                    style: const TextStyle(fontSize: 16, color: AppColors.textMedium),
                   ),
                 ],
               ),
@@ -345,12 +347,12 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
+                  color: AppColors.error.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   _errorMessage!,
-                  style: TextStyle(color: Colors.red.shade700),
+                  style: TextStyle(color: AppColors.error),
                 ),
               ),
               const SizedBox(height: 16),
@@ -451,6 +453,7 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
           ],
         ),
       ),
+      floatingActionButton: const PatientChatbotFAB(),
     );
   }
 }

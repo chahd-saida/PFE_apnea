@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/services/pdf_report_service.dart';
+import 'package:apnea_project/theme/app_colors.dart';
 
 class ExportReportScreen extends StatefulWidget {
   const ExportReportScreen({super.key});
@@ -304,14 +305,14 @@ class _ExportReportScreenState extends State<ExportReportScreen> {
   void _showSuccess(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.green),
+      SnackBar(content: Text(message), backgroundColor: AppColors.success),
     );
   }
 
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
     );
   }
 
@@ -334,7 +335,7 @@ class _ExportReportScreenState extends State<ExportReportScreen> {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
+                  border: Border.all(color: AppColors.textMedium),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(

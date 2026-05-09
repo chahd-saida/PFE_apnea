@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
 
+import 'package:apnea_project/l10n/app_localizations.dart';
+import 'package:apnea_project/widgets/patient_chatbot_fab.dart';
+
 class DevicesScreen extends StatelessWidget {
   const DevicesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Gestion Capteurs')),
+      appBar: AppBar(title: Text(l10n.devicesTitle)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'État de connexion :',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Text(
+              l10n.connectionStatusLabel,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Card(
@@ -32,9 +37,9 @@ class DevicesScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 5),
-                    const Text(
-                      '🟢 Connecté',
-                      style: TextStyle(color: Colors.green),
+                    Text(
+                      l10n.deviceConnectedLabel,
+                      style: const TextStyle(color: Colors.green),
                     ),
                     const SizedBox(height: 5),
                     const Text('🔋 85%'),
@@ -42,10 +47,8 @@ class DevicesScreen extends StatelessWidget {
                     Align(
                       alignment: Alignment.centerRight,
                       child: ElevatedButton(
-                        onPressed: () {
-                          // Disconnect logic
-                        },
-                        child: const Text('Déconnecter'),
+                        onPressed: () {},
+                        child: Text(l10n.disconnectButton),
                       ),
                     ),
                   ],
@@ -53,14 +56,14 @@ class DevicesScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 30),
-            const Text(
-              'Capteurs actifs :',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Text(
+              l10n.activeSensorsLabel,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-            Column(
+            const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 ListTile(
                   leading: Icon(Icons.check_circle, color: Colors.green),
                   title: Text('ECG (AD8232)'),
@@ -84,22 +87,18 @@ class DevicesScreen extends StatelessWidget {
               child: Column(
                 children: [
                   ElevatedButton.icon(
-                    onPressed: () {
-                      // Search for new devices logic
-                    },
+                    onPressed: () {},
                     icon: const Icon(Icons.search),
-                    label: const Text('Rechercher nouveau'),
+                    label: Text(l10n.searchNewDeviceButton),
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(200, 50),
                     ),
                   ),
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
-                    onPressed: () {
-                      // Navigate to connection guide
-                    },
+                    onPressed: () {},
                     icon: const Icon(Icons.info_outline),
-                    label: const Text('Guide de connexion'),
+                    label: Text(l10n.connectionGuideLabel),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(200, 50),
                     ),
@@ -110,6 +109,7 @@ class DevicesScreen extends StatelessWidget {
           ],
         ),
       ),
+      floatingActionButton: const PatientChatbotFAB(),
     );
   }
 }

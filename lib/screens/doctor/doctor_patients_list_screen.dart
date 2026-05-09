@@ -4,9 +4,11 @@ import 'package:apnea_project/router/app_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:apnea_project/providers/auth_provider.dart';
+import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/screens/doctor/add_patient_screen.dart';
 import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/theme/app_colors.dart';
 
 class DoctorPatientsListScreen extends StatelessWidget {
   const DoctorPatientsListScreen({super.key});
@@ -90,7 +92,7 @@ class DoctorPatientsListScreen extends StatelessWidget {
                     padding: EdgeInsets.all(16.0),
                     child: Text(
                       'Erreur chargement patients.',
-                      style: TextStyle(color: Colors.red),
+                      style: TextStyle(color: AppColors.error),
                     ),
                   );
                 }
@@ -159,6 +161,7 @@ class DoctorPatientsListScreen extends StatelessWidget {
           ],
         ),
       ),
+      floatingActionButton: const DoctorChatbotFAB(),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         items: const [
@@ -211,7 +214,7 @@ class DoctorPatientsListScreen extends StatelessWidget {
       elevation: 2,
       child: ListTile(
         leading: const CircleAvatar(
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.success,
           child: Icon(Icons.person, color: Colors.white),
         ),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),

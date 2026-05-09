@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
 
 class DoctorAnalysisScreen extends StatefulWidget {
   final String patientId;
@@ -146,6 +148,7 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
           );
         },
       ),
+      floatingActionButton: const DoctorChatbotFAB(),
     );
   }
 

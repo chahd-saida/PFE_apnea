@@ -11,6 +11,8 @@ import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/services/pdf_report_service.dart';
+import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
 
 class DoctorReportsScreen extends StatefulWidget {
   const DoctorReportsScreen({super.key});
@@ -74,7 +76,7 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
     setState(() => _isGenerating = true);
     try {
       final patient = _buildPatient();
-      final doctorName = useDoctorProfile(context)?.fullName ?? 'Médecin';
+      final doctorName = context.read<UserProfileProvider>().fullName;
       final reportData = await _buildReportData(doctorName: doctorName);
       final bytes = await _pdfReportService.generatePdfReport(
         patient,
@@ -97,7 +99,7 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
           content: Text(
             'PDF généré et sauvegardé: ${_extractFileName(file.path)}',
           ),
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.success,
         ),
       );
     } on FileSystemException {
@@ -107,7 +109,7 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
           content: Text(
             'Permission de stockage refusée ou dossier inaccessible.',
           ),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
     } catch (e) {
@@ -115,7 +117,7 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Échec de génération du PDF: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
     } finally {
@@ -299,7 +301,7 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Partage du rapport lancé.'),
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.success,
         ),
       );
     } catch (e) {
@@ -307,7 +309,7 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Échec du partage: $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppColors.error,
         ),
       );
     }
@@ -358,7 +360,7 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
+                  border: Border.all(color: AppColors.textMedium),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -442,9 +444,7 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
                     children: const [
                       RadioListTile<String>(
                         title: Text('PDF Médical'),
-                        subtitle: Text(
-                          'Format standard pour dossier médical',
-                        ),
+                        subtitle: Text('Format standard pour dossier médical'),
                         value: 'PDF Médical',
                       ),
                       RadioListTile<String>(
@@ -506,6 +506,7 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
           ],
         ),
       ),
+      floatingActionButton: const DoctorChatbotFAB(),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         items: const [
@@ -570,17 +571,17 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
           return Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(color: AppColors.surfaceLight),
             ),
             child: Row(
               children: [
-                Icon(Icons.person_off_outlined, color: Colors.grey.shade500),
+                Icon(Icons.person_off_outlined, color: AppColors.textLight),
                 const SizedBox(width: 12),
                 Text(
                   'Aucun patient assigné',
-                  style: TextStyle(color: Colors.grey.shade600),
+                  style: TextStyle(color: AppColors.textMedium),
                 ),
               ],
             ),

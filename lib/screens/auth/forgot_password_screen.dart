@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:apnea_project/l10n/app_localizations.dart';
 import 'package:apnea_project/router/app_router.dart';
+import 'package:apnea_project/theme/app_colors.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -17,6 +19,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   bool _isLoading = false;
 
   Future<void> _sendPasswordResetEmail() async {
+    final l10n = AppLocalizations.of(context)!;
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
@@ -29,9 +32,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           return;
         }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Lien de réinitialisation envoyé à votre email.'),
-          ),
+          SnackBar(content: Text(l10n.resetLinkSentMessage)),
         );
         context.go(RouteNames.login); // Go back to login screen
       } on FirebaseAuthException catch (e) {
@@ -40,7 +41,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.message ?? 'Erreur lors de l\'envoi du lien.'),
+            content: Text(e.message ?? l10n.resetLinkSendError),
           ),
         );
       } finally {
@@ -55,8 +56,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Réinitialisation du mot de passe')),
+      appBar: AppBar(title: Text(l10n.forgotPasswordTitle)),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -65,28 +68,26 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.lock_reset, size: 80, color: Colors.blue),
+                const Icon(Icons.lock_reset, size: 80, color: AppColors.primary),
                 const SizedBox(height: 20),
-                const Text(
-                  'Entrez votre email pour réinitialiser votre mot de passe',
+                Text(
+                  l10n.forgotPasswordInstruction,
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16),
+                  style: Theme.of(context).textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 30),
                 TextFormField(
                   controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email),
+                  decoration: InputDecoration(
+                    labelText: l10n.emailLabel,
+                    prefixIcon: const Icon(Icons.email),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Veuillez entrer votre email';
+                      return l10n.emailRequiredError;
                     }
-                    if (!RegExp(
-                      r'^[^@]+@[^@]+\.[^@]+\.[^@]+',
-                    ).hasMatch(value)) {
-                      return 'Veuillez entrer un email valide';
+                    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+                      return l10n.emailInvalidError;
                     }
                     return null;
                   },
@@ -96,20 +97,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ? const CircularProgressIndicator()
                     : ElevatedButton(
                         onPressed: _sendPasswordResetEmail,
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 50),
-                        ),
-                        child: const Text(
-                          'Envoyer lien de réinitialisation',
-                          style: TextStyle(fontSize: 18),
-                        ),
+                        child: Text(l10n.sendResetLinkButton),
                       ),
                 const SizedBox(height: 10),
                 TextButton(
                   onPressed: () {
                     context.go(RouteNames.login);
                   },
-                  child: const Text('← Retour au login'),
+                  child: Text(l10n.backToLoginButton),
                 ),
               ],
             ),
