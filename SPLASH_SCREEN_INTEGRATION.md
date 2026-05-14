@@ -2,67 +2,52 @@
 
 ## Résumé des changements
 
-Votre splash screen a été transformé en un écran de respiration apaisant suivant le design system exact spécifié :
+Votre splash screen a été transformé en un écran respiratoire apaisant avec:
 
-- ✅ Fond teal nuit profond `#0E2326`
-- ✅ Halo de respiration animé en `#9BC4C0` (cycle 6 secondes)
-- ✅ Logo croissant de lune stylisé avec gradient teal
+- ✅ Fond gradient bleu/teal
+- ✅ Logo croissant de lune animé avec pulsation
 - ✅ Onde de respiration horizontale animée (style EEG)
-- ✅ Texte "Respirez. Nous veillons." avec opacité 0.9
-- ✅ Heure "9:41" en DM Serif Display
-- ✅ Tous les coins arrondis à 14px (via BorderRadius)
-- ✅ Ombres teintées teal
+- ✅ Texte "Respirez. Nous veillons." en blanc gras
+- ✅ Étoiles éparpillées en arrière-plan
+- ✅ Footer avec version et copyright
 - ✅ Durée 3 secondes avant navigation
 - ✅ Même logique d'authentification préservée
+- ✅ Polices via google_fonts (pas de fichiers TTF locaux)
 
 ## Fichiers modifiés
 
 ### 1. `lib/theme/app_colors.dart`
-Ajout des couleurs teal du design system :
-- `nightBg` : `#0E2326` (fond nuit profond)
-- `warmIvory` : `#F4F0E8` (ivoire chaud)
-- `tealAccent` : `#1F6F73` (teal profond accent)
-- `tealMist` : `#9BC4C0` (teal mist pour halos)
-- `textNightPrimary` : `#0F2A2E` (encre nuit)
+Couleurs teal du design system :
+- `nightBg` : `#0E2326` (fond nuit profond - inutilisé actuellement)
+- `warmIvory` : `#F4F0E8` (ivoire chaud pour card logo)
+- `tealAccent` : `#1F6F73` (teal accent)
+- `tealMist` : `#9BC4C0` (teal mist)
 
 ### 2. `pubspec.yaml`
-Configuration des polices personnalisées :
+Configuration des polices dynamiques :
 ```yaml
-fonts:
-  - family: DMSerifDisplay
-    fonts:
-      - asset: assets/fonts/DMSerifDisplay-Regular.ttf
-  - family: Inter
-    fonts:
-      - asset: assets/fonts/Inter-Regular.ttf
-      - asset: assets/fonts/Inter-Light.ttf
-        weight: 300
+dependencies:
+  google_fonts: ^6.2.1  # Polices téléchargées dynamiquement
 ```
 
 ### 3. `lib/theme/app_text_styles.dart`
 Nouveaux styles pour le splash screen :
-- `splashTime` : DM Serif Display 24px, teal mist
-- `splashMessage` : Inter Light 18px, ivoire chaud
+- `splashMessage` : Texte blanc gras pour "Respirez. Nous veillons."
 
 ### 4. `lib/screens/shared/splash_screen.dart`
 Entièrement réécrit avec :
 - Animation de respiration via `AnimationController` (6s cycle)
-- Halo de respiration pulsant au centre
-- Logo croissant de lune avec gradient teal
+- Logo croissant de lune avec CustomPainter animé
 - Onde de respiration horizontale (CustomPaint)
+- Étoiles scattered avec Positioned widgets
 - Navigation après 3 secondes (préservée)
 - Même logique d'authentification
 
 ## Étapes d'installation
 
-### Étape 1 : Télécharger les polices
+### Étape 1 : Polices (pas nécessaire)
 
-Allez dans `assets/fonts/` et lisez `FONTS_README.md` pour les instructions détaillées.
-
-**Résumé** :
-1. Téléchargez `DMSerifDisplay-Regular.ttf` depuis https://fonts.google.com/specimen/DM+Serif+Display
-2. Téléchargez `Inter-Regular.ttf` et `Inter-Light.ttf` depuis https://fonts.google.com/specimen/Inter
-3. Placez les fichiers dans le dossier `assets/fonts/`
+Les polices sont automatiquement téléchargées la première utilisation via google_fonts package.
 
 ### Étape 2 : Synchroniser les dépendances
 
@@ -122,13 +107,17 @@ flutter run
 
 Changez les valeurs dans `lib/theme/app_colors.dart` :
 ```dart
-static const Color nightBg = Color(0xFF0E2326);        // Changez la couleur
-static const Color tealMist = Color(0xFF9BC4C0);       // Changez la couleur
+// Gradient de fond
+const gradientStart = Color(0xFF5BBCB8);  // Changez la couleur start
+const gradientEnd = Color(0xFF8ECFBF);    // Changez la couleur end
+
+// Logo card
+static const Color warmIvory = Color(0xFFF4F0E8); // Card background
 ```
 
 ### Modifier la durée de respiration
 
-Dans `lib/screens/shared/splash_screen.dart`, changez la `Duration` :
+Dans `lib/screens/shared/splash_screen.dart` (ligne ~26):
 ```dart
 _breathingController = AnimationController(
   duration: const Duration(seconds: 4), // Au lieu de 6
@@ -138,16 +127,20 @@ _breathingController = AnimationController(
 
 ### Modifier la durée du splash
 
-Dans `_navigateAfterSplash()`, changez la `Duration` :
+Dans `_navigateAfterSplash()` (ligne ~33):
 ```dart
 _navigationTimer = Timer(const Duration(seconds: 5), _navigateAfterSplash); // Au lieu de 3
 ```
 
-### Modifier l'heure affichée
+### Modifier le texte
 
-Dans `build()`, changez le texte "9:41" pour afficher l'heure réelle :
+Dans `build()`, changez le texte "Respirez. Nous veillons." :
 ```dart
 Text(
+  'Votre texte personnalisé',
+  // ...
+);
+```
   DateTime.now().format('HH:mm'), // Heure réelle
   style: AppTextStyles.splashTime,
 ),

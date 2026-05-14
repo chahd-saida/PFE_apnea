@@ -12,8 +12,8 @@ Pour utiliser DoctorBot avec le modèle **LLaMA 3.3-70B-Versatile**, vous devez:
    - Générez une clé API dans les paramètres
 
 2. **Configurer la clé**:
-   - Ouvrez `lib/screens/doctor/doctor_chatbot_screen.dart`
-   - Remplacez `'gsk_your_groq_api_key_here'` par votre clé réelle
+   - Ouvrez `lib/screens/shared/chatbot_screen.dart`
+   - Remplacez `'YOUR_GROQ_API_KEY_HERE'` par votre clé réelle
    - **OU** stockez-la dans une variable d'environnement `.env`
 
 ### 2. Variables d'environnement (Recommandé)
@@ -23,7 +23,7 @@ Créez un fichier `.env` à la racine du projet:
 GROQ_API_KEY=gsk_votre_clé_ici
 ```
 
-Puis modifiez `doctor_chatbot_screen.dart`:
+Puis modifiez `lib/screens/shared/chatbot_screen.dart`:
 ```dart
 import 'dart:io';
 const _groqApiKey = String.fromEnvironment('GROQ_API_KEY');
@@ -42,12 +42,12 @@ const _groqApiKey = String.fromEnvironment('GROQ_API_KEY');
 
 1. **Via FAB** (Floating Action Button):
    - Disponible sur toutes les pages du médecin
-   - Bouton violet avec icône médicale
+   - Bouton violet avec icône chatbot
    - Tap pour ouvrir le chatbot
 
 2. **Via Route**:
    ```dart
-   context.go('/doctor-chatbot');
+   context.push(RouteNames.chatbot('doctor'));
    ```
 
 ### Fonctionnalités
@@ -74,21 +74,19 @@ const _groqApiKey = String.fromEnvironment('GROQ_API_KEY');
 
 ```
 lib/
-├── screens/doctor/
-│   └── doctor_chatbot_screen.dart      # Écran principal
-├── services/
-│   └── groq_service.dart               # Client API Groq
+├── screens/shared/
+│   └── chatbot_screen.dart             # Écran principal (role='doctor')
 ├── widgets/
-│   └── doctor_chatbot_fab.dart         # Bouton flottant réutilisable
+│   └── chatbot_fab.dart                # DoctorChatbotFAB button
 └── router/
-    └── app_router.dart                 # Route /doctor-chatbot
+    └── app_router.dart                 # Route /chatbot/:role
 ```
 
 ## ⚙️ Configuration avancée
 
 ### Personnaliser le system prompt
 
-Modifiez `_systemPrompt` dans `doctor_chatbot_screen.dart` pour adapter:
+Modifiez `_promptDoctor` dans `lib/screens/shared/chatbot_screen.dart` pour adapter:
 - Langue et ton
 - Domaines d'expertise
 - Limitations et responsabilités
@@ -97,9 +95,10 @@ Modifiez `_systemPrompt` dans `doctor_chatbot_screen.dart` pour adapter:
 ### Ajuster les paramètres LLM
 
 ```dart
-const _maxTokens = 2048;           // Longueur max des réponses
-const _temperature = 0.7;          // Créativité (0-1)
-const _groqModel = 'llama-3.3-70b-versatile';
+// Dans lib/screens/shared/chatbot_screen.dart:
+const _maxTokens = 2048;                // Pour doctor, max tokens des réponses
+const _temperature = 0.7;               // Créativité (0-1)
+const _modelDoctor = 'llama-3.3-70b-versatile';
 ```
 
 ## 🔒 Sécurité

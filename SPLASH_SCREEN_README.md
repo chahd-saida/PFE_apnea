@@ -2,53 +2,36 @@
 
 ## ✅ Travail effectué
 
-Votre splash screen Flutter a été complètement transformé en écran de respiration apaisant respectant scrupuleusement le design system teal nuit.
+Votre splash screen Flutter a été complètement transformé en écran respiratoire apaisant respectant le design system teal.
 
-### Spécifications respectées
+### Spécifications implémentées
 
 | Aspect | Spécification | ✅ Implémenté |
 |--------|--------------|--------------|
-| **Palette - Fond** | Teal nuit profond #0E2326 | Oui |
-| **Palette - Accent** | Teal profond #1F6F73 | Oui |
-| **Palette - Halo** | Teal mist #9BC4C0 | Oui |
-| **Palette - Texte** | Ivoire chaud #F4F0E8 | Oui |
-| **Typo - Heure** | DM Serif Display 24px | Oui |
-| **Typo - Message** | Inter Regular/Light | Oui |
-| **Animation - Halo** | Respiration 6s cycle | Oui |
-| **Animation - Onde** | Sinusoïdale EEG | Oui |
-| **Animation - Logo** | Croissant de lune gradient teal | Oui |
-| **Durée splash** | 3 secondes | Oui |
-| **Coins arrondis** | 14px (via BorderRadius) | Intégré |
-| **Ombres** | Teintées teal | Oui |
+| **Palette - Fond** | Gradient teal bleu | Oui |
+| **Palette - Card** | Ivoire chaud #F4F0E8 | Oui |
+| **Animation - Logo Moon** | Respiration pulsée | Oui |
+| **Animation - Onde** | Sinusoïdale respiration | Oui |
+| **Texte** | "Respirez. Nous veillons." | Oui |
+| **Coins arrondis** | 22px card (BorderRadius) | Oui |
+| **Ombres** | Teintées noires douces | Oui |
 | **Mode nuit** | Par défaut | Oui |
+| **Étoiles** | Scattered dots background | Oui |
+| **Durée splash** | 3 secondes | Oui |
+| **Version footer** | v1.0.0 • Apnea Detect | Oui |
 
 ## 📁 Fichiers modifiés / créés
 
 ### Modifiés
-- `lib/theme/app_colors.dart` — Ajout palette teal
-- `lib/theme/app_text_styles.dart` — Ajout styles splash screen
-- `lib/screens/shared/splash_screen.dart` — Refonte complète
-- `pubspec.yaml` — Configuration polices personnalisées
-
-### Créés
-- `assets/fonts/FONTS_README.md` — Guide téléchargement polices
-- `SPLASH_SCREEN_INTEGRATION.md` — Guide complet d'intégration (ce dossier)
-- `assets/fonts/` — Dossier pour polices (vide, à compléter)
+- `lib/theme/app_colors.dart` — Palette teal (warmIvory, tealAccent, etc.)
+- `lib/theme/app_text_styles.dart` — Styles splash screen (splashMessage)
+- `lib/screens/shared/splash_screen.dart` — Refonte complète avec animations
+- `pubspec.yaml` — Configuration polices personnalisées (google_fonts)
 
 ## 🚀 Démarrage rapide
 
-### 1. Télécharger les polices
-Allez dans **`assets/fonts/`**, ouvrez **`FONTS_README.md`** et suivez les étapes.
-
-**Tâches essentielles** :
-```bash
-# Téléchargez depuis Google Fonts:
-# - DMSerifDisplay-Regular.ttf
-# - Inter-Regular.ttf
-# - Inter-Light.ttf
-
-# Et placez-les dans: assets/fonts/
-```
+### 1. Vérifier les polices
+Les polices sont chargées dynamiquement via `google_fonts` package (pas besoin de fichiers TTF locaux).
 
 ### 2. Synchroniser Flutter
 ```bash
@@ -66,22 +49,26 @@ flutter run
 
 ```
 ┌──────────────────────────────────┐
+│ ✨ Étoiles scattered              │
 │                                  │
-│     [Halo respirant]             │
+│       [Logo Moon pulse]          │
 │         ↓                        │
-│     ┌──────────┐                │
-│  9:41  │ 🌙 Logo │              │ ← Heure en haut
-│        │ Croisst │              │   (teal mist)
-│        └──────────┘              │
-│            ↓                     │
-│   Respirez. Nous veillons.       │ ← Texte (ivoire)
-│         (Opacité 0.9)           │
-│            ↓                     │
-│      ~~~onde~~~onde~~~         │ ← Onde EEG
-│         (animation)              │
+│    ┌──────────────────┐         │
+│    │ 🌙 Croissant      │         │
+│    │ (animation)      │         │
+│    └──────────────────┘         │
+│            ↓                    │
+│  Respirez. Nous veillons.       │
+│       (Blanc gras)              │
+│            ↓                    │
+│    ~~~onde~~onde~~~            │
+│     (animation respiration)     │
 │                                  │
-│   Fond: Teal nuit profond        │
-│   Durée: 3 sec → Navigation     │
+│  Fond: Gradient bleu/teal       │
+│  Durée: 3 sec → Navigation      │
+│                                  │
+│  v1.0.0 • Apnea Detect          │
+│  © 2025 – All rights reserved   │
 └──────────────────────────────────┘
 ```
 
@@ -91,17 +78,16 @@ flutter run
 
 ```dart
 SplashScreen (StatefulWidget)
-├── AnimationController (6s cycle)
+├── AnimationController (6s cycle respiration)
 ├── Stack
-│   ├── Breathing Halo (Container + CustomPaint)
-│   │   └── Scale animation (0.8 - 1.2)
+│   ├── Gradient background (bleu teal)
+│   ├── Scattered star dots (Positioned)
 │   └── Center Column
-│       ├── Time "9:41" (DMSerifDisplay)
-│       ├── MoonLogo (CustomPainter)
-│       │   └── Crescent + Gradient
-│       ├── Message Text (Inter Light)
-│       └── BreathingWave (CustomPaint)
-│           └── Sine wave animation
+│       ├── Logo Card (Container ivoire)
+│       │   └── MoonLogo (CustomPainter animé)
+│       ├── Message Text ("Respirez. Nous veillons.")
+│       └── BreathingWave (CustomPaint sinusoïde)
+└── Footer (v1.0.0, copyright)
 └── Timer (3s navigation)
 ```
 
@@ -109,8 +95,8 @@ SplashScreen (StatefulWidget)
 
 | Animation | Durée | Effet | Boucle |
 |-----------|-------|-------|--------|
-| Halo respiration | 6s | Scale sin(0.8→1.2) | ∞ |
-| Onde EEG | 6s | Phase shift sinusoïde | ∞ |
+| Moon logo respiration | 6s | Scale pulse | ∞ |
+| Onde EEG respiration | 6s | Phase shift sinusoïde | ∞ |
 | Navigation | 3s | Timeout + navigation | 1x |
 
 ## ⚙️ Configuration

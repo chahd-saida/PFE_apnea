@@ -3,33 +3,31 @@
 ## 🎯 Implémentation complète
 
 ### 1. **Écran PatientChatbot** ✅
-- Fichier: `lib/screens/patient/patient_chatbot_screen.dart`
+- Fichier: `lib/screens/shared/chatbot_screen.dart` (paramètre role='patient')
 - Modèle IA: **LLaMA 3.1-8B-Instant** (optimisé pour patients)
 - Groq API: Ultra-rapide (<100ms latence)
 - Domaine: Apnée du sommeil, monitoring, relaxation
 - Suggestions: 8 questions pré-configurées
 
 ### 2. **FAB PatientChatbot** ✅
-- Fichier: `lib/widgets/patient_chatbot_fab.dart`
+- Fichier: `lib/widgets/chatbot_fab.dart` (classe PatientChatbotFAB)
 - Couleur: Teal/Cyan (#4DBDB8)
 - Icône: Chatbot (smart_toy_rounded)
 - Accessible sur tous les écrans patient
 
 ### 3. **Intégration complète** ✅
-Ajouté FAB sur 10 écrans patients:
+Ajouté FAB sur 8 écrans patients:
 - ✅ Dashboard patient
 - ✅ Appareil (Devices)
 - ✅ Historique
 - ✅ Détail nuit
-- ✅ Alertes
 - ✅ Profil
 - ✅ Paramètres
 - ✅ Monitoring en temps réel
-- ✅ Contenu relaxation
-- ✅ Relaxation
+- ✅ Contenu relaxation (Wellbeing)
 
 ### 4. **Routing** ✅
-- Route: `/patient-chatbot`
+- Route: `/chatbot/patient`
 - Protection: Accès réservé aux patients (rôle="patient")
 - Redirection automatique si docteur essaie d'accéder
 
@@ -61,22 +59,20 @@ Use `--dart-define=GROQ_API_KEY=...` to provide the key at build time.
 ## 📁 Fichiers créés/modifiés
 
 ```
-✅ CRÉÉS:
-  lib/screens/patient/patient_chatbot_screen.dart
-  lib/widgets/patient_chatbot_fab.dart
+✅ Implémentation unifiée:
+  lib/screens/shared/chatbot_screen.dart    (paramètre role='patient')
+  lib/widgets/chatbot_fab.dart              (PatientChatbotFAB classe)
+  lib/router/app_router.dart                (route /chatbot/:role + protection)
 
-✅ MODIFIÉS:
-  lib/router/app_router.dart (route + protection)
-  lib/screens/patient/dashboard_patient_screen.dart (+ FAB)
-  lib/screens/patient/devices_screen.dart (+ FAB)
-  lib/screens/patient/history_screen.dart (+ FAB)
-  lib/screens/patient/night_detail_screen.dart (+ FAB)
-  lib/screens/patient/patient_alerts_screen.dart (+ FAB)
-  lib/screens/patient/patient_profile_screen.dart (+ FAB)
-  lib/screens/patient/patient_settings_screen.dart (+ FAB)
-  lib/screens/patient/realtime_monitoring_screen.dart (+ FAB)
-  lib/screens/patient/relaxation_content_screen.dart (+ FAB)
-  lib/screens/patient/relaxation_screen.dart (+ FAB remplacé)
+✅ Intégration FAB sur 8 écrans patients:
+  lib/screens/patient/dashboard_patient_screen.dart
+  lib/screens/patient/devices_screen.dart
+  lib/screens/patient/history_screen.dart
+  lib/screens/patient/night_detail_screen.dart
+  lib/screens/patient/patient_profile_screen.dart
+  lib/screens/patient/patient_settings_screen.dart
+  lib/screens/patient/realtime_monitoring_screen.dart
+  lib/screens/patient/wellbeing_screen.dart (relaxation/content)
 ```
 
 ## 💡 Utilisation
@@ -92,8 +88,8 @@ Toute page médecin → Tap FAB Violet → Chat DoctorBot
 ```
 
 ### Protection Routes
-- Patient ne peut PAS accéder `/doctor-chatbot` → Redirection
-- Docteur ne peut PAS accéder `/patient-chatbot` → Redirection
+- Patient ne peut PAS accéder `/chatbot/doctor` → Redirection
+- Docteur ne peut PAS accéder `/chatbot/patient` → Redirection
 
 ## ✨ Caractéristiques
 

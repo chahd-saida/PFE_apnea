@@ -11,9 +11,9 @@ Copier la clé
 
 ### 2️⃣ Remplacer la clé (1 min)
 ```
-Fichier: lib/screens/doctor/doctor_chatbot_screen.dart
-Ligne 18:
-  const _groqApiKey = 'gsk_votre_clé_ici';
+Fichier: lib/screens/shared/chatbot_screen.dart
+Ligne 12:
+  const _groqApiKey = 'YOUR_GROQ_API_KEY_HERE';
 ```
 
 ### 3️⃣ Tester! (1 min)

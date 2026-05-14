@@ -4,9 +4,9 @@
 
 ### 🏥 DoctorBot (Médecins)
 ```
-✅ Écran: lib/screens/doctor/doctor_chatbot_screen.dart
+✅ Écran: lib/screens/shared/chatbot_screen.dart (paramètre role='doctor')
 ✅ Modèle: LLaMA 3.3-70B-Versatile (Groq)
-✅ Route: /doctor-chatbot (protégée)
+✅ Route: /chatbot/doctor (protégée)
 ✅ FAB: Violet #6366F1 sur 10 pages médecin
 ✅ Tokens: 2048 (réponses détaillées)
 ✅ Latence: <200ms
@@ -15,10 +15,10 @@
 
 ### 👤 PatientChatbot (Patients)
 ```
-✅ Écran: lib/screens/patient/patient_chatbot_screen.dart
+✅ Écran: lib/screens/shared/chatbot_screen.dart (paramètre role='patient')
 ✅ Modèle: LLaMA 3.1-8B-Instant (Groq)
-✅ Route: /patient-chatbot (protégée)
-✅ FAB: Teal #4DBDB8 sur 10 pages patient
+✅ Route: /chatbot/patient (protégée)
+✅ FAB: Teal #4DBDB8 sur 8 pages patient
 ✅ Tokens: 1024 (rapide & léger)
 ✅ Latence: <100ms
 ✅ Domaine: Questions patients, relaxation, monitoring
@@ -31,14 +31,15 @@
 │ Aspect          │ Médecin (DoctorBot)  │ Patient (ChatBot)   │
 ├─────────────────┼──────────────────────┼────────────────────┤
 │ Modèle IA       │ LLaMA 3.3-70B        │ LLaMA 3.1-8B        │
-│ Fichier         │ doctor_chatbot.dart  │ patient_chatbot.dart│
-│ Route           │ /doctor-chatbot      │ /patient-chatbot    │
+│ Fichier         │ chatbot_screen.dart  │ chatbot_screen.dart │
+│                 │ (role='doctor')      │ (role='patient')    │
+│ Route           │ /chatbot/doctor      │ /chatbot/patient    │
 │ FAB Couleur     │ Violet #6366F1       │ Teal #4DBDB8        │
 │ Tokens Max      │ 2048                 │ 1024                │
 │ Latence         │ <200ms ⚡            │ <100ms ⚡⚡          │
-│ Pages           │ 10 écrans            │ 10 écrans           │
+│ Pages           │ 10 écrans            │ 8 écrans            │
 │ Domaine         │ Recommandations      │ Q&A patient         │
-│ Import          │ DoctorChatbotFAB     │ PatientChatbotFAB   │
+│ FAB Import      │ DoctorChatbotFAB     │ PatientChatbotFAB   │
 │ Status          │ ✅ Production Ready  │ ✅ Production Ready │
 └─────────────────┴──────────────────────┴────────────────────┘
 ```
@@ -48,31 +49,33 @@
 ```
 lib/
 ├── screens/
-│   ├── doctor/
-│   │   └── doctor_chatbot_screen.dart       ✅ NEW
-│   ├── patient/
-│   │   └── patient_chatbot_screen.dart      ✅ NEW
-│   └── shared/
-│       └── chatbot_screen.dart              (keeper pour routes partagées)
+│   ├── shared/
+│   │   └── chatbot_screen.dart              ✅ Chatbot unique (paramètre role)
 ├── widgets/
-│   ├── doctor_chatbot_fab.dart              ✅ NEW
-│   └── patient_chatbot_fab.dart             ✅ NEW
-├── services/
-│   └── groq_service.dart                    ✅ NEW
-└── router/
-    └── app_router.dart                      ✅ MODIFIED (routes + protection)
+│   ├── chatbot_fab.dart                     ✅ FAB pour doctor + patient
+│       ├── PatientChatbotFAB (Teal #4DBDB8)
+│       └── DoctorChatbotFAB (Violet #6366F1)
+├── router/
+│    └── app_router.dart                      ✅ Route: /chatbot/:role (protégée)
+```
+
+**Architecture unifiée :**
+- `chatbot_screen.dart` accepte un paramètre `role` ('doctor' ou 'patient')
+- Configuration du modèle, prompt, suggestions selon le rôle
+- Route paramétrisée : `/chatbot/doctor` ou `/chatbot/patient`
+- FAB (Floating Action Buttons) distincts pour chaque rôle avec couleurs différentes
 ```
 
 ## 🔐 Protection des routes
 
 ```dart
-// Patients ne peuvent accéder que patient-chatbot
-/patient-chatbot          ✅ Accessible
-/doctor-chatbot           ❌ Redirection → access-denied
+// Patients ne peuvent accéder que /chatbot/patient
+/chatbot/patient          ✅ Accessible
+/chatbot/doctor           ❌ Redirection → access-denied
 
-// Médecins ne peuvent accéder que doctor-chatbot
-/doctor-chatbot           ✅ Accessible
-/patient-chatbot          ❌ Redirection → access-denied
+// Médecins ne peuvent accéder que /chatbot/doctor
+/chatbot/doctor           ✅ Accessible
+/chatbot/patient          ❌ Redirection → access-denied
 ```
 
 ## 🎨 Interface utilisateur
@@ -98,6 +101,18 @@ Suggestions: Questions patients simples (8)
 ### Médecin
 ```
 1. Se connecter (rôle: doctor)
+2. Voir FAB violet sur tous les écrans
+3. Tap FAB → Ouvre ChatbotScreen(role='doctor')
+4. Poser question → DoctorBot répond avec LLaMA 3.3-70B
+```
+
+### Patient
+```
+1. Se connecter (rôle: patient)
+2. Voir FAB teal sur tous les écrans
+3. Tap FAB → Ouvre ChatbotScreen(role='patient')
+4. Poser question → ApneaBot répond avec LLaMA 3.1-8B
+```
 2. Taper sur FAB violet (toute page médecin)
 3. Poser question clinique
 4. Recevoir réponse de LLaMA 3.3-70B

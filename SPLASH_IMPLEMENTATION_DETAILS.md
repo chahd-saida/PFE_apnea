@@ -12,20 +12,21 @@ _breathingController = AnimationController(
 ```
 
 - Cycle continu de 6 secondes
-- Contrôle les animations du halo et de l'onde
+- Contrôle les animations du logo moon et de l'onde
 - Valeur animée: `_breathingController.value` (0.0 → 1.0)
 
-### 2. **Halo de Respiration (Scale Animation)**
+### 2. **Logo Moon (Scale Animation dans Card)**
 
 ```dart
 final scale = 0.8 + 0.4 * sin(_breathingController.value * 2 * pi);
 ```
 
 **Mathématique** :
-- Min scale: 0.8 (8:00 = 80% taille)
-- Max scale: 1.2 (1:00 = 120% taille)
+- Min scale: 0.8 (logo 80% taille)
+- Max scale: 1.2 (logo 120% taille)
 - Fonction: Sinusoïde lisse (sin wave)
 - Durée cycle: 6 secondes
+- Container: Ivoire arrondi (#F4F0E8)
 
 **Effet visuel** :
 ```
@@ -40,25 +41,27 @@ Scale    0.8   1.0    1.2   1.0    0.8
 ### 3. **Logo Croissant de Lune (CustomPainter)**
 
 ```dart
-class _MoonCrescentPainter extends CustomPainter {
-  void paint(Canvas canvas, Size size) {
-    // Cercle principal (teal mist)
-    canvas.drawCircle(center, radius, paint);
-    
-    // Overlay circle (nuit profonde) = crescent
-    canvas.drawCircle(
-      Offset(center.dx + radius * 0.3, center.dy),
-      radius * 0.85,
-      overlayPaint,
+class _MoonLogo extends StatelessWidget {
+  final AnimationController animationController;
+  
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animationController,
+      builder: (context, child) {
+        final scale = 0.8 + 0.4 * sin(animationController.value * 2 * pi);
+        return Transform.scale(scale: scale, child: child);
+      },
+      child: CustomPaint(painter: _MoonCrescentPainter()),
     );
   }
 }
 ```
 
 **Technique** :
-- Deux cercles superposés
-- L'overlay crée le "croissant"
-- Gradient teal appliqué au conteneur parent
+- CustomPainter qui dessine un croissant
+- Gradient teal appliqué
+- Pulsation via Transform.scale du parent AnimatedBuilder
 
 ### 4. **Onde de Respiration (Wave Animation)**
 

@@ -39,7 +39,7 @@ Ajouté FAB sur 9 écrans:
 ## 🔑 Configuration Groq requise
 
 1. Obtenez une clé API: [console.groq.com](https://console.groq.com)
-2. Remplacez `'gsk_your_groq_api_key_here'` dans `doctor_chatbot_screen.dart`
+2. Remplacez `'YOUR_GROQ_API_KEY_HERE'` dans `lib/screens/shared/chatbot_screen.dart` (ligne 12)
 3. **Recommandé**: Utilisez `.env` pour sécuriser la clé
 
 Voir `DOCTORBOT_SETUP.md` pour les détails.
@@ -47,24 +47,22 @@ Voir `DOCTORBOT_SETUP.md` pour les détails.
 ## 📁 Fichiers créés/modifiés
 
 ```
-✅ CRÉÉS:
-  lib/screens/doctor/doctor_chatbot_screen.dart
-  lib/services/groq_service.dart
-  lib/widgets/doctor_chatbot_fab.dart
-  DOCTORBOT_SETUP.md
+✅ Implémentation unifiée:
+  lib/screens/shared/chatbot_screen.dart    (paramètre role='doctor')
+  lib/widgets/chatbot_fab.dart              (DoctorChatbotFAB classe)
+  lib/router/app_router.dart                (route /chatbot/:role + protection)
 
-✅ MODIFIÉS:
-  lib/router/app_router.dart (ajout route + protection)
-  lib/screens/doctor/dashboard_doctor_screen.dart (+ FAB)
-  lib/screens/doctor/doctor_patients_list_screen.dart (+ FAB)
-  lib/screens/doctor/doctor_alerts_center_screen.dart (+ FAB)
-  lib/screens/doctor/doctor_messages_screen.dart (+ FAB)
-  lib/screens/doctor/doctor_profile_screen.dart (+ FAB)
-  lib/screens/doctor/doctor_reports_screen.dart (+ FAB)
-  lib/screens/doctor/doctor_settings_screen.dart (+ FAB)
-  lib/screens/doctor/add_patient_screen.dart (+ FAB)
-  lib/screens/doctor/doctor_patient_profile_screen.dart (+ FAB)
-  lib/screens/doctor/doctor_analysis_screen.dart (+ FAB)
+✅ Intégration FAB sur 10 écrans docteur:
+  lib/screens/doctor/dashboard_doctor_screen.dart
+  lib/screens/doctor/doctor_patients_list_screen.dart
+  lib/screens/doctor/doctor_alerts_center_screen.dart
+  lib/screens/doctor/doctor_messages_screen.dart
+  lib/screens/doctor/doctor_profile_screen.dart
+  lib/screens/doctor/doctor_reports_screen.dart
+  lib/screens/doctor/doctor_settings_screen.dart
+  lib/screens/doctor/add_patient_screen.dart
+  lib/screens/doctor/doctor_patient_profile_screen.dart (2x)
+  lib/screens/doctor/doctor_analysis_screen.dart
 ```
 
 ## 🎨 Design

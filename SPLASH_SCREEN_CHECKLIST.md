@@ -22,18 +22,10 @@
 
 ## ✨ Avant de tester
 
-### 1. Télécharger les polices (⚠️ OBLIGATOIRE)
+### 1. Polices (pas nécessaire)
 
-```bash
-# Allez sur Google Fonts et téléchargez:
-1. DM Serif Display → DMSerifDisplay-Regular.ttf
-2. Inter → Inter-Regular.ttf
-3. Inter → Inter-Light.ttf
-
-# Placez-les dans: /assets/fonts/
-```
-
-**Référence**: `assets/fonts/FONTS_README.md`
+Les polices sont maintenant chargées dynamiquement via `google_fonts` package.
+Aucun téléchargement manuel requis ! ✨
 
 ### 2. Synchroniser Flutter
 
@@ -57,20 +49,22 @@ flutter run
 
 ```
 ┌─────────────────────────────────┐
-│      Fond: Teal nuit           │
-│          (animation de)         │
+│    ✨ Étoiles scattered        │
+│      Fond: Gradient            │
+│      bleu teal                  │
 │                                 │
-│    9:41  ← Heure (DM Serif)    │
+│      ┌──────────────┐           │
+│      │ 🌙 Logo      │           │ ← Card ivoire
+│      │   Moon       │           │   (pulse 6s)
+│      │  (pulsing)   │           │
+│      └──────────────┘           │
 │                                 │
-│    ┌──────────────┐             │
-│    │ 🌙 Croissant │             │ ← Halo respire
-│    │  de lune     │             │   (pulse 6s)
-│    └──────────────┘             │
+│   Respirez. Nous veillons.      │ ← Texte blanc
 │                                 │
-│   Respirez. Nous veillons.      │ ← Texte (Inter)
+│      ~~~onde~~~onde~~~         │ ← Onde EEG animée
 │                                 │
-│      ~~~onde~~~onde~~~         │ ← Onde EEG
-│                                 │
+│   v1.0.0 • Apnea Detect        │ ← Footer
+│   © 2025 – All rights reserved  │
 └─────────────────────────────────┘
          ↓ (après 3s)
     Navigation automatique
@@ -78,10 +72,11 @@ flutter run
 
 ### Animations
 
-- ✅ Halo pulse continuellement (scale 0.8 → 1.2 → 0.8)
+- ✅ Logo moon pulse continuellement (scale 0.8 → 1.2 → 0.8)
 - ✅ Onde EEG bouge horizontalement
-- ✅ Logo croissant visible avec gradient teal
-- ✅ Texte affiché clairement
+- ✅ Logo croissant visible avec teal mist
+- ✅ Card ivoire arrondie (22px)
+- ✅ Étoiles visibles en arrière-plan
 - ✅ Après 3 secondes, transition vers l'écran d'authentification
 
 ---
@@ -91,21 +86,25 @@ flutter run
 Après lancement, vérifiez:
 
 ### Design
-- [ ] Fond teal nuit profond (pas bleu, pas gris)
-- [ ] Halo circulaire visible autour du logo
-- [ ] Logo croissant de lune visible (pas rond complet)
-- [ ] Halo pulse doucement (pas saccade)
+- [ ] Fond gradient bleu/teal (pas nuit profond)
+- [ ] Card ivoire arrondie visible autour du logo
+- [ ] Logo croissant de lune visible
+- [ ] Logo pulse doucement (pas saccade)
 - [ ] Onde EEG bouge (pas statique)
+- [ ] Étoiles visibles en arrière-plan
 - [ ] Aucune erreur compilation
 
 ### Texte
-- [ ] "9:41" affiché en haut
-- [ ] Police "9:41" élégante (DM Serif, pas Arial)
 - [ ] "Respirez. Nous veillons." centré
-- [ ] Texte couleur ivoire (pas blanc pur)
-- [ ] Texte légèrement transparent
+- [ ] Texte couleur blanc
+- [ ] Police: Sans-serif moderne
+- [ ] Texte lisible et pas trop grand
 
-### Couleurs
+### Autres
+- [ ] Version "v1.0.0 • Apnea Detect" au bas
+- [ ] Copyright © 2025 présent
+- [ ] Après 3 secondes, navigation automatique
+- [ ] Authentification checkée en arrière-plan
 - [ ] Fond = teal nuit profond (#0E2326)
 - [ ] Halo = teal mist (#9BC4C0)
 - [ ] Ombres = teintées teal

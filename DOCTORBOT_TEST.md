@@ -12,9 +12,8 @@ flutter build apk --debug  # ou ios pour iOS
 ### 2. **Configuration Groq** ⚠️ **REQUIS**
 - [ ] Créer compte sur [console.groq.com](https://console.groq.com)
 - [ ] Générer clé API
-- [ ] Remplacer `'gsk_your_groq_api_key_here'` dans:
-  - `lib/screens/doctor/doctor_chatbot_screen.dart` ligne 18
-  - `lib/services/groq_service.dart` ligne 4
+- [ ] Remplacer `'YOUR_GROQ_API_KEY_HERE'` dans:
+  - `lib/screens/shared/chatbot_screen.dart` ligne 12
 
 ### 3. **Démarrage de l'app**
 ```bash
@@ -31,8 +30,8 @@ flutter run
 - [ ] Recevoir réponse en français
 
 #### Test 4.2: Protection des routes 🔒
-- [ ] Médecin: `context.go('/doctor-chatbot')` → Fonctionne ✅
-- [ ] Patient: Essayer d'accéder à `/doctor-chatbot` → Redirection vers access-denied ✅
+- [ ] Médecin: `context.push(RouteNames.chatbot('doctor'))` → Fonctionne ✅
+- [ ] Patient: Essayer d'accéder à `/chatbot/doctor` → Redirection vers access-denied ✅
 
 #### Test 4.3: FAB sur toutes les pages
 - [ ] Dashboard → FAB visible ✅
