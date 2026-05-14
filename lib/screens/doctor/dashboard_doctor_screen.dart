@@ -480,7 +480,7 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
                 top: 16,
                 left: 16,
                 child: Semantics(
-                  live: true,
+                  liveRegion: true,
                   label: 'Signal ECG en direct',
                   child: Row(
                     children: [
