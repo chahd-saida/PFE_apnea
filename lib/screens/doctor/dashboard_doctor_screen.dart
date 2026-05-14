@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
+import 'package:apnea_project/providers/theme_provider.dart';
 import 'package:apnea_project/l10n/app_localizations.dart';
+import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/theme/app_dimensions.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 import 'package:apnea_project/widgets/doctor_bottom_navigation_bar.dart';
 
@@ -35,19 +39,25 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final doctorProfile = useDoctorProfile(context);
     final doctorName = doctorProfile?.fullName ?? 'Médecin';
-    final clinicName =
-        doctorProfile?.clinicName ?? 'Centre de Pneumologie et Sommeil';
     final photoUrl = doctorProfile?.profileImageUrl;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildCustomHeader(doctorName, clinicName, photoUrl, context),
+            // Custom Header
+            _buildCustomHeader(
+              name: doctorName,
+              clinic: 'Centre Médical',
+              photoUrl: photoUrl,
+              context: context,
+              isDark: isDark,
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
               child: Column(
@@ -57,34 +67,42 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
                   _buildSectionTitle(
                     l10n.sectionOverview,
                     Icons.dashboard_rounded,
+                    isDark,
                   ),
                   const SizedBox(height: 16),
-                  _buildStatsGrid(l10n),
+                  _buildStatsGrid(l10n, isDark),
                   const SizedBox(height: 30),
-                  _buildSectionTitle(l10n.sectionAIAnalysis, Icons.psychology),
+                  _buildSectionTitle(
+                    l10n.sectionAIAnalysis,
+                    Icons.psychology,
+                    isDark,
+                  ),
                   const SizedBox(height: 16),
-                  _buildAIAnalysisSection(l10n),
+                  _buildAIAnalysisSection(l10n, isDark),
                   const SizedBox(height: 30),
                   _buildSectionTitle(
                     l10n.sectionECGSignal,
                     Icons.monitor_heart,
+                    isDark,
                   ),
                   const SizedBox(height: 16),
-                  _buildECGSection(l10n),
+                  _buildECGSection(l10n, isDark),
                   const SizedBox(height: 30),
                   _buildSectionTitle(
                     l10n.sectionCriticalPatients,
                     Icons.warning_amber_rounded,
+                    isDark,
                   ),
                   const SizedBox(height: 16),
-                  _buildCriticalAlerts(context),
+                  _buildCriticalAlerts(context, isDark),
                   const SizedBox(height: 30),
                   _buildSectionTitle(
                     l10n.sectionQuickActions,
                     Icons.flash_on_rounded,
+                    isDark,
                   ),
                   const SizedBox(height: 16),
-                  _buildQuickActions(context, l10n),
+                  _buildQuickActions(context, l10n, isDark),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -97,12 +115,13 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
     );
   }
 
-  Widget _buildCustomHeader(
-    String name,
-    String clinic,
+  Widget _buildCustomHeader({
+    required String name,
+    required String clinic,
     String? photoUrl,
-    BuildContext context,
-  ) {
+    required BuildContext context,
+    required bool isDark,
+  }) {
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 20,
@@ -110,22 +129,25 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
         right: 24,
         bottom: 30,
       ),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
+          colors: [
+            AppColors.primary,
+            AppColors.primaryLight,
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black12,
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 15,
-            offset: Offset(0, 8),
+            offset: const Offset(0, 8),
           ),
         ],
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(32),
-          bottomRight: Radius.circular(32),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(24),
+          bottomRight: Radius.circular(24),
         ),
       ),
       child: Row(
@@ -139,12 +161,13 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
                   'Dr. $name',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 26,
+                    fontSize: 24,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
                   ),
+                  semanticsLabel: 'Docteur $name',
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     const Icon(
@@ -158,9 +181,10 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
                         clinic,
                         style: const TextStyle(
                           color: Colors.white70,
-                          fontSize: 15,
+                          fontSize: 14,
                           fontWeight: FontWeight.w400,
                         ),
+                        semanticsLabel: 'Clinique: $clinic',
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -169,36 +193,42 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
               ],
             ),
           ),
-          InkWell(
-            onTap: () => context.push(RouteNames.doctorProfile),
-            child: Hero(
-              tag: 'profilePic',
-              child: Container(
-                padding: const EdgeInsets.all(3),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: CircleAvatar(
-                  radius: 26,
-                  backgroundColor: const Color(0xFFE2E8F0),
-                  backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
-                      ? NetworkImage(photoUrl)
-                      : null,
-                  child: (photoUrl == null || photoUrl.isEmpty)
-                      ? const Icon(
-                          Icons.person,
-                          color: Color(0xFF64748B),
-                          size: 30,
-                        )
-                      : null,
+          Semantics(
+            button: true,
+            enabled: true,
+            label: 'Profil médecin',
+            child: InkWell(
+              onTap: () => context.push(RouteNames.doctorProfile),
+              customBorder: CircleBorder(),
+              child: Hero(
+                tag: 'profilePic',
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: CircleAvatar(
+                    radius: 26,
+                    backgroundColor: AppColors.surfaceLight,
+                    backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+                        ? NetworkImage(photoUrl)
+                        : null,
+                    child: (photoUrl == null || photoUrl.isEmpty)
+                        ? Icon(
+                            Icons.person,
+                            color: AppColors.textMedium,
+                            size: 30,
+                          )
+                        : null,
+                  ),
                 ),
               ),
             ),
@@ -208,7 +238,7 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
     );
   }
 
-  Widget _buildStatsGrid(AppLocalizations l10n) {
+  Widget _buildStatsGrid(AppLocalizations l10n, bool isDark) {
     return GridView.count(
       crossAxisCount: 2,
       crossAxisSpacing: 16,
@@ -221,25 +251,29 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
           l10n.statPatients,
           '24',
           Icons.people_alt,
-          const Color(0xFF3B82F6),
+          AppColors.primaryLight,
+          isDark,
         ),
         _buildStatCard(
           l10n.statCritical,
           '2',
           Icons.notification_important,
-          const Color(0xFFEF4444),
+          AppColors.error,
+          isDark,
         ),
         _buildStatCard(
           l10n.statAIAnalyzed,
           '15',
           Icons.biotech,
-          const Color(0xFF8B5CF6),
+          AppColors.aiPrimary,
+          isDark,
         ),
         _buildStatCard(
           l10n.statPDFReports,
           '8',
           Icons.picture_as_pdf,
-          const Color(0xFF10B981),
+          AppColors.success,
+          isDark,
         ),
       ],
     );
@@ -250,200 +284,62 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
     String value,
     IconData icon,
     Color color,
+    bool isDark,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.1),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 22),
-              ),
-              Icon(Icons.arrow_outward, color: Colors.grey.shade400, size: 16),
-            ],
-          ),
-          const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF0F172A),
+    return Semantics(
+      container: true,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF64748B),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAIAnalysisSection(AppLocalizations l10n) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2E1065), Color(0xFF6D28D9)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          ],
         ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF6D28D9).withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.auto_awesome,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  l10n.aiRiskPrediction,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Patient: Ahmed Ben',
-            style: TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '85% de risque de crise d\'apnée (IA basée sur chute SpO2 combinée)',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: const LinearProgressIndicator(
-              value: 0.85,
-              minHeight: 8,
-              backgroundColor: Colors.white24,
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF43F5E)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildECGSection(AppLocalizations l10n) {
-    return Container(
-      height: 180,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F172A),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 5),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Stack(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Positioned.fill(child: CustomPaint(painter: GridPainter())),
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: _ecgController,
-                builder: (context, child) {
-                  return CustomPaint(painter: EcgPainter(_ecgController.value));
-                },
-              ),
-            ),
-            Positioned(
-              top: 16,
-              left: 16,
-              child: Row(
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF10B981),
-                      shape: BoxShape.circle,
-                    ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.12),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    l10n.ecgLiveLabel,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Positioned(
-              top: 16,
-              right: 16,
-              child: Text(
-                'BPM 72',
-                style: TextStyle(
-                  color: Color(0xFF10B981),
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
+                  child: Icon(icon, color: color, size: 20),
                 ),
+                Icon(
+                  Icons.trending_up,
+                  color: AppColors.textLight,
+                  size: 16,
+                ),
+              ],
+            ),
+            const Spacer(),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : AppColors.textDark,
+              ),
+              semanticsLabel: '$title: $value',
+            ),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppColors.darkTextSecondary : AppColors.textMedium,
               ),
             ),
           ],
@@ -452,7 +348,186 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
     );
   }
 
-  Widget _buildCriticalAlerts(BuildContext context) {
+  Widget _buildAIAnalysisSection(AppLocalizations l10n, bool isDark) {
+    return Semantics(
+      container: true,
+      enabled: true,
+      label: 'Section analyse IA',
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.aiDark,
+              AppColors.aiPrimary,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.aiPrimary.withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    l10n.aiRiskPrediction,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    semanticsLabel: 'Prédiction de risque IA',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Patient: Ahmed Ben',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+              semanticsLabel: 'Nom du patient: Ahmed Ben',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '85% de risque de crise d\'apnée',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
+              semanticsLabel: 'Risque de crise apnée: 85 pourcent',
+            ),
+            const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: const LinearProgressIndicator(
+                value: 0.85,
+                minHeight: 8,
+                backgroundColor: Colors.white24,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.rosePink),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildECGSection(AppLocalizations l10n, bool isDark) {
+    return Semantics(
+      container: true,
+      label: 'Signal ECG en direct',
+      child: Container(
+        height: 180,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: CustomPaint(painter: GridPainter(isDark: isDark)),
+              ),
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: _ecgController,
+                  builder: (context, child) {
+                    return CustomPaint(
+                      painter: EcgPainter(_ecgController.value),
+                    );
+                  },
+                ),
+              ),
+              Positioned(
+                top: 16,
+                left: 16,
+                child: Semantics(
+                  live: true,
+                  label: 'Signal ECG en direct',
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        l10n.ecgLiveLabel,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 16,
+                right: 16,
+                child: Semantics(
+                  label: 'Battements par minute: 72',
+                  child: const Text(
+                    'BPM 72',
+                    style: TextStyle(
+                      color: AppColors.success,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCriticalAlerts(BuildContext context, bool isDark) {
     return Column(
       children: [
         _buildAlertCard(
@@ -461,6 +536,7 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
           alert: '5 apnées sévères (>30s) détectées',
           time: 'Il y a 10 min',
           isCritical: true,
+          isDark: isDark,
         ),
         const SizedBox(height: 12),
         _buildAlertCard(
@@ -469,6 +545,7 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
           alert: 'Chute SpO2 relative (84%)',
           time: 'Il y a 1 heure',
           isCritical: false,
+          isDark: isDark,
         ),
       ],
     );
@@ -480,59 +557,84 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
     required String alert,
     required String time,
     required bool isCritical,
+    required bool isDark,
   }) {
-    Color statusColor = isCritical
-        ? const Color(0xFFEF4444)
-        : const Color(0xFFF59E0B);
+    final statusColor = isCritical ? AppColors.error : AppColors.warning;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border(left: BorderSide(color: statusColor, width: 6)),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3)),
-        ],
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: statusColor.withValues(alpha: 0.15),
-          child: Icon(
-            isCritical ? Icons.warning_rounded : Icons.notifications_active,
-            color: statusColor,
+    return Semantics(
+      container: true,
+      label: 'Alerte patient: $patientName',
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border(
+            left: BorderSide(color: statusColor, width: 5),
           ),
-        ),
-        title: Text(
-          patientName,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(alert, style: const TextStyle(color: Color(0xFF475569))),
-            const SizedBox(height: 6),
-            Text(
-              time,
-              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
-        trailing: const Icon(
-          Icons.arrow_forward_ios_rounded,
-          size: 16,
-          color: Colors.grey,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          leading: CircleAvatar(
+            backgroundColor: statusColor.withOpacity(0.15),
+            child: Icon(
+              isCritical ? Icons.warning_rounded : Icons.notifications_active,
+              color: statusColor,
+              size: 22,
+            ),
+          ),
+          title: Text(
+            patientName,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+              color: isDark ? Colors.white : AppColors.textDark,
+            ),
+            semanticsLabel: 'Patient: $patientName',
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 6),
+              Text(
+                alert,
+                style: TextStyle(
+                  color: isDark ? AppColors.darkTextSecondary : AppColors.textBody,
+                  fontSize: 13,
+                ),
+                semanticsLabel: 'Alerte: $alert',
+              ),
+              const SizedBox(height: 6),
+              Text(
+                time,
+                style: TextStyle(
+                  color: AppColors.textLight,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+          trailing: Icon(
+            Icons.arrow_forward_ios_rounded,
+            size: 16,
+            color: AppColors.textMedium,
+          ),
+          onTap: () {
+            final encodedPatientId = Uri.encodeComponent('sample-patient-id');
+            context.push(RouteNames.doctorPatientProfile(encodedPatientId));
+          },
         ),
-        onTap: () {
-          final encodedPatientId = Uri.encodeComponent('sample-patient-id');
-          context.push(RouteNames.doctorPatientProfile(encodedPatientId));
-        },
       ),
     );
   }
 
-  Widget _buildQuickActions(BuildContext context, AppLocalizations l10n) {
+  Widget _buildQuickActions(BuildContext context, AppLocalizations l10n, bool isDark) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -540,29 +642,33 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
           context,
           l10n.quickActionPDF,
           Icons.picture_as_pdf_rounded,
-          const Color(0xFF3B82F6),
+          AppColors.primaryLight,
           () => context.go(RouteNames.doctorReports),
+          isDark,
         ),
         _buildActionButton(
           context,
           l10n.patientsLabel,
           Icons.people_alt_rounded,
-          const Color(0xFF10B981),
+          AppColors.success,
           () => context.go(RouteNames.doctorPatients),
+          isDark,
         ),
         _buildActionButton(
           context,
           l10n.quickActionStats,
           Icons.analytics_rounded,
-          const Color(0xFF8B5CF6),
+          AppColors.aiPrimary,
           () => context.go(RouteNames.doctorMessages),
+          isDark,
         ),
         _buildActionButton(
           context,
           l10n.settingsTitle,
           Icons.settings_rounded,
-          const Color(0xFF64748B),
+          AppColors.textMedium,
           () => context.go(RouteNames.doctorSettings),
+          isDark,
         ),
       ],
     );
@@ -574,56 +680,76 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
     IconData icon,
     Color color,
     VoidCallback onTap,
+    bool isDark,
   ) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      enabled: true,
+      label: label,
       onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 26),
             ),
-            child: Icon(icon, color: color, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppColors.darkTextSecondary : AppColors.textBody,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, IconData icon, bool isDark) {
+    return Semantics(
+      header: true,
+      label: title,
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 22,
+            color: AppColors.primary,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(width: 10),
           Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF475569),
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : AppColors.textDark,
             ),
           ),
         ],
       ),
     );
   }
-
-  Widget _buildSectionTitle(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 22, color: const Color(0xFF1E3A8A)),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1E293B),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 class GridPainter extends CustomPainter {
+  final bool isDark;
+  
+  GridPainter({this.isDark = false});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.05)
+      ..color = (isDark ? Colors.white : Colors.black).withOpacity(0.05)
       ..strokeWidth = 1.0;
 
     for (double i = 0; i < size.width; i += 20) {
@@ -635,7 +761,8 @@ class GridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant GridPainter oldDelegate) =>
+      oldDelegate.isDark != isDark;
 }
 
 class EcgPainter extends CustomPainter {
@@ -645,7 +772,7 @@ class EcgPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF10B981)
+      ..color = AppColors.success
       ..strokeWidth = 2.5
       ..style = PaintingStyle.stroke
       ..strokeJoin = StrokeJoin.round;
@@ -672,7 +799,7 @@ class EcgPainter extends CustomPainter {
     }
 
     final fadedPaint = Paint()
-      ..color = const Color(0xFF10B981).withValues(alpha: 0.2)
+      ..color = AppColors.success.withOpacity(0.2)
       ..strokeWidth = 2.5
       ..style = PaintingStyle.stroke;
     canvas.drawPath(path, fadedPaint);
