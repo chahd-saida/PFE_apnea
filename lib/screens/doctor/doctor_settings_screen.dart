@@ -8,8 +8,9 @@ import 'package:apnea_project/providers/locale_provider.dart';
 import 'package:apnea_project/providers/theme_provider.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/services/settings_service.dart';
+import 'package:apnea_project/widgets/chatbot_fab.dart';
+import 'package:apnea_project/widgets/doctor_bottom_navigation_bar.dart';
 import 'package:apnea_project/theme/app_colors.dart';
-import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
 
 class DoctorSettingsScreen extends StatefulWidget {
   const DoctorSettingsScreen({super.key});
@@ -220,44 +221,7 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
               ),
             ),
       floatingActionButton: const DoctorChatbotFAB(),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        items: [
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.home),
-            label: l10n.homeLabel,
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.people),
-            label: l10n.patientsLabel,
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.notifications_active),
-            label: l10n.alertsLabel,
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.settings),
-            label: l10n.settingsShortLabel,
-          ),
-        ],
-        currentIndex: 3,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              context.go(RouteNames.doctorDashboard);
-              break;
-            case 1:
-              context.go(RouteNames.doctorPatients);
-              break;
-            case 2:
-              context.go(RouteNames.doctorAlerts);
-              break;
-            case 3:
-              context.go(RouteNames.doctorSettings);
-              break;
-          }
-        },
-      ),
+      bottomNavigationBar: const DoctorBottomNavigationBar(currentIndex: 4),
     );
   }
 }

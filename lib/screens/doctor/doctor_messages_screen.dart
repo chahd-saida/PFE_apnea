@@ -7,7 +7,7 @@ import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
-import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
+import 'package:apnea_project/widgets/chatbot_fab.dart';
 
 class DoctorMessagesScreen extends StatefulWidget {
   const DoctorMessagesScreen({super.key});
@@ -53,9 +53,9 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur envoi: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur envoi: $e')));
     }
   }
 
@@ -146,10 +146,7 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
                   const SizedBox(height: 16),
                   const Text(
                     'Aucune conversation',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -199,7 +196,10 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: AppColors.textMedium, fontSize: 13),
               ),
-              trailing: const Icon(Icons.chevron_right, color: AppColors.textMedium),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: AppColors.textMedium,
+              ),
               onTap: () {
                 setState(() {
                   _selectedConversationId = convId;

@@ -1,5 +1,4 @@
 // lib/screens/patient/dashboard_patient_screen.dart
-// Premium redesign — gradient header, chatbot section, quick actions, animated vitals
 // ignore_for_file: use_build_context_synchronously
 import 'dart:math' as math;
 
@@ -13,27 +12,20 @@ import 'package:apnea_project/l10n/app_localizations.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/theme_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
+import 'package:apnea_project/services/alert_service.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/theme/app_dimensions.dart';
-import 'package:apnea_project/widgets/patient_chatbot_fab.dart';
+import 'package:apnea_project/widgets/chatbot_fab.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS
-// ─────────────────────────────────────────────────────────────────────────────
 const _teal = Color(0xFF4DBDB8);
 const _navy = Color(0xFF1E3A8A);
 const _navyLight = Color(0xFF3B82F6);
 const _cardDark = Color(0xFF161D2E);
 const _bgDark = Color(0xFF0A0E1A);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SCREEN
-// ─────────────────────────────────────────────────────────────────────────────
-
 class DashboardPatientScreen extends StatefulWidget {
   const DashboardPatientScreen({super.key});
-
   @override
   State<DashboardPatientScreen> createState() => _DashboardPatientScreenState();
 }
@@ -45,6 +37,9 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
   late final AnimationController _pulseCtrl;
   late final AnimationController _chatPulseCtrl;
 
+  final AlertService _alertService = AlertService();
+  bool _hasShownAlertsFromRoute = false;
+
   bool _isMonitoring = false;
   bool _showLastSession = false;
 
@@ -54,7 +49,7 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     _fadeCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
-    );
+    )..forward();
     _slideCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -67,7 +62,6 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1600),
     )..repeat(reverse: true);
-    _fadeCtrl.forward();
     Future.delayed(
       const Duration(milliseconds: 150),
       () => _slideCtrl.forward(),
@@ -82,8 +76,6 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     _chatPulseCtrl.dispose();
     super.dispose();
   }
-
-  // ── HELPERS ────────────────────────────────────────────────────────────────
 
   String _greeting(AppLocalizations l10n) {
     final h = DateTime.now().hour;
@@ -128,7 +120,592 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     return null;
   }
 
-  // ── BUILD ──────────────────────────────────────────────────────────────────
+  Future<void> _markAllRead(String patientId) async {
+    await _alertService.markAllAlertsAsRead(patientId);
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.alertsAllMarkedRead)));
+  }
+
+  Future<void> _deleteAlert(String alertId) async {
+    try {
+      await _alertService.deleteAlert(alertId);
+    } catch (_) {
+      if (!mounted) return;
+      final l10n = AppLocalizations.of(context)!;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.alertDeleteError),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  void _maybeShowAlertsFromRoute(String patientId) {
+    if (_hasShownAlertsFromRoute) return;
+    final extra = GoRouterState.of(context).extra;
+    if (extra == true) {
+      _hasShownAlertsFromRoute = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openAlertsSheet(patientId);
+      });
+    }
+  }
+
+  void _openAlertsSheet(String patientId) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF0D1117) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        final l10n = AppLocalizations.of(ctx)!;
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(ctx).size.height * 0.85,
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          l10n.alertsCenterTitle,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => _markAllRead(patientId),
+                        icon: const Icon(Icons.done_all, size: 18),
+                        label: Text(l10n.markAllReadButton),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: _alertService.streamPatientAlerts(patientId),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              l10n.alertsLoadError,
+                              style: const TextStyle(color: AppColors.error),
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final alerts = snapshot.data ?? [];
+                      if (alerts.isEmpty) {
+                        return _buildAlertsEmptyState(l10n, isDark);
+                      }
+
+                      final criticals = alerts
+                          .where((a) => a['severity'] == 'critical')
+                          .toList();
+                      final warnings = alerts
+                          .where((a) => a['severity'] == 'warning')
+                          .toList();
+                      final infos = alerts
+                          .where(
+                            (a) =>
+                                a['severity'] != 'critical' &&
+                                a['severity'] != 'warning',
+                          )
+                          .toList();
+
+                      return ListView(
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          if (criticals.isNotEmpty) ...[
+                            _buildAlertSectionHeader(
+                              l10n.alertsCriticalSection(criticals.length),
+                              AppColors.error,
+                            ),
+                            const SizedBox(height: 8),
+                            ...criticals.map((a) => _buildAlertCard(a, isDark)),
+                            const SizedBox(height: 20),
+                          ],
+                          if (warnings.isNotEmpty) ...[
+                            _buildAlertSectionHeader(
+                              l10n.alertsWarningSection(warnings.length),
+                              AppColors.warning,
+                            ),
+                            const SizedBox(height: 8),
+                            ...warnings.map((a) => _buildAlertCard(a, isDark)),
+                            const SizedBox(height: 20),
+                          ],
+                          if (infos.isNotEmpty) ...[
+                            _buildAlertSectionHeader(
+                              l10n.alertsInfoSection(infos.length),
+                              AppColors.primary,
+                            ),
+                            const SizedBox(height: 8),
+                            ...infos.map((a) => _buildAlertCard(a, isDark)),
+                            const SizedBox(height: 20),
+                          ],
+                          const SizedBox(height: 80),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLatestAlertsSection({
+    required String patientId,
+    required bool isDark,
+  }) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _alertService.streamPatientAlerts(patientId),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Text(
+              AppLocalizations.of(context)!.alertsLoadError,
+              style: const TextStyle(color: AppColors.error),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final alerts = snapshot.data ?? [];
+        final latest = alerts.take(3).toList();
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isDark ? _cardDark : Colors.white,
+            borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.06),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.notifications_active_rounded,
+                    size: 18,
+                    color: AppColors.warning,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Dernieres alertes',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.9)
+                            : Colors.black87,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: alerts.isEmpty
+                        ? null
+                        : () => _openAlertsSheet(patientId),
+                    child: const Text('Voir tout'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (alerts.isEmpty)
+                _buildAlertsEmptyInline(AppLocalizations.of(context)!, isDark)
+              else
+                ...latest.map((a) => _buildAlertPreviewCard(a, isDark)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAlertPreviewCard(Map<String, dynamic> alert, bool isDark) {
+    final severity = alert['severity'] as String? ?? 'info';
+    final message = alert['message'] as String? ?? 'Alerte';
+    final isRead = alert['read'] as bool? ?? false;
+    final alertId = alert['id'] as String?;
+    final createdAt = _formatTimestamp(alert['createdAt']);
+    final type = alert['type'] as String?;
+
+    final colors = _severityColors(severity);
+
+    return GestureDetector(
+      onTap: () async {
+        if (!isRead && alertId != null) {
+          await _alertService.markAlertAsRead(alertId);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: colors.bg,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: colors.border.withValues(alpha: 0.3),
+            width: isRead ? 0.5 : 1.2,
+          ),
+        ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 6,
+          ),
+          leading: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: colors.badgeBg,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(colors.icon, color: colors.iconColor, size: 20),
+          ),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _alertService.getAlertTypeLabel(type ?? ''),
+                  style: TextStyle(
+                    fontWeight: isRead ? FontWeight.w500 : FontWeight.w700,
+                    fontSize: 13,
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.9)
+                        : AppColors.textDark,
+                  ),
+                ),
+              ),
+              if (!isRead)
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: colors.iconColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+            ],
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 4),
+              Text(
+                message,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.7)
+                      : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                createdAt,
+                style: TextStyle(fontSize: 11, color: AppColors.textMedium),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAlertCard(Map<String, dynamic> alert, bool isDark) {
+    final l10n = AppLocalizations.of(context)!;
+    final severity = alert['severity'] as String? ?? 'info';
+    final message = alert['message'] as String? ?? 'Alerte';
+    final isRead = alert['read'] as bool? ?? false;
+    final alertId = alert['id'] as String?;
+    final createdAt = _formatTimestamp(alert['createdAt']);
+    final type = alert['type'] as String?;
+
+    final colors = _severityColors(severity);
+
+    return Dismissible(
+      key: Key(alertId ?? message),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        color: AppColors.error.withValues(alpha: 0.1),
+        child: const Icon(Icons.delete_outline, color: AppColors.error),
+      ),
+      confirmDismiss: (_) async {
+        return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(l10n.deleteAlertDialogTitle),
+            content: Text(l10n.deleteAlertDialogContent),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(l10n.cancelButton),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                child: Text(l10n.deleteButton),
+              ),
+            ],
+          ),
+        );
+      },
+      onDismissed: (_) {
+        if (alertId != null) _deleteAlert(alertId);
+      },
+      child: GestureDetector(
+        onTap: () async {
+          if (!isRead && alertId != null) {
+            await _alertService.markAlertAsRead(alertId);
+          }
+        },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: colors.bg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: colors.border.withValues(alpha: 0.3),
+              width: isRead ? 0.5 : 1.5,
+            ),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colors.badgeBg,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(colors.icon, color: colors.iconColor, size: 22),
+            ),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _alertService.getAlertTypeLabel(type ?? ''),
+                    style: TextStyle(
+                      fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                      fontSize: 14,
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.9)
+                          : AppColors.textDark,
+                    ),
+                  ),
+                ),
+                if (!isRead)
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: colors.iconColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+              ],
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                Text(message, style: const TextStyle(fontSize: 13)),
+                const SizedBox(height: 4),
+                Text(
+                  createdAt,
+                  style: TextStyle(fontSize: 11, color: AppColors.textMedium),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAlertsEmptyState(AppLocalizations l10n, bool isDark) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check_circle_outline,
+                size: 48,
+                color: AppColors.success,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              l10n.noActiveAlertsTitle,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.9)
+                    : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.allVitalsNormalMessage,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textMedium),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAlertsEmptyInline(AppLocalizations l10n, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white10 : const Color(0xFFF4F7FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle_outline, color: AppColors.success),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              l10n.allVitalsNormalMessage,
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.75)
+                    : AppColors.textMedium,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAlertSectionHeader(String title, Color color) {
+    return Text(
+      title,
+      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+    );
+  }
+
+  _SeverityColors _severityColors(String severity) {
+    switch (severity) {
+      case 'critical':
+        return _SeverityColors(
+          icon: Icons.warning_rounded,
+          iconColor: AppColors.error,
+          bg: AppColors.error.withValues(alpha: 0.1),
+          badgeBg: AppColors.error.withValues(alpha: 0.15),
+          border: AppColors.error,
+        );
+      case 'warning':
+        return _SeverityColors(
+          icon: Icons.error_outline_rounded,
+          iconColor: AppColors.warning,
+          bg: AppColors.warning.withValues(alpha: 0.1),
+          badgeBg: AppColors.warning.withValues(alpha: 0.15),
+          border: AppColors.warning,
+        );
+      default:
+        return _SeverityColors(
+          icon: Icons.info_outline_rounded,
+          iconColor: AppColors.primary,
+          bg: AppColors.primary.withValues(alpha: 0.1),
+          badgeBg: AppColors.primary.withValues(alpha: 0.15),
+          border: AppColors.primary,
+        );
+    }
+  }
+
+  static String _formatTimestamp(dynamic value) {
+    if (value == null) return '';
+    DateTime? date;
+    if (value is DateTime) {
+      date = value;
+    } else if (value is String) {
+      date = DateTime.tryParse(value);
+    } else if (value is Timestamp) {
+      date = value.toDate();
+    }
+    if (date == null) return '';
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$day/$month/${date.year} a $hour:$minute';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -143,16 +720,15 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
       );
     }
 
+    _maybeShowAlertsFromRoute(user.uid);
+
     final svc = FirebaseService();
 
     return Scaffold(
       backgroundColor: isDark ? _bgDark : AppColors.background,
       body: Column(
         children: [
-          // ── Gradient Header ──────────────────────────────────────────────
           _GradientHeader(isDark: isDark, pulseCtrl: _pulseCtrl),
-
-          // ── Body ────────────────────────────────────────────────────────
           Expanded(
             child: StreamBuilder<Map<String, dynamic>?>(
               stream: svc.streamUserProfile(user.uid),
@@ -208,7 +784,6 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
                         child: ListView(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
                           children: [
-                            // Greeting + date
                             const SizedBox(height: 16),
                             _GreetingRow(
                               greeting: '${_greeting(l10n)}, $firstName !',
@@ -216,8 +791,6 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
                               isDark: isDark,
                             ),
                             const SizedBox(height: 16),
-
-                            // Sleep score card
                             _ScoreCard(
                               score: score,
                               label: _scoreLabel(l10n, score),
@@ -228,33 +801,34 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
                                   context.go(RouteNames.patientHistory),
                             ),
                             const SizedBox(height: 14),
-
-                            // Quick actions row
-                            _QuickActionsRow(isDark: isDark),
+                            // ── Fix 2 : patientDevices → relaxation ──────
+                            _QuickActionsRow(
+                              isDark: isDark,
+                              onAlerts: () => _openAlertsSheet(user.uid),
+                            ),
                             const SizedBox(height: 14),
-
-                            // Vitals 2×2 grid
                             _VitalsGrid(
                               apneas: apneas,
                               spo2: spo2,
                               heartRate: heartRate,
                               temperature: temperature,
                               isDark: isDark,
-                              onAlerts: () =>
-                                  context.go(RouteNames.patientAlerts),
+                              onAlerts: () => _openAlertsSheet(user.uid),
                               onMonitor: () =>
                                   context.go(RouteNames.realtimeMonitoring),
                             ),
                             const SizedBox(height: 14),
-
-                            // ── CHATBOT BANNER ──────────────────────────
+                            _buildLatestAlertsSection(
+                              patientId: user.uid,
+                              isDark: isDark,
+                            ),
+                            const SizedBox(height: 14),
+                            // ── Fix 1 : chatbot → patientChatbot ─────────
                             _ChatbotBanner(
                               pulseCtrl: _chatPulseCtrl,
                               isDark: isDark,
                             ),
                             const SizedBox(height: 14),
-
-                            // Monitoring button
                             AnimatedBuilder(
                               animation: _pulseCtrl,
                               builder: (_, __) => _MonitoringButton(
@@ -269,7 +843,6 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
                                 },
                               ),
                             ),
-
                             if (_showLastSession) ...[
                               const SizedBox(height: 10),
                               _LastSessionBar(isDark: isDark),
@@ -291,10 +864,7 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GRADIENT HEADER
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── GRADIENT HEADER ───────────────────────────────────────────────────────────
 class _GradientHeader extends StatelessWidget {
   final bool isDark;
   final AnimationController pulseCtrl;
@@ -318,7 +888,6 @@ class _GradientHeader extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 20),
           child: Row(
             children: [
-              // App icon
               Container(
                 width: 38,
                 height: 38,
@@ -336,7 +905,6 @@ class _GradientHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              // Title
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -359,7 +927,6 @@ class _GradientHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              // Pulse dot (live indicator)
               AnimatedBuilder(
                 animation: pulseCtrl,
                 builder: (_, __) => Container(
@@ -407,7 +974,6 @@ class _GradientHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Profile avatar
               GestureDetector(
                 onTap: () => context.go(RouteNames.patientProfile),
                 child: Container(
@@ -436,10 +1002,7 @@ class _GradientHeader extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// GREETING ROW
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── GREETING ROW ──────────────────────────────────────────────────────────────
 class _GreetingRow extends StatelessWidget {
   final String greeting, date;
   final bool isDark;
@@ -450,55 +1013,50 @@ class _GreetingRow extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            greeting,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.85)
-                  : Colors.black87,
-            ),
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: Text(
+          greeting,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.85)
+                : Colors.black87,
           ),
         ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: _navy.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _navy.withValues(alpha: 0.15)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.calendar_today_outlined, size: 11, color: _navy),
-              const SizedBox(width: 5),
-              Text(
-                date,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: _navy,
-                ),
+      ),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: _navy.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: _navy.withValues(alpha: 0.15)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.calendar_today_outlined, size: 11, color: _navy),
+            const SizedBox(width: 5),
+            Text(
+              date,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: _navy,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SCORE CARD
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── SCORE CARD ────────────────────────────────────────────────────────────────
 class _ScoreCard extends StatelessWidget {
   final int score;
   final String label;
@@ -545,7 +1103,6 @@ class _ScoreCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Left: score number + label
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -629,15 +1186,12 @@ class _ScoreCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
-
-            // Right: circular progress
             SizedBox(
               width: 95,
               height: 95,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Background ring
                   Container(
                     width: 95,
                     height: 95,
@@ -690,13 +1244,11 @@ class _ScoreCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// QUICK ACTIONS ROW
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── QUICK ACTIONS ROW — Fix 2 : patientDevices → relaxation ──────────────────
 class _QuickActionsRow extends StatelessWidget {
   final bool isDark;
-  const _QuickActionsRow({required this.isDark});
+  final VoidCallback onAlerts;
+  const _QuickActionsRow({required this.isDark, required this.onAlerts});
 
   @override
   Widget build(BuildContext context) {
@@ -705,7 +1257,7 @@ class _QuickActionsRow extends StatelessWidget {
         'Alertes',
         Icons.notifications_active_rounded,
         AppColors.error,
-        () => context.go(RouteNames.patientAlerts),
+        onAlerts,
       ),
       _QAction(
         'Historique',
@@ -714,16 +1266,22 @@ class _QuickActionsRow extends StatelessWidget {
         () => context.go(RouteNames.patientHistory),
       ),
       _QAction(
-        'Appareils',
-        Icons.devices_rounded,
+        'Détente',
+        Icons.self_improvement_rounded,
         const Color(0xFF7C3AED),
-        () => context.go(RouteNames.patientDevices),
+        () => context.go(RouteNames.relaxation),
       ),
       _QAction(
         'Profil',
         Icons.person_rounded,
         _teal,
         () => context.go(RouteNames.patientProfile),
+      ),
+      _QAction(
+        'Stats',
+        Icons.bar_chart_rounded,
+        _navy,
+        () => context.go(RouteNames.patientHistory, extra: 1),
       ),
     ];
 
@@ -792,10 +1350,22 @@ class _QAction {
   const _QAction(this.label, this.icon, this.color, this.onTap);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VITALS 2×2 GRID
-// ─────────────────────────────────────────────────────────────────────────────
+class _SeverityColors {
+  final IconData icon;
+  final Color iconColor;
+  final Color bg;
+  final Color badgeBg;
+  final Color border;
+  const _SeverityColors({
+    required this.icon,
+    required this.iconColor,
+    required this.bg,
+    required this.badgeBg,
+    required this.border,
+  });
+}
 
+// ── VITALS GRID ───────────────────────────────────────────────────────────────
 class _VitalsGrid extends StatelessWidget {
   final int apneas, spo2, heartRate;
   final double temperature;
@@ -866,36 +1436,27 @@ class _VitalsGrid extends StatelessWidget {
     ];
 
     return LayoutBuilder(
-      builder: (ctx, c) {
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: c.maxWidth < 370 ? 1.05 : 1.2,
-          ),
-          itemCount: vitals.length,
-          itemBuilder: (_, i) => _VitalCard(v: vitals[i], isDark: isDark),
-        );
-      },
+      builder: (ctx, c) => GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: c.maxWidth < 370 ? 1.05 : 1.2,
+        ),
+        itemCount: vitals.length,
+        itemBuilder: (_, i) => _VitalCard(v: vitals[i], isDark: isDark),
+      ),
     );
   }
 }
 
 class _Vital {
   final IconData icon;
-  final Color iconColor;
-  final Color iconBg;
-  final Color valueColor;
-  final Color tagColor;
-  final Color tagBg;
-  final String label;
-  final String value;
-  final String tag;
+  final Color iconColor, iconBg, valueColor, tagColor, tagBg;
+  final String label, value, tag;
   final VoidCallback onTap;
-
   const _Vital({
     required this.icon,
     required this.iconColor,
@@ -1038,10 +1599,7 @@ class _VitalCardState extends State<_VitalCard>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CHATBOT BANNER  ← NOUVEAU
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── CHATBOT BANNER — Fix 1 : RouteNames.patientChatbot ───────────────────────
 class _ChatbotBanner extends StatelessWidget {
   final AnimationController pulseCtrl;
   final bool isDark;
@@ -1050,7 +1608,8 @@ class _ChatbotBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.push(RouteNames.chatbot),
+      // ── Fix 1 : patientChatbot au lieu de chatbot ─────────────────
+      onTap: () => context.push(RouteNames.chatbot('patient')),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -1070,7 +1629,6 @@ class _ChatbotBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Bot icon with pulse
             AnimatedBuilder(
               animation: pulseCtrl,
               builder: (_, __) => Stack(
@@ -1111,8 +1669,6 @@ class _ChatbotBanner extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 14),
-
-            // Text content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1164,7 +1720,7 @@ class _ChatbotBanner extends StatelessWidget {
                               ),
                               const SizedBox(width: 4),
                               const Text(
-                                'Grok',
+                                'Groq',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 9,
@@ -1189,7 +1745,6 @@ class _ChatbotBanner extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 10),
-                  // Quick questions chips
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
@@ -1203,8 +1758,6 @@ class _ChatbotBanner extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-
-            // Arrow
             Container(
               width: 32,
               height: 32,
@@ -1225,30 +1778,25 @@ class _ChatbotBanner extends StatelessWidget {
     );
   }
 
-  Widget _chatChip(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+  Widget _chatChip(String label) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+    ),
+    child: Text(
+      label,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 10,
+        fontWeight: FontWeight.w500,
       ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
+    ),
+  );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MONITORING BUTTON
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── MONITORING BUTTON ─────────────────────────────────────────────────────────
 class _MonitoringButton extends StatelessWidget {
   final bool isMonitoring;
   final double pulseValue;
@@ -1298,13 +1846,11 @@ class _MonitoringButton extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LAST SESSION BAR
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── LAST SESSION BAR ──────────────────────────────────────────────────────────
 class _LastSessionBar extends StatelessWidget {
   final bool isDark;
   const _LastSessionBar({required this.isDark});
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -1342,10 +1888,7 @@ class _LastSessionBar extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BOTTOM NAV
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── BOTTOM NAV ────────────────────────────────────────────────────────────────
 class _BottomNav extends StatelessWidget {
   final bool isDark;
   const _BottomNav({required this.isDark});
@@ -1417,10 +1960,7 @@ class _BottomNav extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LOADING / ERROR / EMPTY
-// ─────────────────────────────────────────────────────────────────────────────
-
+// ── LOADING / ERROR / EMPTY ───────────────────────────────────────────────────
 class _LoadingShimmer extends StatelessWidget {
   final bool isDark;
   const _LoadingShimmer({required this.isDark});
@@ -1452,95 +1992,57 @@ class _LoadingShimmer extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+            children: List.generate(
+              4,
+              (i) => Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: i < 3 ? 12 : 0),
+                  child: Container(
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 12),
           Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 110,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+            children: List.generate(
+              2,
+              (i) => Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: i < 1 ? 12 : 0),
+                  child: Container(
+                    height: 110,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  height: 110,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 12),
           Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 110,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+            children: List.generate(
+              2,
+              (i) => Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: i < 1 ? 12 : 0),
+                  child: Container(
+                    height: 110,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Container(
-                  height: 110,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 12),
           Container(
@@ -1606,8 +2108,8 @@ class _EmptyState extends StatelessWidget {
             Container(
               width: 80,
               height: 80,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [_navy, _teal]),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(colors: [_navy, _teal]),
                 shape: BoxShape.circle,
               ),
               child: const Icon(

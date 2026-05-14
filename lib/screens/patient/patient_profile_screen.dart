@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
-import 'package:apnea_project/widgets/patient_chatbot_fab.dart';
+import 'package:apnea_project/widgets/chatbot_fab.dart';
 
 class PatientProfileScreen extends StatefulWidget {
   const PatientProfileScreen({super.key});
@@ -323,7 +323,11 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                         ? NetworkImage(photoUrl)
                         : null,
                     child: (photoUrl == null || photoUrl.isEmpty)
-                        ? const Icon(Icons.person, size: 60, color: AppColors.primary)
+                        ? const Icon(
+                            Icons.person,
+                            size: 60,
+                            color: AppColors.primary,
+                          )
                         : null,
                   ),
                   const SizedBox(height: 10),
@@ -336,7 +340,10 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
                   ),
                   Text(
                     roleLabel,
-                    style: const TextStyle(fontSize: 16, color: AppColors.textMedium),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: AppColors.textMedium,
+                    ),
                   ),
                 ],
               ),

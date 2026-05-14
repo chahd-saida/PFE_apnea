@@ -6,13 +6,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
-import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
+import 'package:apnea_project/widgets/chatbot_fab.dart';
 import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/widgets/doctor_bottom_navigation_bar.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 
-class DoctorAlertsCenterScreen extends StatelessWidget {
+class DoctorAlertsCenterScreen extends StatefulWidget {
   const DoctorAlertsCenterScreen({super.key});
 
+  @override
+  State<DoctorAlertsCenterScreen> createState() =>
+      _DoctorAlertsCenterScreenState();
+}
+
+class _DoctorAlertsCenterScreenState extends State<DoctorAlertsCenterScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
@@ -101,7 +108,10 @@ class DoctorAlertsCenterScreen extends StatelessWidget {
                       return Card(
                         elevation: 2,
                         child: ListTile(
-                          leading: const Icon(Icons.warning, color: AppColors.error),
+                          leading: const Icon(
+                            Icons.warning,
+                            color: AppColors.error,
+                          ),
                           title: Text(
                             '🚨 ${patientName?.isNotEmpty == true ? patientName : 'Patient inconnu'}',
                           ),
@@ -219,46 +229,11 @@ class DoctorAlertsCenterScreen extends StatelessWidget {
         ),
       ),
       floatingActionButton: const DoctorChatbotFAB(),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Patients'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'Alertes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.description),
-            label: 'Rapport',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Param.'),
-        ],
-        currentIndex: 2,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              context.go(RouteNames.doctorDashboard);
-              break;
-            case 1:
-              context.go(RouteNames.doctorPatients);
-              break;
-            case 2:
-              context.go(RouteNames.doctorAlerts);
-              break;
-            case 3:
-              context.go(RouteNames.doctorReports);
-              break;
-            case 4:
-              context.go(RouteNames.doctorSettings);
-              break;
-          }
-        },
-      ),
+      bottomNavigationBar: const DoctorBottomNavigationBar(currentIndex: 2),
     );
   }
 
-  static String _formatTimestamp(dynamic value) {
+  String _formatTimestamp(dynamic value) {
     if (value == null) {
       return '';
     }

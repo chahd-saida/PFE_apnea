@@ -11,8 +11,9 @@ import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/services/pdf_report_service.dart';
+import 'package:apnea_project/widgets/chatbot_fab.dart';
+import 'package:apnea_project/widgets/doctor_bottom_navigation_bar.dart';
 import 'package:apnea_project/theme/app_colors.dart';
-import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
 
 class DoctorReportsScreen extends StatefulWidget {
   const DoctorReportsScreen({super.key});
@@ -34,7 +35,6 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
   bool _includeApneaEvents = true;
   bool _includeDoctorDiagnosis = true;
   bool _includeRecommendations = true;
-  String _selectedFormat = 'PDF Médical';
   bool _isGenerating = false;
   Uint8List? _lastPdfBytes;
   String? _lastSavedFilePath;
@@ -58,17 +58,6 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
     if (_selectedPatientUid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Veuillez sélectionner un patient.')),
-      );
-      return;
-    }
-
-    if (_selectedFormat != 'PDF Médical') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Seul le format PDF Médical est disponible actuellement.',
-          ),
-        ),
       );
       return;
     }
@@ -105,8 +94,8 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
     } on FileSystemException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
+        SnackBar(
+          content: const Text(
             'Permission de stockage refusée ou dossier inaccessible.',
           ),
           backgroundColor: AppColors.error,
@@ -299,8 +288,8 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Partage du rapport lancé.'),
+        SnackBar(
+          content: const Text('Partage du rapport lancé.'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -433,32 +422,32 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: RadioGroup<String>(
-                  groupValue: _selectedFormat,
-                  onChanged: (v) {
-                    if (v != null) setState(() => _selectedFormat = v);
-                  },
-                  child: Column(
-                    children: const [
-                      RadioListTile<String>(
-                        title: Text('PDF Médical'),
-                        subtitle: Text('Format standard pour dossier médical'),
-                        value: 'PDF Médical',
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                child: Row(
+                  children: [
+                    Icon(Icons.picture_as_pdf, color: Colors.red),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'PDF Médical',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Format standard pour dossier médical',
+                            style: TextStyle(fontSize: 14, color: Colors.grey),
+                          ),
+                        ],
                       ),
-                      RadioListTile<String>(
-                        title: Text('DICOM'),
-                        subtitle: Text('Format imagerie médicale'),
-                        value: 'DICOM',
-                      ),
-                      RadioListTile<String>(
-                        title: Text('CSV'),
-                        subtitle: Text('Données brutes pour analyse'),
-                        value: 'CSV',
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -507,42 +496,7 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
         ),
       ),
       floatingActionButton: const DoctorChatbotFAB(),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Patients'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'Alertes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.description),
-            label: 'Rapport',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Param.'),
-        ],
-        currentIndex: 3,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              context.go(RouteNames.doctorDashboard);
-              break;
-            case 1:
-              context.go(RouteNames.doctorPatients);
-              break;
-            case 2:
-              context.go(RouteNames.doctorAlerts);
-              break;
-            case 3:
-              context.go(RouteNames.doctorReports);
-              break;
-            case 4:
-              context.go(RouteNames.doctorSettings);
-              break;
-          }
-        },
-      ),
+      bottomNavigationBar: const DoctorBottomNavigationBar(currentIndex: 3),
     );
   }
 

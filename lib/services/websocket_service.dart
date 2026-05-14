@@ -15,7 +15,7 @@ class WebSocketService {
   static const int _maxRetries = 5; // ← limite les tentatives
 
   void connecter(String patientId) {
-    if (!_actif) return;
+    _actif = true;
     _canal?.sink.close();
 
     final uri = Uri.parse('ws://$ipServeur:$port/ws/$patientId');

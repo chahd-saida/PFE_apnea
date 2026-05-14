@@ -13,6 +13,10 @@ import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/services/settings_service.dart';
 import 'package:apnea_project/theme/app_theme.dart' as project_theme;
+import 'package:apnea_project/providers/monitoring_provider.dart';
+import 'package:apnea_project/providers/monitoring_provider.dart';
+
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,6 +35,7 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider<MonitoringProvider>(create: (_) => MonitoringProvider()),
         ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
         ChangeNotifierProxyProvider<AuthProvider, UserProfileProvider>(
           create: (_) => UserProfileProvider(),
@@ -42,6 +47,7 @@ void main() async {
         ),
         ChangeNotifierProvider<ThemeProvider>.value(value: themeProvider),
         ChangeNotifierProvider<LocaleProvider>.value(value: localeProvider),
+        ChangeNotifierProvider<MonitoringProvider>(create: (_) => MonitoringProvider(),),
       ],
       child: MyApp(routerOverride: appRouter),
     ),

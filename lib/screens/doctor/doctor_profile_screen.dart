@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/theme/app_colors.dart';
-import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
+import 'package:apnea_project/widgets/chatbot_fab.dart';
 
 class DoctorProfileScreen extends StatelessWidget {
   const DoctorProfileScreen({super.key});

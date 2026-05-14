@@ -6,7 +6,7 @@ import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
-import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
+import 'package:apnea_project/widgets/chatbot_fab.dart';
 
 class DoctorAnalysisScreen extends StatefulWidget {
   final String patientId;
@@ -80,10 +80,7 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erreur: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -172,8 +169,7 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     return FutureBuilder<Map<String, dynamic>?>(
       future: _firebaseService.getUserProfile(patientId),
       builder: (context, snap) {
-        final name =
-            (snap.data?['fullName'] as String?)?.trim() ?? 'Patient';
+        final name = (snap.data?['fullName'] as String?)?.trim() ?? 'Patient';
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -209,7 +205,10 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
                     ),
                     Text(
                       'Nuit du $date',
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                 ),
@@ -244,8 +243,16 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
             Row(
               children: [
                 _buildSummaryItem('Score', '$score/100', _scoreColor(score)),
-                _buildSummaryItem('SpO₂', '${spo2.toStringAsFixed(1)}%', _spo2Color(spo2)),
-                _buildSummaryItem('FC moy.', '${hr.toStringAsFixed(0)} bpm', Colors.pink),
+                _buildSummaryItem(
+                  'SpO₂',
+                  '${spo2.toStringAsFixed(1)}%',
+                  _spo2Color(spo2),
+                ),
+                _buildSummaryItem(
+                  'FC moy.',
+                  '${hr.toStringAsFixed(0)} bpm',
+                  Colors.pink,
+                ),
                 _buildSummaryItem('Apnées', '$apneas', _apneaColor(apneas)),
               ],
             ),
@@ -520,7 +527,9 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.save),
-                label: Text(_isSaving ? 'Enregistrement...' : 'Enregistrer le diagnostic'),
+                label: Text(
+                  _isSaving ? 'Enregistrement...' : 'Enregistrer le diagnostic',
+                ),
               ),
             ),
           ],
@@ -529,12 +538,21 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     );
   }
 
-  Color _scoreColor(int score) =>
-      score >= 80 ? Colors.green : score >= 50 ? Colors.orange : Colors.red;
-  Color _spo2Color(double spo2) =>
-      spo2 < 90 ? Colors.red : spo2 < 95 ? Colors.orange : Colors.blue;
-  Color _apneaColor(int apneas) =>
-      apneas >= 5 ? Colors.red : apneas >= 3 ? Colors.orange : Colors.green;
+  Color _scoreColor(int score) => score >= 80
+      ? Colors.green
+      : score >= 50
+      ? Colors.orange
+      : Colors.red;
+  Color _spo2Color(double spo2) => spo2 < 90
+      ? Colors.red
+      : spo2 < 95
+      ? Colors.orange
+      : Colors.blue;
+  Color _apneaColor(int apneas) => apneas >= 5
+      ? Colors.red
+      : apneas >= 3
+      ? Colors.orange
+      : Colors.green;
 
   static String _formatTimestamp(dynamic value) {
     if (value == null) return '';

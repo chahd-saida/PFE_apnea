@@ -3,7 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/l10n/app_localizations.dart';
-import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
+import 'package:apnea_project/widgets/chatbot_fab.dart';
+import 'package:apnea_project/widgets/doctor_bottom_navigation_bar.dart';
 
 class DashboardDoctorScreen extends StatefulWidget {
   const DashboardDoctorScreen({super.key});
@@ -92,7 +93,7 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
         ),
       ),
       floatingActionButton: const DoctorChatbotFAB(),
-      bottomNavigationBar: _buildBottomNav(context, l10n),
+      bottomNavigationBar: const DoctorBottomNavigationBar(currentIndex: 0),
     );
   }
 
@@ -614,92 +615,6 @@ class _DashboardDoctorScreenState extends State<DashboardDoctorScreen>
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildBottomNav(BuildContext context, AppLocalizations l10n) {
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        margin: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E3A8A),
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF1E3A8A).withValues(alpha: 0.3),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(
-              context,
-              Icons.home_rounded,
-              l10n.homeLabel,
-              true,
-              () {},
-            ),
-            _buildNavItem(
-              context,
-              Icons.people_rounded,
-              l10n.patientsLabel,
-              false,
-              () => context.go(RouteNames.doctorPatients),
-            ),
-            _buildNavItem(
-              context,
-              Icons.notifications_rounded,
-              l10n.alertsLabel,
-              false,
-              () => context.go(RouteNames.doctorAlerts),
-            ),
-            _buildNavItem(
-              context,
-              Icons.insert_chart_rounded,
-              l10n.navReport,
-              false,
-              () => context.go(RouteNames.doctorReports),
-            ),
-            _buildNavItem(
-              context,
-              Icons.settings_rounded,
-              l10n.navProfileLabel,
-              false,
-              () => context.go(RouteNames.doctorSettings),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(
-    BuildContext context,
-    IconData icon,
-    String label,
-    bool isSelected,
-    VoidCallback onTap,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: isSelected
-            ? BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(20),
-              )
-            : null,
-        child: Icon(
-          icon,
-          color: isSelected ? Colors.white : Colors.white70,
-          size: 26,
-        ),
-      ),
     );
   }
 }

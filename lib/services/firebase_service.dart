@@ -417,36 +417,32 @@ class FirebaseService {
     }
   }
 
-  Future<void> saveMonitoringSession({
+  Future<String> saveMonitoringSession({
     required String uid,
     required DateTime startTime,
     required DateTime endTime,
     required double averageHeartRate,
     required double averageSpo2,
   }) async {
-    try {
-      final durationMinutes = endTime.difference(startTime).inMinutes;
-      final score = _computeSleepScore(
-        averageSpo2: averageSpo2,
-        averageHeartRate: averageHeartRate,
-      );
-      await _firestore.collection('measurements').add({
-        'uid': uid,
-        'timestamp': Timestamp.fromDate(endTime), // ← fix: Timestamp
-        'startTime': Timestamp.fromDate(startTime), // ← fix: Timestamp
-        'endTime': Timestamp.fromDate(endTime), // ← fix: Timestamp
-        'durationMinutes': durationMinutes,
-        'avgHeartRate': averageHeartRate,
-        'avgSpo2': averageSpo2,
-        'heartRate': averageHeartRate.round(),
-        'spo2': averageSpo2.round(),
-        'score': score,
-        'apneas': 0,
-      });
-    } catch (e) {
-      debugPrint('❌ saveMonitoringSession error: $e');
-      rethrow; // remonte l'erreur pour la voir dans les logs
-    }
+    final durationMinutes = endTime.difference(startTime).inMinutes;
+    final score = _computeSleepScore(
+      averageSpo2: averageSpo2,
+      averageHeartRate: averageHeartRate,
+    );
+    final ref = await _firestore.collection('measurements').add({
+      'uid': uid,
+      'timestamp': Timestamp.fromDate(endTime),
+      'startTime': Timestamp.fromDate(startTime),
+      'endTime': Timestamp.fromDate(endTime),
+      'durationMinutes': durationMinutes,
+      'avgHeartRate': averageHeartRate,
+      'avgSpo2': averageSpo2,
+      'heartRate': averageHeartRate.round(),
+      'spo2': averageSpo2.round(),
+      'score': score,
+      'apneas': 0,
+    });
+    return ref.id; // ← retourner l'ID
   }
 
   Stream<List<Map<String, dynamic>>> streamDoctorAlerts(String doctorUid) {

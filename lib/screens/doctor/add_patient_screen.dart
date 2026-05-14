@@ -6,7 +6,7 @@ import 'package:apnea_project/models/patient.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
-import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
+import 'package:apnea_project/widgets/chatbot_fab.dart';
 
 class AddPatientScreen extends StatefulWidget {
   const AddPatientScreen({super.key});

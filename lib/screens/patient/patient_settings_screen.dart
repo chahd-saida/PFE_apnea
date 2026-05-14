@@ -9,7 +9,7 @@ import 'package:apnea_project/providers/theme_provider.dart';
 import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/services/settings_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
-import 'package:apnea_project/widgets/patient_chatbot_fab.dart';
+import 'package:apnea_project/widgets/chatbot_fab.dart';
 
 class PatientSettingsScreen extends StatefulWidget {
   const PatientSettingsScreen({super.key});
@@ -194,7 +194,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
       'ar' => l10n.languageArabic,
       _ => l10n.languageFrench,
     };
-    
+
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsTitle)),
       body: _isLoading
@@ -326,7 +326,10 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                           title: Text(l10n.alertsCenterLabel),
                           trailing: const Icon(Icons.arrow_forward_ios),
                           onTap: () {
-                            context.push(RouteNames.patientAlerts);
+                            context.go(
+                              RouteNames.patientDashboard,
+                              extra: true,
+                            );
                           },
                         ),
                         SwitchListTile(

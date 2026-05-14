@@ -4,15 +4,22 @@ import 'package:apnea_project/router/app_router.dart';
 import 'package:provider/provider.dart';
 
 import 'package:apnea_project/providers/auth_provider.dart';
-import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/screens/doctor/add_patient_screen.dart';
 import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/widgets/chatbot_fab.dart';
+import 'package:apnea_project/widgets/doctor_bottom_navigation_bar.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 
-class DoctorPatientsListScreen extends StatelessWidget {
+class DoctorPatientsListScreen extends StatefulWidget {
   const DoctorPatientsListScreen({super.key});
 
+  @override
+  State<DoctorPatientsListScreen> createState() =>
+      _DoctorPatientsListScreenState();
+}
+
+class _DoctorPatientsListScreenState extends State<DoctorPatientsListScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
@@ -162,42 +169,7 @@ class DoctorPatientsListScreen extends StatelessWidget {
         ),
       ),
       floatingActionButton: const DoctorChatbotFAB(),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Patients'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'Alertes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.description),
-            label: 'Rapport',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Param.'),
-        ],
-        currentIndex: 1,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              context.go(RouteNames.doctorDashboard);
-              break;
-            case 1:
-              context.go(RouteNames.doctorPatients);
-              break;
-            case 2:
-              context.go(RouteNames.doctorAlerts);
-              break;
-            case 3:
-              context.go(RouteNames.doctorReports);
-              break;
-            case 4:
-              context.go(RouteNames.doctorSettings);
-              break;
-          }
-        },
-      ),
+      bottomNavigationBar: const DoctorBottomNavigationBar(currentIndex: 1),
     );
   }
 

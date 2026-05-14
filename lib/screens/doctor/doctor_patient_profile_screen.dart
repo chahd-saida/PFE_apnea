@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/theme/app_colors.dart';
-import 'package:apnea_project/widgets/doctor_chatbot_fab.dart';
+import 'package:apnea_project/widgets/chatbot_fab.dart';
 
 class DoctorPatientProfileScreen extends StatelessWidget {
   const DoctorPatientProfileScreen({super.key, required this.patientId});
@@ -26,6 +26,26 @@ class DoctorPatientProfileScreen extends StatelessWidget {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
     return '$day/$month/${date.year}';
+  }
+
+  String _formatDateTime(dynamic value) {
+    DateTime? date;
+    if (value is Timestamp) {
+      date = value.toDate();
+    } else if (value is DateTime) {
+      date = value;
+    } else if (value is String) {
+      date = DateTime.tryParse(value);
+    }
+
+    if (date == null) {
+      return 'Date inconnue';
+    }
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    return '$day/$month/${date.year} à $hour:$minute';
   }
 
   int? _computeAge(dynamic rawDob) {
@@ -51,6 +71,36 @@ class DoctorPatientProfileScreen extends StatelessWidget {
     return age;
   }
 
+  String _getStatusBadge(dynamic lastMeasurement) {
+    if (lastMeasurement == null) {
+      return 'Pas de données';
+    }
+
+    DateTime? lastDate;
+    if (lastMeasurement is Timestamp) {
+      lastDate = lastMeasurement.toDate();
+    } else if (lastMeasurement is DateTime) {
+      lastDate = lastMeasurement;
+    }
+
+    if (lastDate == null) {
+      return 'Pas de données';
+    }
+
+    final now = DateTime.now();
+    final diff = now.difference(lastDate);
+
+    if (diff.inDays == 0) {
+      return 'Actif (Aujourd\'hui)';
+    } else if (diff.inDays == 1) {
+      return 'Actif (Hier)';
+    } else if (diff.inDays <= 7) {
+      return 'Actif (${diff.inDays} j)';
+    } else {
+      return 'Inactif (${diff.inDays} j)';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final userDoc = FirebaseFirestore.instance
@@ -63,6 +113,11 @@ class DoctorPatientProfileScreen extends StatelessWidget {
         .where('uid', isEqualTo: patientId)
         .orderBy('timestamp', descending: true)
         .limit(5)
+        .snapshots();
+
+    final statsQuery = FirebaseFirestore.instance
+        .collection('measurements')
+        .where('uid', isEqualTo: patientId)
         .snapshots();
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -90,114 +145,650 @@ class DoctorPatientProfileScreen extends StatelessWidget {
             (data['fullName'] as String?)?.trim().isNotEmpty == true
             ? data['fullName'] as String
             : 'Patient';
+        final gender = (data['gender'] as String?) ?? 'Non renseigné';
+        final email = (data['email'] as String?) ?? 'Non renseigné';
+        final phone = (data['phone'] as String?) ?? 'Non renseigné';
         final diagnosis = (data['diagnosis'] as String?) ?? 'Non renseigné';
+        final medicalNotes = (data['medicalNotes'] as String?) ?? '';
         final assignedDoctor =
             (data['doctorName'] as String?) ??
             (data['assignedDoctorName'] as String?) ??
             'Non assigné';
         final age = _computeAge(data['dateOfBirth']);
+        final dateOfBirth = _formatDate(data['dateOfBirth']);
+        final createdAt = _formatDate(data['createdAt']);
 
         return Scaffold(
-          appBar: AppBar(title: Text(fullName)),
+          appBar: AppBar(
+            title: Text(fullName),
+            elevation: 0,
+            backgroundColor: AppColors.primary,
+          ),
           body: SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // En-tête du patient
                 Center(
                   child: Column(
                     children: [
-                      CircleAvatar(
-                        radius: 42,
-                        child: Text(
-                          fullName.isNotEmpty ? fullName[0].toUpperCase() : 'P',
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [AppColors.primary, AppColors.primaryLight],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                        child: CircleAvatar(
+                          radius: 50,
+                          backgroundColor: Colors.transparent,
+                          child: Text(
+                            fullName.isNotEmpty
+                                ? fullName[0].toUpperCase()
+                                : 'P',
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 16),
                       Text(
                         fullName,
                         style: const TextStyle(
-                          fontSize: 22,
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      const SizedBox(height: 4),
                       Text(
-                        age != null ? 'Age: $age ans' : 'Age: Non renseigné',
-                        style: const TextStyle(color: AppColors.textMedium),
+                        age != null ? '$age ans' : 'Âge inconnu',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: AppColors.textMedium,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                        stream: nightsQuery,
+                        builder: (context, nightsSnapshot) {
+                          if (!nightsSnapshot.hasData ||
+                              nightsSnapshot.data!.docs.isEmpty) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.warning.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: AppColors.warning,
+                                  width: 1,
+                                ),
+                              ),
+                              child: const Text(
+                                'Pas de données',
+                                style: TextStyle(
+                                  color: AppColors.warning,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            );
+                          }
+                          final lastMeasurement = nightsSnapshot
+                              .data!
+                              .docs
+                              .first
+                              .data()['timestamp'];
+                          final statusText = _getStatusBadge(lastMeasurement);
+                          final isActive = !statusText.contains('Inactif');
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color:
+                                  (isActive
+                                          ? AppColors.success
+                                          : AppColors.warning)
+                                      .withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isActive
+                                    ? AppColors.success
+                                    : AppColors.warning,
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              statusText,
+                              style: TextStyle(
+                                color: isActive
+                                    ? AppColors.success
+                                    : AppColors.warning,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
+
+                // Informations de contact
+                _buildSectionTitle('Informations de contact'),
+                const SizedBox(height: 8),
+                _buildInfoCard(
+                  icon: Icons.email_outlined,
+                  label: 'Email',
+                  value: email,
+                ),
+                _buildInfoCard(
+                  icon: Icons.phone_outlined,
+                  label: 'Téléphone',
+                  value: phone,
+                ),
+                const SizedBox(height: 16),
+
+                // Informations personnelles
+                _buildSectionTitle('Informations personnelles'),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildInfoCard(
+                        icon: Icons.wc_outlined,
+                        label: 'Sexe',
+                        value: gender,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildInfoCard(
+                        icon: Icons.cake_outlined,
+                        label: 'Né le',
+                        value: dateOfBirth,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Informations médicales
+                _buildSectionTitle('Informations médicales'),
+                const SizedBox(height: 8),
                 Card(
-                  child: ListTile(
-                    title: const Text('Diagnostic'),
-                    subtitle: Text(diagnosis),
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.medical_information_outlined,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Diagnostic',
+                                style: TextStyle(fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          diagnosis,
+                          style: const TextStyle(color: AppColors.textBody),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
+                if (medicalNotes.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.notes_outlined,
+                                color: AppColors.primary,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Notes médicales',
+                                  style: TextStyle(fontWeight: FontWeight.w500),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            medicalNotes,
+                            style: const TextStyle(color: AppColors.textBody),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+
+                // Médecin assigné
                 Card(
-                  child: ListTile(
-                    title: const Text('Médecin assigné'),
-                    subtitle: Text(assignedDoctor),
+                  elevation: 2,
+                  color: AppColors.primary.withOpacity(0.05),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          color: AppColors.primary,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Médecin assigné',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textMedium,
+                              ),
+                            ),
+                            Text(
+                              assignedDoctor,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  '5 dernières nuits',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+
+                // Statistiques
+                _buildSectionTitle('Statistiques'),
+                const SizedBox(height: 8),
+                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: statsQuery,
+                  builder: (context, statsSnapshot) {
+                    int totalNights = 0;
+                    double avgScore = 0;
+                    int totalApneas = 0;
+
+                    if (statsSnapshot.hasData) {
+                      final docs = statsSnapshot.data!.docs;
+                      totalNights = docs.length;
+                      if (totalNights > 0) {
+                        double sumScore = 0;
+                        for (final doc in docs) {
+                          final score = doc['score'] as num? ?? 0;
+                          final apneas = doc['apneas'] as num? ?? 0;
+                          sumScore += score.toDouble();
+                          totalApneas += apneas.toInt();
+                        }
+                        avgScore = sumScore / totalNights;
+                      }
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            'Nuits',
+                            totalNights.toString(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            'Score moy.',
+                            avgScore.toStringAsFixed(1),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            'Apnées total',
+                            totalApneas.toString(),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
+                const SizedBox(height: 24),
+
+                // 5 dernières nuits
+                _buildSectionTitle('5 dernières nuits'),
                 const SizedBox(height: 8),
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: nightsQuery,
                   builder: (context, nightsSnapshot) {
                     if (nightsSnapshot.hasError) {
-                      return const Text('Erreur chargement historique nuits.');
+                      return Card(
+                        color: AppColors.error.withOpacity(0.1),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            children: [
+                              Icon(Icons.error_outline, color: AppColors.error),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Text(
+                                  'Erreur chargement historique nuits.',
+                                  style: TextStyle(color: AppColors.error),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
                     }
                     if (!nightsSnapshot.hasData) {
-                      return const Padding(
-                        padding: EdgeInsets.all(12.0),
-                        child: CircularProgressIndicator(),
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(12.0),
+                          child: CircularProgressIndicator(),
+                        ),
                       );
                     }
 
                     final docs = nightsSnapshot.data!.docs;
                     if (docs.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8.0),
-                        child: Text('Aucune nuit enregistrée.'),
+                      return Card(
+                        color: AppColors.warning.withOpacity(0.1),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: AppColors.warning,
+                              ),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Text(
+                                  'Aucune nuit enregistrée.',
+                                  style: TextStyle(color: AppColors.warning),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       );
                     }
 
                     return Column(
                       children: docs.map((doc) {
                         final night = doc.data();
-                        final score = night['score'] ?? '--';
+                        final score =
+                            (night['score'] as num?)?.toStringAsFixed(1) ??
+                            '--';
                         final apneas = night['apneas'] ?? '--';
+                        final spo2 =
+                            (night['spo2'] as num?)?.toStringAsFixed(1) ?? '--';
+                        final duration = night['duration'] ?? '--';
                         final date = _formatDate(night['timestamp']);
-                        return Card(
-                          child: ListTile(
-                            title: Text(date),
-                            subtitle: Text('Score: $score | Apnées: $apneas'),
-                            onTap: () {
-                              context.push(
-                                RouteNames.doctorAnalysis(
-                                  Uri.encodeComponent(patientId),
-                                  Uri.encodeComponent(date),
-                                ),
-                              );
-                            },
+                        final dateTime = _formatDateTime(night['timestamp']);
+
+                        return GestureDetector(
+                          onTap: () {
+                            context.push(
+                              RouteNames.doctorAnalysis(
+                                Uri.encodeComponent(patientId),
+                                Uri.encodeComponent(date),
+                              ),
+                            );
+                          },
+                          child: Card(
+                            elevation: 2,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        date,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary.withOpacity(
+                                            0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Score: $score',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    dateTime,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textMedium,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      _buildMetricBadge(
+                                        'Apnées',
+                                        apneas.toString(),
+                                      ),
+                                      _buildMetricBadge('SpO₂', '$spo2%'),
+                                      _buildMetricBadge('Durée', '$duration h'),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Cliquez pour voir l\'analyse détaillée →',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textMedium,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         );
                       }).toList(),
                     );
                   },
                 ),
+                const SizedBox(height: 16),
+
+                // Date d'inscription
+                Center(
+                  child: Text(
+                    'Patient inscrit le $createdAt',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textLight,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
           floatingActionButton: const DoctorChatbotFAB(),
         );
       },
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+        color: AppColors.textDark,
+      ),
+    );
+  }
+
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: AppColors.primary, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textMedium,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String label, String value) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 11, color: AppColors.textMedium),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricBadge(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+            color: AppColors.primary,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: AppColors.textMedium),
+        ),
+      ],
     );
   }
 }

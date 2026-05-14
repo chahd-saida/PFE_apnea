@@ -13,17 +13,15 @@ import 'package:apnea_project/screens/doctor/doctor_patients_list_screen.dart';
 import 'package:apnea_project/screens/doctor/doctor_profile_screen.dart';
 import 'package:apnea_project/screens/doctor/doctor_reports_screen.dart';
 import 'package:apnea_project/screens/doctor/doctor_settings_screen.dart';
+
 import 'package:apnea_project/screens/patient/dashboard_patient_screen.dart';
 import 'package:apnea_project/screens/patient/devices_screen.dart';
 import 'package:apnea_project/screens/patient/history_screen.dart';
 import 'package:apnea_project/screens/patient/night_detail_screen.dart';
-import 'package:apnea_project/screens/patient/patient_alerts_screen.dart';
 import 'package:apnea_project/screens/patient/patient_profile_screen.dart';
 import 'package:apnea_project/screens/patient/patient_settings_screen.dart';
-import 'package:apnea_project/screens/patient/relaxation_content_screen.dart';
 import 'package:apnea_project/screens/patient/realtime_monitoring_screen.dart';
-import 'package:apnea_project/screens/patient/relaxation_screen.dart';
-import 'package:apnea_project/screens/shared/export_report_screen.dart';
+import 'package:apnea_project/screens/patient/wellbeing_screen.dart';
 import 'package:apnea_project/screens/shared/access_denied_screen.dart';
 import 'package:apnea_project/screens/shared/fix_profile_screen.dart';
 import 'package:apnea_project/screens/shared/help_screen.dart';
@@ -31,8 +29,6 @@ import 'package:apnea_project/screens/shared/logout_screen.dart';
 import 'package:apnea_project/screens/shared/privacy_screen.dart';
 import 'package:apnea_project/screens/shared/splash_screen.dart';
 import 'package:apnea_project/screens/shared/chatbot_screen.dart';
-import 'package:apnea_project/screens/doctor/doctor_chatbot_screen.dart';
-import 'package:apnea_project/screens/patient/patient_chatbot_screen.dart';
 
 class RouteNames {
   static const authPrefix = '/auth';
@@ -51,14 +47,7 @@ class RouteNames {
   static const relaxation = '/relaxation';
   static const patientSettings = '/patient-settings';
   static const patientDevices = '/patient-devices';
-  static const patientAlerts = '/patient-alerts';
   static const patientProfile = '/patient-profile';
-  static const meditationDetailPath = '/meditation-detail/:title';
-  static const videoDetailPath = '/video-detail/:title';
-  static const articleDetailPath = '/article-detail/:title';
-  static const createMeditation = '/create-meditation';
-  static const addVideo = '/add-video';
-  static const addArticle = '/add-article';
 
   static const doctorDashboard = '/doctor-dashboard';
   static const doctorPatients = '/doctor-patients';
@@ -71,27 +60,18 @@ class RouteNames {
   static const doctorAnalysisPath = '/doctor-analysis/:patientId/:nightDate';
 
   static const nightDetailPath = '/night-detail/:nightId';
-  static const exportReport = '/export-report';
   static const help = '/help';
   static const privacy = '/privacy';
   static const logout = '/logout';
   static const accessDenied = '/access-denied';
   static const fixProfile = '/fix-profile';
 
+  static String chatbot(String role) => '/chatbot/$role';
   static String nightDetail(String nightId) => '/night-detail/$nightId';
   static String doctorPatientProfile(String patientId) =>
       '/doctor-patient-profile/$patientId';
   static String doctorAnalysis(String patientId, String nightDate) =>
       '/doctor-analysis/$patientId/$nightDate';
-  static String meditationDetail(String title) =>
-      '/meditation-detail/${Uri.encodeComponent(title)}';
-  static String videoDetail(String title) =>
-      '/video-detail/${Uri.encodeComponent(title)}';
-  static String articleDetail(String title) =>
-      '/article-detail/${Uri.encodeComponent(title)}';
-  static const chatbot = '/chatbot';
-  static const patientChatbot = '/patient-chatbot';
-  static const doctorChatbot = '/doctor-chatbot';
 }
 
 GoRouter createAppRouter(
@@ -152,55 +132,7 @@ GoRouter createAppRouter(
       GoRoute(
         path: RouteNames.relaxation,
         name: RouteNames.relaxation,
-        builder: (context, state) => const RelaxationScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.meditationDetailPath,
-        name: RouteNames.meditationDetailPath,
-        builder: (context, state) => RelaxationContentScreen(
-          title: state.pathParameters['title'] ?? 'Meditation',
-          contentType: 'meditation',
-        ),
-      ),
-      GoRoute(
-        path: RouteNames.videoDetailPath,
-        name: RouteNames.videoDetailPath,
-        builder: (context, state) => RelaxationContentScreen(
-          title: state.pathParameters['title'] ?? 'Video',
-          contentType: 'video',
-        ),
-      ),
-      GoRoute(
-        path: RouteNames.articleDetailPath,
-        name: RouteNames.articleDetailPath,
-        builder: (context, state) => RelaxationContentScreen(
-          title: state.pathParameters['title'] ?? 'Article',
-          contentType: 'article',
-        ),
-      ),
-      GoRoute(
-        path: RouteNames.createMeditation,
-        name: RouteNames.createMeditation,
-        builder: (context, state) => const RelaxationContentScreen(
-          title: 'Creer une meditation personnalisee',
-          contentType: 'create-meditation',
-        ),
-      ),
-      GoRoute(
-        path: RouteNames.addVideo,
-        name: RouteNames.addVideo,
-        builder: (context, state) => const RelaxationContentScreen(
-          title: 'Ajouter une video relaxante',
-          contentType: 'add-video',
-        ),
-      ),
-      GoRoute(
-        path: RouteNames.addArticle,
-        name: RouteNames.addArticle,
-        builder: (context, state) => const RelaxationContentScreen(
-          title: 'Ajouter un article bien-etre',
-          contentType: 'add-article',
-        ),
+        builder: (context, state) => const WellbeingScreen(),
       ),
       GoRoute(
         path: RouteNames.patientSettings,
@@ -213,19 +145,9 @@ GoRouter createAppRouter(
         builder: (context, state) => const DevicesScreen(),
       ),
       GoRoute(
-        path: RouteNames.patientAlerts,
-        name: RouteNames.patientAlerts,
-        builder: (context, state) => const PatientAlertsScreen(),
-      ),
-      GoRoute(
         path: RouteNames.patientProfile,
         name: RouteNames.patientProfile,
         builder: (context, state) => const PatientProfileScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.exportReport,
-        name: RouteNames.exportReport,
-        builder: (context, state) => const ExportReportScreen(),
       ),
       GoRoute(
         path: RouteNames.doctorPatients,
@@ -298,19 +220,10 @@ GoRouter createAppRouter(
         builder: (context, state) => const FixProfileScreen(),
       ),
       GoRoute(
-        path: RouteNames.chatbot,
-        name: RouteNames.chatbot,
-        builder: (context, state) => const ChatbotScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.patientChatbot,
-        name: RouteNames.patientChatbot,
-        builder: (context, state) => const PatientChatbotScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.doctorChatbot,
-        name: RouteNames.doctorChatbot,
-        builder: (context, state) => const DoctorChatbotScreen(),
+        path: '/chatbot/:role',
+        name: 'chatbot',
+        builder: (context, state) =>
+            ChatbotScreen(role: state.pathParameters['role'] ?? 'patient'),
       ),
     ],
     redirect: (context, state) {
@@ -327,7 +240,7 @@ GoRouter createAppRouter(
         RouteNames.doctorMessages,
         RouteNames.doctorProfile,
         RouteNames.doctorSettings,
-        RouteNames.doctorChatbot,
+        RouteNames.chatbot('doctor'),
         '/doctor-patient-profile/',
         '/doctor-analysis/',
       ];
@@ -336,17 +249,10 @@ GoRouter createAppRouter(
         RouteNames.patientHistory,
         RouteNames.patientSettings,
         RouteNames.patientDevices,
-        RouteNames.patientAlerts,
         RouteNames.patientProfile,
         RouteNames.realtimeMonitoring,
         RouteNames.relaxation,
-        RouteNames.patientChatbot,
-        '/meditation-detail/',
-        '/video-detail/',
-        '/article-detail/',
-        RouteNames.createMeditation,
-        RouteNames.addVideo,
-        RouteNames.addArticle,
+        RouteNames.chatbot('patient'),
         RouteNames.nightDetailPrefix,
       ];
 
