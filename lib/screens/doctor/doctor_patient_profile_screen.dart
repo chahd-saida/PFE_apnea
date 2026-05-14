@@ -10,6 +10,20 @@ class DoctorPatientProfileScreen extends StatelessWidget {
 
   final String patientId;
 
+  String _resolveDoctorName(Map<String, dynamic> data) {
+    // Chercher dans tous les champs possibles
+    for (final key in ['doctorName', 'assignedDoctorName', 'doctorFullName']) {
+      final v = data[key];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+    }
+    // Si doctorUid présent mais pas le nom → afficher l'uid tronqué
+    final uid = data['doctorUid'] as String?;
+    if (uid != null && uid.isNotEmpty) {
+      return 'Médecin (${uid.substring(0, 6)}...)';
+    }
+    return 'Non assigné';
+  }
+
   String _formatDate(dynamic value) {
     DateTime? date;
     if (value is Timestamp) {
@@ -150,10 +164,7 @@ class DoctorPatientProfileScreen extends StatelessWidget {
         final phone = (data['phone'] as String?) ?? 'Non renseigné';
         final diagnosis = (data['diagnosis'] as String?) ?? 'Non renseigné';
         final medicalNotes = (data['medicalNotes'] as String?) ?? '';
-        final assignedDoctor =
-            (data['doctorName'] as String?) ??
-            (data['assignedDoctorName'] as String?) ??
-            'Non assigné';
+        final assignedDoctor = _resolveDoctorName(data);
         final age = _computeAge(data['dateOfBirth']);
         final dateOfBirth = _formatDate(data['dateOfBirth']);
         final createdAt = _formatDate(data['createdAt']);
@@ -328,41 +339,7 @@ class DoctorPatientProfileScreen extends StatelessWidget {
                 // Informations médicales
                 _buildSectionTitle('Informations médicales'),
                 const SizedBox(height: 8),
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.medical_information_outlined,
-                              color: AppColors.primary,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            const Expanded(
-                              child: Text(
-                                'Diagnostic',
-                                style: TextStyle(fontWeight: FontWeight.w500),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          diagnosis,
-                          style: const TextStyle(color: AppColors.textBody),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+
                 if (medicalNotes.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Card(
@@ -378,7 +355,7 @@ class DoctorPatientProfileScreen extends StatelessWidget {
                           Row(
                             children: [
                               Icon(
-                                Icons.notes_outlined,
+                                Icons.note_outlined,
                                 color: AppColors.primary,
                                 size: 20,
                               ),
