@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 
 import 'package:apnea_project/l10n/app_localizations.dart';
+import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
-import 'package:apnea_project/services/firebase_service.dart';
-import 'package:apnea_project/theme/app_dimensions.dart';
+import 'package:apnea_project/theme/app_colors.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -16,75 +16,56 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _fullNameController = TextEditingController();
-  final TextEditingController _dobController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _profileImageUrlController =
-      TextEditingController();
-  final TextEditingController _specializationController =
-      TextEditingController();
-  final TextEditingController _medicalLicenseController =
-      TextEditingController();
-  final TextEditingController _yearsOfExperienceController =
-      TextEditingController();
-  final TextEditingController _clinicNameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
-  String? _selectedRole; // 'patient' | 'doctor'
-  String? _selectedGender; // 'H', 'F', 'Autre'
+  final _fullNameController = TextEditingController();
+  final _dobController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  String? _selectedRole;
+  String? _selectedGender;
   bool _acceptCGU = false;
   bool _acceptMedicalConsent = false;
   bool _isLoading = false;
-  final FirebaseService _firebaseService = FirebaseService();
+  bool _isPasswordVisible = false;
+  bool _isConfirmVisible = false;
+
+  // Étape courante du stepper
+  int _currentStep = 0;
+
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    _dobController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  // ── Register ──────────────────────────────────────────────────────────────
 
   Future<void> _register() async {
     final l10n = AppLocalizations.of(context)!;
-
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
+    if (!_formKey.currentState!.validate()) return;
     if (!_acceptCGU || !_acceptMedicalConsent) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.acceptTermsConsentRequiredMessage)),
-      );
+      _showSnack(l10n.acceptTermsConsentRequiredMessage);
       return;
     }
-
     if (_selectedRole == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.roleRequiredError)),
-      );
+      _showSnack(l10n.roleRequiredError);
       return;
     }
-
     if (_selectedGender == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.genderRequiredMessage)),
-      );
+      _showSnack(l10n.genderRequiredMessage);
       return;
     }
 
-    if (_selectedRole == 'doctor') {
-      if (_specializationController.text.trim().isEmpty ||
-          _medicalLicenseController.text.trim().isEmpty ||
-          _yearsOfExperienceController.text.trim().isEmpty ||
-          _clinicNameController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.doctorProfessionalInfoRequiredMessage)),
-        );
-        return;
-      }
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
     try {
-      // Register user and ensure Firestore write completes
-      await _firebaseService.registerUser(
+      final auth = context.read<AuthProvider>();
+      final error = await auth.register(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         role: _selectedRole!,
@@ -92,46 +73,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
         dateOfBirth: _dobController.text.trim(),
         phone: _phoneController.text.trim(),
         gender: _selectedGender,
-        profileImageUrl: _profileImageUrlController.text.trim(),
-        specialization: _selectedRole == 'doctor'
-            ? _specializationController.text.trim()
-            : null,
-        medicalLicenseNumber: _selectedRole == 'doctor'
-            ? _medicalLicenseController.text.trim()
-            : null,
-        yearsOfExperience: _selectedRole == 'doctor'
-            ? _yearsOfExperienceController.text.trim()
-            : null,
-        clinicName: _selectedRole == 'doctor'
-            ? _clinicNameController.text.trim()
-            : null,
       );
 
-      // Auto-login after registration
-      final loginCred = await _firebaseService.signIn(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+      if (!mounted) return;
 
-      // Fetch the user role from Firestore to ensure it's up-to-date
-      final user = loginCred.user;
-      String? role;
-      if (user != null) {
-        // Try up to 5 times with a short delay in case of propagation lag
-        for (int i = 0; i < 5; i++) {
-          role = await _firebaseService.getUserRole(user.uid);
-          if (role == 'doctor' || role == 'patient') {
-            break;
-          }
-          await Future.delayed(const Duration(milliseconds: 200));
-        }
-      }
-
-      if (!mounted) {
+      if (error != null) {
+        _showSnack(error);
         return;
       }
 
-      // Redirect based on actual role from Firestore
+      final role = auth.role;
       if (role == 'doctor') {
         context.go(RouteNames.doctorDashboard);
       } else if (role == 'patient') {
@@ -139,98 +90,320 @@ class _RegisterScreenState extends State<RegisterScreen> {
       } else {
         context.go(RouteNames.fixProfile);
       }
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) {
-        return;
-      }
-      final message = _mapAuthError(AppLocalizations.of(context)!, e);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    } on FirebaseException catch (e) {
-      if (!mounted) {
-        return;
-      }
-      final l10n = AppLocalizations.of(context)!;
-      final message = e.code == 'permission-denied'
-          ? l10n.firestoreWriteDenied
-          : (e.message ?? l10n.registerDatabaseError);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  String _mapAuthError(AppLocalizations l10n, FirebaseAuthException e) {
-    switch (e.code) {
-      case 'email-already-in-use':
-        return l10n.registerEmailAlreadyInUse;
-      case 'invalid-email':
-        return l10n.loginInvalidEmail;
-      case 'weak-password':
-        return l10n.registerWeakPassword;
-      case 'operation-not-allowed':
-      case 'configuration-not-found':
-      case 'CONFIGURATION_NOT_FOUND':
-        return l10n.firebaseAuthNotConfigured;
+  void _showSnack(String msg, {bool error = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              error ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(msg, style: const TextStyle(fontSize: 13))),
+          ],
+        ),
+        backgroundColor: error ? AppColors.error : AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  // ── Validation par étape ──────────────────────────────────────────────────
+
+  bool _validateStep(int step) {
+    switch (step) {
+      case 0:
+        return _selectedRole != null;
+      case 1:
+        return _fullNameController.text.trim().isNotEmpty &&
+            _dobController.text.trim().isNotEmpty &&
+            _selectedGender != null &&
+            _phoneController.text.trim().isNotEmpty;
+
+      case 2:
+        return _emailController.text.trim().isNotEmpty &&
+            _passwordController.text.length >= 6 &&
+            _passwordController.text == _confirmPasswordController.text;
       default:
-        return e.message ?? l10n.registerErrorGeneric;
+        return true;
     }
   }
 
-  Widget _buildRoleCard({
-    required FormFieldState<String> fieldState,
+  void _nextStep() {
+    if (!_validateStep(_currentStep)) {
+      _showSnack('Veuillez remplir tous les champs obligatoires.');
+      return;
+    }
+    if (_currentStep < _totalSteps - 1) {
+      setState(() => _currentStep++);
+    } else {
+      _register();
+    }
+  }
+
+  void _prevStep() {
+    if (_currentStep > 0) setState(() => _currentStep--);
+  }
+
+  int get _totalSteps => _selectedRole == 'doctor' ? 4 : 4;
+
+  // ── BUILD ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
+      appBar: AppBar(title: Text(l10n.registerTitle), centerTitle: true),
+      body: Column(
+        children: [
+          // ── Barre de progression ────────────────────────────────────
+          _buildProgressBar(isDark),
+
+          // ── Contenu ─────────────────────────────────────────────────
+          Expanded(
+            child: Form(
+              key: _formKey,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 280),
+                  transitionBuilder: (child, anim) => FadeTransition(
+                    opacity: anim,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0.05, 0),
+                        end: Offset.zero,
+                      ).animate(anim),
+                      child: child,
+                    ),
+                  ),
+                  child: KeyedSubtree(
+                    key: ValueKey(_currentStep),
+                    child: _buildStep(l10n, isDark),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // ── Navigation ──────────────────────────────────────────────
+          _buildNavigation(l10n, isDark),
+        ],
+      ),
+    );
+  }
+
+  // ── Barre de progression ──────────────────────────────────────────────────
+
+  Widget _buildProgressBar(bool isDark) {
+    final labels = ['Rôle', 'Profil', 'Pro', 'Compte'];
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.06)
+                : AppColors.surfaceLight,
+          ),
+        ),
+      ),
+      child: Row(
+        children: List.generate(_totalSteps, (i) {
+          final done = i < _currentStep;
+          final current = i == _currentStep;
+          return Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        height: 4,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(2),
+                          color: (done || current)
+                              ? AppColors.primary
+                              : (isDark
+                                    ? Colors.white.withValues(alpha: 0.1)
+                                    : AppColors.surfaceLight),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        labels[i],
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: current
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          color: current
+                              ? AppColors.primary
+                              : (isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.textLight),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (i < _totalSteps - 1) const SizedBox(width: 6),
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  // ── Étapes ────────────────────────────────────────────────────────────────
+
+  Widget _buildStep(AppLocalizations l10n, bool isDark) {
+    switch (_currentStep) {
+      case 0:
+        return _stepRole(l10n, isDark);
+      case 1:
+        return _stepProfile(l10n, isDark);
+      case 2:
+        return _stepAccount(l10n, isDark);
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  // ── Étape 0 : Rôle ────────────────────────────────────────────────────────
+
+  Widget _stepRole(AppLocalizations l10n, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _stepHeader(
+          'Vous êtes…',
+          'Sélectionnez votre rôle pour personnaliser votre expérience.',
+          isDark,
+        ),
+        const SizedBox(height: 28),
+        Row(
+          children: [
+            Expanded(
+              child: _roleCard(
+                value: 'patient',
+                label: l10n.rolePatient,
+                icon: Icons.person_outline_rounded,
+                desc: 'Suivre mes données de santé',
+                isDark: isDark,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: _roleCard(
+                value: 'doctor',
+                label: l10n.roleDoctor,
+                icon: Icons.medical_services_outlined,
+                desc: 'Gérer et surveiller mes patients',
+                isDark: isDark,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  Widget _roleCard({
     required String value,
     required String label,
     required IconData icon,
+    required String desc,
+    required bool isDark,
   }) {
     final isSelected = _selectedRole == value;
-    final theme = Theme.of(context);
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-      onTap: () {
-        setState(() {
-          _selectedRole = value;
-        });
-        fieldState.didChange(value);
-      },
+    return GestureDetector(
+      onTap: () => setState(() => _selectedRole = value),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: isSelected
-              ? theme.colorScheme.primary.withValues(alpha: 0.12)
-              : theme.cardColor,
-          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+              ? AppColors.primary.withValues(alpha: 0.08)
+              : (isDark ? AppColors.darkSurface : Colors.white),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? theme.colorScheme.primary : theme.dividerColor,
+            color: isSelected
+                ? AppColors.primary
+                : (isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : AppColors.surfaceLight),
             width: isSelected ? 2 : 1,
           ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [],
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              size: 24,
-              color: isSelected
-                  ? theme.colorScheme.primary
-                  : theme.iconTheme.color,
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.primary.withValues(alpha: 0.12)
+                    : (isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : AppColors.surfaceLight),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                icon,
+                size: 26,
+                color: isSelected
+                    ? AppColors.primary
+                    : (isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textMedium),
+              ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 12),
             Text(
               label,
               style: TextStyle(
-                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
                 color: isSelected
-                    ? theme.colorScheme.primary
-                    : theme.textTheme.bodyMedium?.color,
+                    ? AppColors.primary
+                    : (isDark ? AppColors.darkTextPrimary : AppColors.textDark),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              desc,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textMedium,
+                height: 1.4,
               ),
             ),
           ],
@@ -239,351 +412,546 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _fullNameController.dispose();
-    _dobController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _profileImageUrlController.dispose();
-    _specializationController.dispose();
-    _medicalLicenseController.dispose();
-    _yearsOfExperienceController.dispose();
-    _clinicNameController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
+  // ── Étape 1 : Profil ──────────────────────────────────────────────────────
+
+  Widget _stepProfile(AppLocalizations l10n, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _stepHeader(
+          'Informations personnelles',
+          'Ces informations servent à identifier votre profil.',
+          isDark,
+        ),
+        const SizedBox(height: 24),
+
+        _buildField(
+          controller: _fullNameController,
+          label: l10n.fullNameLabel,
+          icon: Icons.person_outline_rounded,
+          isDark: isDark,
+          validator: (v) =>
+              (v == null || v.isEmpty) ? l10n.fullNameRequiredError : null,
+        ),
+        const SizedBox(height: 14),
+
+        // Date de naissance
+        TextFormField(
+          controller: _dobController,
+          readOnly: true,
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? AppColors.darkTextPrimary : AppColors.textDark,
+          ),
+          decoration: _inputDeco(
+            l10n.dateOfBirthLabel,
+            Icons.calendar_today_outlined,
+            isDark,
+          ),
+          validator: (v) =>
+              (v == null || v.isEmpty) ? l10n.dateOfBirthRequiredError : null,
+          onTap: () async {
+            FocusScope.of(context).unfocus();
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: DateTime(2000),
+              firstDate: DateTime(1900),
+              lastDate: DateTime.now(),
+            );
+            if (picked != null) {
+              setState(() {
+                _dobController.text = picked.toIso8601String().split('T')[0];
+              });
+            }
+          },
+        ),
+        const SizedBox(height: 14),
+
+        // Genre
+        _buildGenderSelector(l10n, isDark),
+        const SizedBox(height: 14),
+
+        _buildField(
+          controller: _phoneController,
+          label: l10n.phoneLabel,
+          icon: Icons.phone_outlined,
+          isDark: isDark,
+          keyboard: TextInputType.phone,
+          validator: (v) =>
+              (v == null || v.isEmpty) ? l10n.phoneRequiredError : null,
+        ),
+        const SizedBox(height: 32),
+      ],
+    );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.registerTitle)),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                FormField<String>(
-                  validator: (_) {
-                    if (_selectedRole == null) {
-                      return l10n.roleRequiredError;
-                    }
-                    return null;
-                  },
-                  builder: (state) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.roleLabel,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildRoleCard(
-                                fieldState: state,
-                                value: 'patient',
-                                label: l10n.rolePatient,
-                                icon: Icons.person,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildRoleCard(
-                                fieldState: state,
-                                value: 'doctor',
-                                label: l10n.roleDoctor,
-                                icon: Icons.local_hospital,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (state.hasError)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 12.0),
-                            child: Text(
-                              state.errorText!,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: _fullNameController,
-                  decoration: InputDecoration(
-                    labelText: l10n.fullNameLabel,
-                    prefixIcon: const Icon(Icons.person),
+  Widget _buildGenderSelector(AppLocalizations l10n, bool isDark) {
+    final genders = [
+      ('H', l10n.genderMaleShort, Icons.male_rounded),
+      ('F', l10n.genderFemaleShort, Icons.female_rounded),
+      ('Autre', l10n.genderOther, Icons.transgender_rounded),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.genderLabel,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: isDark ? AppColors.darkTextSecondary : AppColors.textBody,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: genders.map((g) {
+            final selected = _selectedGender == g.$1;
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedGender = g.$1),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  margin: EdgeInsets.only(right: g.$1 != 'Autre' ? 8 : 0),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? AppColors.primary.withValues(alpha: 0.08)
+                        : (isDark ? AppColors.darkSurface : Colors.white),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selected
+                          ? AppColors.primary
+                          : (isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : AppColors.surfaceLight),
+                      width: selected ? 1.5 : 1,
+                    ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return l10n.fullNameRequiredError;
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 15),
-                TextFormField(
-                  controller: _dobController,
-                  decoration: InputDecoration(
-                    labelText: l10n.dateOfBirthLabel,
-                    prefixIcon: const Icon(Icons.calendar_today),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return l10n.dateOfBirthRequiredError;
-                    }
-                    return null;
-                  },
-                  onTap: () async {
-                    FocusScope.of(context).requestFocus(FocusNode());
-                    DateTime? pickedDate = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime(1900),
-                      lastDate: DateTime.now(),
-                    );
-                    if (pickedDate != null) {
-                      setState(() {
-                        _dobController.text = pickedDate
-                            .toIso8601String()
-                            .split('T')[0];
-                      });
-                    }
-                  },
-                ),
-                const SizedBox(height: 15),
-
-                RadioGroup<String>(
-                  groupValue: _selectedGender,
-                  onChanged: (String? value) {
-                    setState(() {
-                      _selectedGender = value;
-                    });
-                  },
-                  child: Row(
+                  child: Column(
                     children: [
-                      Text(l10n.genderLabel),
-                      const Radio<String>(value: 'H'),
-                      Text(l10n.genderMaleShort),
-                      const Radio<String>(value: 'F'),
-                      Text(l10n.genderFemaleShort),
-                      const Radio<String>(value: 'Autre'),
-                      Text(l10n.genderOther),
+                      Icon(
+                        g.$3,
+                        size: 20,
+                        color: selected
+                            ? AppColors.primary
+                            : (isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textMedium),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        g.$2,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          color: selected
+                              ? AppColors.primary
+                              : (isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.textMedium),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 15),
-                TextFormField(
-                  controller: _emailController,
-                  decoration: InputDecoration(
-                    labelText: l10n.emailLabel,
-                    prefixIcon: const Icon(Icons.email),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return l10n.emailRequiredError;
-                    }
-                    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                      return l10n.emailInvalidError;
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 15),
-                TextFormField(
-                  controller: _phoneController,
-                  decoration: InputDecoration(
-                    labelText: l10n.phoneLabel,
-                    prefixIcon: const Icon(Icons.phone),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return l10n.phoneRequiredError;
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 15),
-                TextFormField(
-                  controller: _profileImageUrlController,
-                  decoration: InputDecoration(
-                    labelText: l10n.profilePhotoUrlOptionalLabel,
-                    prefixIcon: const Icon(Icons.image_outlined),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return null;
-                    }
-                    final uri = Uri.tryParse(value.trim());
-                    if (uri == null ||
-                        !uri.hasScheme ||
-                        (uri.scheme != 'http' && uri.scheme != 'https')) {
-                      return l10n.urlInvalidError;
-                    }
-                    return null;
-                  },
-                ),
-                if (_selectedRole == 'doctor') ...[
-                  const SizedBox(height: 15),
-                  TextFormField(
-                    controller: _specializationController,
-                    decoration: InputDecoration(
-                      labelText: l10n.specializationLabel,
-                      prefixIcon: const Icon(Icons.badge_outlined),
-                    ),
-                    validator: (value) {
-                      if (_selectedRole != 'doctor') {
-                        return null;
-                      }
-                      if (value == null || value.trim().isEmpty) {
-                        return l10n.specializationRequiredError;
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 15),
-                  TextFormField(
-                    controller: _medicalLicenseController,
-                    decoration: InputDecoration(
-                      labelText: l10n.medicalLicenseNumberLabel,
-                      prefixIcon: const Icon(Icons.verified_user_outlined),
-                    ),
-                    validator: (value) {
-                      if (_selectedRole != 'doctor') {
-                        return null;
-                      }
-                      if (value == null || value.trim().isEmpty) {
-                        return l10n.medicalLicenseNumberRequiredError;
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 15),
-                  TextFormField(
-                    controller: _yearsOfExperienceController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: l10n.yearsOfExperienceLabel,
-                      prefixIcon: const Icon(Icons.timeline_outlined),
-                    ),
-                    validator: (value) {
-                      if (_selectedRole != 'doctor') {
-                        return null;
-                      }
-                      if (value == null || value.trim().isEmpty) {
-                        return l10n.yearsOfExperienceRequiredError;
-                      }
-                      if (int.tryParse(value.trim()) == null) {
-                        return l10n.numberInvalidError;
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 15),
-                  TextFormField(
-                    controller: _clinicNameController,
-                    decoration: InputDecoration(
-                      labelText: l10n.clinicHospitalLabel,
-                      prefixIcon: const Icon(Icons.local_hospital_outlined),
-                    ),
-                    validator: (value) {
-                      if (_selectedRole != 'doctor') {
-                        return null;
-                      }
-                      if (value == null || value.trim().isEmpty) {
-                        return l10n.clinicHospitalRequiredError;
-                      }
-                      return null;
-                    },
-                  ),
-                ],
-                const SizedBox(height: 15),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: l10n.passwordLabel,
-                    prefixIcon: const Icon(Icons.lock),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return l10n.passwordRequiredError;
-                    }
-                    if (value.length < 6) {
-                      return l10n.passwordMin6Error;
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 15),
-                TextFormField(
-                  controller: _confirmPasswordController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: l10n.confirmPasswordLabel,
-                    prefixIcon: const Icon(Icons.lock_reset),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return l10n.confirmPasswordRequiredError;
-                    }
-                    if (value != _passwordController.text) {
-                      return l10n.passwordsDontMatchError;
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 15),
-                CheckboxListTile(
-                  title: Text(l10n.acceptTermsLabel),
-                  value: _acceptCGU,
-                  onChanged: (bool? value) {
-                    setState(() {
-                      _acceptCGU = value ?? false;
-                    });
-                  },
-                ),
-                CheckboxListTile(
-                  title: Text(l10n.acceptMedicalConsentLabel),
-                  value: _acceptMedicalConsent,
-                  onChanged: (bool? value) {
-                    setState(() {
-                      _acceptMedicalConsent = value ?? false;
-                    });
-                  },
-                ),
-                const SizedBox(height: 20),
-                _isLoading
-                    ? const CircularProgressIndicator()
-                    : ElevatedButton(
-                        onPressed: _register,
-                        child: Text(l10n.signUpButton),
-                      ),
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: () {
-                    context.go(RouteNames.login);
-                  },
-                  child: Text(l10n.alreadyHaveAccountLoginButton),
-                ),
-              ],
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  // ── Étape 3 : Compte ──────────────────────────────────────────────────────
+
+  Widget _stepAccount(AppLocalizations l10n, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _stepHeader(
+          'Créer votre compte',
+          'Ces identifiants vous permettront de vous connecter.',
+          isDark,
+        ),
+        const SizedBox(height: 24),
+
+        _buildField(
+          controller: _emailController,
+          label: l10n.emailLabel,
+          icon: Icons.email_outlined,
+          isDark: isDark,
+          keyboard: TextInputType.emailAddress,
+          validator: (v) {
+            if (v == null || v.isEmpty) return l10n.emailRequiredError;
+            if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v))
+              return l10n.emailInvalidError;
+            return null;
+          },
+        ),
+        const SizedBox(height: 14),
+
+        // Mot de passe
+        TextFormField(
+          controller: _passwordController,
+          obscureText: !_isPasswordVisible,
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? AppColors.darkTextPrimary : AppColors.textDark,
+          ),
+          decoration: _inputDeco(
+            l10n.passwordLabel,
+            Icons.lock_outline_rounded,
+            isDark,
+            suffix: IconButton(
+              icon: Icon(
+                _isPasswordVisible
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                size: 18,
+                color: AppColors.textMedium,
+              ),
+              onPressed: () =>
+                  setState(() => _isPasswordVisible = !_isPasswordVisible),
             ),
           ),
+          validator: (v) {
+            if (v == null || v.isEmpty) return l10n.passwordRequiredError;
+            if (v.length < 6) return l10n.passwordMin6Error;
+            return null;
+          },
         ),
+        const SizedBox(height: 14),
+
+        // Confirmation
+        TextFormField(
+          controller: _confirmPasswordController,
+          obscureText: !_isConfirmVisible,
+          style: TextStyle(
+            fontSize: 14,
+            color: isDark ? AppColors.darkTextPrimary : AppColors.textDark,
+          ),
+          decoration: _inputDeco(
+            l10n.confirmPasswordLabel,
+            Icons.lock_reset_outlined,
+            isDark,
+            suffix: IconButton(
+              icon: Icon(
+                _isConfirmVisible
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                size: 18,
+                color: AppColors.textMedium,
+              ),
+              onPressed: () =>
+                  setState(() => _isConfirmVisible = !_isConfirmVisible),
+            ),
+          ),
+          validator: (v) {
+            if (v == null || v.isEmpty)
+              return l10n.confirmPasswordRequiredError;
+            if (v != _passwordController.text)
+              return l10n.passwordsDontMatchError;
+            return null;
+          },
+        ),
+        const SizedBox(height: 20),
+
+        // Checkboxes consentements
+        _buildCheckTile(
+          label: l10n.acceptTermsLabel,
+          value: _acceptCGU,
+          isDark: isDark,
+          onChanged: (v) => setState(() => _acceptCGU = v ?? false),
+        ),
+        const SizedBox(height: 8),
+        _buildCheckTile(
+          label: l10n.acceptMedicalConsentLabel,
+          value: _acceptMedicalConsent,
+          isDark: isDark,
+          onChanged: (v) => setState(() => _acceptMedicalConsent = v ?? false),
+        ),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  // ── Navigation bas de page ────────────────────────────────────────────────
+
+  Widget _buildNavigation(AppLocalizations l10n, bool isDark) {
+    final isLastStep = _currentStep == _totalSteps - 1;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        border: Border(
+          top: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.06)
+                : AppColors.surfaceLight,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Bouton retour
+          if (_currentStep > 0)
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _prevStep,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  minimumSize: const Size(0, 50),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.arrow_back_rounded, size: 16),
+                    SizedBox(width: 6),
+                    Text(
+                      'Retour',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          if (_currentStep > 0) const SizedBox(width: 12),
+
+          // Bouton suivant / créer
+          Expanded(
+            flex: 2,
+            child: SizedBox(
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _nextStep,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  disabledBackgroundColor: AppColors.primary.withValues(
+                    alpha: 0.5,
+                  ),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.5,
+                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            isLastStep ? l10n.signUpButton : 'Continuer',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(
+                            isLastStep
+                                ? Icons.check_rounded
+                                : Icons.arrow_forward_rounded,
+                            size: 18,
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Widget helpers ────────────────────────────────────────────────────────
+
+  Widget _stepHeader(String title, String subtitle, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+            color: isDark ? AppColors.darkTextPrimary : AppColors.textDark,
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 13,
+            color: isDark ? AppColors.darkTextSecondary : AppColors.textMedium,
+            height: 1.5,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required bool isDark,
+    int maxLines = 1,
+    TextInputType? keyboard,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      keyboardType: keyboard,
+      validator: validator,
+      style: TextStyle(
+        fontSize: 14,
+        color: isDark ? AppColors.darkTextPrimary : AppColors.textDark,
+      ),
+      decoration: _inputDeco(
+        label,
+        icon,
+        isDark,
+        alignLabelWithHint: maxLines > 1,
+      ),
+    );
+  }
+
+  Widget _buildCheckTile({
+    required String label,
+    required bool value,
+    required bool isDark,
+    required ValueChanged<bool?> onChanged,
+  }) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: value
+              ? AppColors.primary.withValues(alpha: 0.06)
+              : (isDark ? AppColors.darkSurface : Colors.white),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: value
+                ? AppColors.primary.withValues(alpha: 0.4)
+                : (isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : AppColors.surfaceLight),
+          ),
+        ),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: value ? AppColors.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: value
+                      ? AppColors.primary
+                      : (isDark
+                            ? Colors.white.withValues(alpha: 0.3)
+                            : AppColors.textLight),
+                  width: 1.5,
+                ),
+              ),
+              child: value
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 13,
+                      color: Colors.white,
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textBody,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDeco(
+    String label,
+    IconData icon,
+    bool isDark, {
+    bool alignLabelWithHint = false,
+    Widget? suffix,
+  }) {
+    final fillColor = isDark ? AppColors.darkSurface : Colors.white;
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : AppColors.surfaceLight;
+
+    return InputDecoration(
+      labelText: label,
+      alignLabelWithHint: alignLabelWithHint,
+      prefixIcon: Padding(
+        padding: const EdgeInsets.only(left: 14, right: 10),
+        child: Icon(icon, color: AppColors.textMedium, size: 18),
+      ),
+      prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+      suffixIcon: suffix != null
+          ? Padding(padding: const EdgeInsets.only(right: 6), child: suffix)
+          : null,
+      suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+      filled: true,
+      fillColor: fillColor,
+      labelStyle: TextStyle(
+        fontSize: 13,
+        color: isDark ? AppColors.darkTextSecondary : AppColors.textMedium,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: borderColor),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: borderColor),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.error, width: 1.5),
       ),
     );
   }

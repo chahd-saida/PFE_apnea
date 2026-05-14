@@ -1,3 +1,5 @@
+import 'package:apnea_project/providers/patient_provider.dart';
+import 'package:apnea_project/providers/report_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -14,7 +16,7 @@ import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/services/settings_service.dart';
 import 'package:apnea_project/theme/app_theme.dart' as project_theme;
 import 'package:apnea_project/providers/monitoring_provider.dart';
-import 'package:apnea_project/providers/monitoring_provider.dart';
+
 
 
 
@@ -48,6 +50,9 @@ void main() async {
         ChangeNotifierProvider<ThemeProvider>.value(value: themeProvider),
         ChangeNotifierProvider<LocaleProvider>.value(value: localeProvider),
         ChangeNotifierProvider<MonitoringProvider>(create: (_) => MonitoringProvider(),),
+        ChangeNotifierProvider(create: (_) => PatientProvider()),   // ← nouveau
+        ChangeNotifierProvider(create: (_) => ReportProvider()),    // ← nouveau
+        
       ],
       child: MyApp(routerOverride: appRouter),
     ),

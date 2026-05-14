@@ -1,9 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:apnea_project/providers/user_profile_provider.dart';
-import 'package:apnea_project/services/firebase_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 
@@ -15,40 +13,27 @@ class PatientProfileScreen extends StatefulWidget {
 }
 
 class _PatientProfileScreenState extends State<PatientProfileScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  final _fullNameController     = TextEditingController();
+  final _phoneController        = TextEditingController();
+  final _dateOfBirthController  = TextEditingController();
+  final _genderController       = TextEditingController();
 
-  final TextEditingController _fullNameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _dateOfBirthController = TextEditingController();
-  final TextEditingController _genderController = TextEditingController();
-
-  bool _initialized = false;
-  bool _isSaving = false;
-  bool _isLoadingDoctors = false;
-
-  String? _selectedDoctorUid;
-  String? _selectedDoctorName;
+  bool    _initialized = false;
+  bool    _isSaving    = false;
   String? _errorMessage;
-
-  List<Map<String, dynamic>> _doctorOptions = <Map<String, dynamic>>[];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      final userProfile = context.read<UserProfileProvider>();
-      userProfile.refreshProfile();
+      if (!mounted) return;
+      context.read<UserProfileProvider>().refreshProfile();
     });
   }
 
   @override
   void dispose() {
     _fullNameController.dispose();
-    _emailController.dispose();
     _phoneController.dispose();
     _dateOfBirthController.dispose();
     _genderController.dispose();
@@ -57,410 +42,424 @@ class _PatientProfileScreenState extends State<PatientProfileScreen> {
 
   void _hydrateFromProfile(UserProfileProvider userProfile) {
     final user = userProfile.user;
-    _fullNameController.text = userProfile.fullName;
-    _emailController.text = userProfile.email;
-    _phoneController.text = userProfile.phone;
-    _dateOfBirthController.text = _formatDateValue(user?['dateOfBirth']);
-    _genderController.text = (user?['gender'] as String?)?.trim() ?? '';
-    _selectedDoctorUid = userProfile.doctorUid;
-    _selectedDoctorName = userProfile.doctorName;
-
-    setState(() {
-      _initialized = true;
-    });
+    _fullNameController.text    = userProfile.fullName;
+    _phoneController.text       = userProfile.phone;
+    _dateOfBirthController.text = _formatDate(user?['dateOfBirth']);
+    _genderController.text      = (user?['gender'] as String?)?.trim() ?? '';
+    setState(() => _initialized = true);
   }
 
-  String _formatDateValue(dynamic value) {
-    if (value is String) {
-      return value.trim();
-    }
-    DateTime? resolved;
-    if (value is Timestamp) {
-      resolved = value.toDate();
-    } else if (value is DateTime) {
-      resolved = value;
-    }
-    if (resolved == null) {
-      return '';
-    }
-    final year = resolved.year.toString().padLeft(4, '0');
-    final month = resolved.month.toString().padLeft(2, '0');
-    final day = resolved.day.toString().padLeft(2, '0');
-    return '$year-$month-$day';
-  }
-
-  Future<void> _ensureDoctorsLoaded() async {
-    if (_doctorOptions.isNotEmpty || _isLoadingDoctors) {
-      return;
-    }
-
-    setState(() {
-      _isLoadingDoctors = true;
-    });
-
-    final doctors = await _firebaseService.getDoctors();
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _doctorOptions = doctors;
-      _isLoadingDoctors = false;
-    });
-  }
-
-  Future<void> _openDoctorSelection() async {
-    await _ensureDoctorsLoaded();
-    if (!mounted) {
-      return;
-    }
-
-    if (_doctorOptions.isEmpty) {
-      setState(() {
-        _errorMessage = 'Aucun médecin disponible pour le moment.';
-      });
-      return;
-    }
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        String query = '';
-        List<Map<String, dynamic>> filtered = List.from(_doctorOptions);
-
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-                left: 16,
-                right: 16,
-                top: 16,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Sélectionner un médecin',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Rechercher',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: (value) {
-                      setModalState(() {
-                        query = value.trim().toLowerCase();
-                        filtered = _doctorOptions.where((doctor) {
-                          final name = doctor['fullName'];
-                          if (name is String) {
-                            return name.toLowerCase().contains(query);
-                          }
-                          return false;
-                        }).toList();
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, index) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final doctor = filtered[index];
-                        final name =
-                            (doctor['fullName'] as String?)
-                                    ?.trim()
-                                    .isNotEmpty ==
-                                true
-                            ? doctor['fullName'] as String
-                            : 'Médecin';
-                        final clinic =
-                            (doctor['clinicName'] as String?)
-                                    ?.trim()
-                                    .isNotEmpty ==
-                                true
-                            ? doctor['clinicName'] as String
-                            : null;
-
-                        return ListTile(
-                          title: Text(name),
-                          subtitle: clinic != null ? Text(clinic) : null,
-                          onTap: () {
-                            setState(() {
-                              _selectedDoctorUid = doctor['uid'] as String?;
-                              _selectedDoctorName = name;
-                            });
-                            Navigator.of(sheetContext).pop();
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
+  String _formatDate(dynamic value) {
+    if (value is String) return value.trim();
+    return '';
   }
 
   Future<void> _handleSave(UserProfileProvider userProfile) async {
-    if (_isSaving) {
-      return;
-    }
-
-    setState(() {
-      _isSaving = true;
-      _errorMessage = null;
-    });
-
-    final updates = <String, dynamic>{
-      'fullName': _fullNameController.text.trim(),
-      'phone': _phoneController.text.trim(),
-      'dateOfBirth': _dateOfBirthController.text.trim(),
-      'gender': _genderController.text.trim(),
-    };
-
-    if (_selectedDoctorUid != null && _selectedDoctorUid!.isNotEmpty) {
-      updates['doctorUid'] = _selectedDoctorUid;
-      updates['doctorName'] = _selectedDoctorName;
-    }
+    if (_isSaving) return;
+    setState(() { _isSaving = true; _errorMessage = null; });
 
     try {
-      await userProfile.updateProfile(updates);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _isSaving = false;
+      await userProfile.updateProfile({
+        'fullName':   _fullNameController.text.trim(),
+        'phone':      _phoneController.text.trim(),
+        'dateOfBirth':_dateOfBirthController.text.trim(),
+        'gender':     _genderController.text.trim(),
+        // doctorUid NON modifiable ici — assigné par le médecin
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil mis à jour avec succès.')),
-      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Profil mis à jour avec succès.'),
+        backgroundColor: AppColors.success,
+      ));
     } catch (e) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _isSaving = false;
-        _errorMessage = 'Erreur lors de la mise à jour: $e';
-      });
+      if (!mounted) return;
+      setState(() => _errorMessage = 'Erreur : $e');
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final userProfile = useUser(context);
-    final user = userProfile.user;
-    final fullName = userProfile.fullName;
-    final roleLabel = userProfile.role == 'doctor' ? 'Médecin' : 'Patient';
-    final photoUrl = userProfile.profileImageUrl;
-    final doctorName = _selectedDoctorName ?? userProfile.doctorName;
+    final isDark       = Theme.of(context).brightness == Brightness.dark;
+    final userProfile  = context.watch<UserProfileProvider>();
 
-    if (!_initialized && userProfile.isLoading) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Profil Utilisateur')),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (!_initialized && userProfile.lastError != null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Profil Utilisateur')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(userProfile.lastError ?? 'Erreur chargement profil.'),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  onPressed: () => userProfile.refreshProfile(),
-                  child: const Text('Réessayer'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (!_initialized && user != null) {
+    if (!_initialized && userProfile.user != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
-        _hydrateFromProfile(userProfile);
+        if (!_initialized) _hydrateFromProfile(userProfile);
       });
     }
 
+    final doctorName = (userProfile.user?['doctorName'] as String?)?.trim()
+        ?? (userProfile.user?['doctorUid'] != null
+            ? 'Médecin assigné'
+            : 'Non assigné');
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Profil Utilisateur')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
+      appBar: AppBar(
+        title: const Text('Mon profil'),
+        centerTitle: true,
+      ),
+      floatingActionButton: const PatientChatbotFAB(),
+      body: userProfile.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                    backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
-                        ? NetworkImage(photoUrl)
-                        : null,
-                    child: (photoUrl == null || photoUrl.isEmpty)
-                        ? const Icon(
-                            Icons.person,
-                            size: 60,
-                            color: AppColors.primary,
-                          )
-                        : null,
+
+                  // ── Avatar + nom ───────────────────────────────────
+                  _buildAvatarSection(userProfile, isDark),
+                  const SizedBox(height: 28),
+
+                  // ── Médecin assigné (lecture seule) ─────────────────
+                  _buildDoctorCard(doctorName, isDark),
+                  const SizedBox(height: 24),
+
+                  // ── Informations personnelles ────────────────────────
+                  _sectionTitle('Informations personnelles', isDark),
+                  const SizedBox(height: 12),
+
+                  _buildField(
+                    controller: _fullNameController,
+                    label:      'Nom complet',
+                    icon:       Icons.person_outline_rounded,
+                    isDark:     isDark,
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    fullName,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(height: 12),
+
+                  _buildField(
+                    controller: _phoneController,
+                    label:      'Téléphone',
+                    icon:       Icons.phone_outlined,
+                    isDark:     isDark,
+                    keyboard:   TextInputType.phone,
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildField(
+                    controller: _dateOfBirthController,
+                    label:      'Date de naissance',
+                    icon:       Icons.calendar_today_outlined,
+                    isDark:     isDark,
+                    readOnly:   true,
+                    onTap: () async {
+                      FocusScope.of(context).unfocus();
+                      final picked = await showDatePicker(
+                        context:     context,
+                        initialDate: DateTime(1990),
+                        firstDate:   DateTime(1900),
+                        lastDate:    DateTime.now(),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          _dateOfBirthController.text =
+                              picked.toIso8601String().split('T')[0];
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildField(
+                    controller: _genderController,
+                    label:      'Genre',
+                    icon:       Icons.wc_outlined,
+                    isDark:     isDark,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Email lecture seule
+                  _buildReadOnly(
+                    value: userProfile.email,
+                    label: 'Email',
+                    icon:  Icons.email_outlined,
+                    isDark: isDark,
+                  ),
+
+                  if (_errorMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: AppColors.error.withValues(alpha: 0.3)),
+                      ),
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(
+                            color: AppColors.error, fontSize: 13),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 28),
+
+                  // ── Bouton sauvegarder ───────────────────────────────
+                  SizedBox(
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed: _isSaving
+                          ? null
+                          : () => _handleSave(userProfile),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        disabledBackgroundColor:
+                            AppColors.primary.withValues(alpha: 0.5),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: _isSaving
+                          ? const SizedBox(
+                              width: 18, height: 18,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2.5),
+                            )
+                          : const Icon(Icons.save_outlined, size: 18),
+                      label: Text(
+                        _isSaving ? 'Enregistrement...' : 'Sauvegarder',
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700),
+                      ),
                     ),
                   ),
-                  Text(
-                    roleLabel,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: AppColors.textMedium,
-                    ),
-                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            if (_errorMessage != null) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  _errorMessage!,
-                  style: TextStyle(color: AppColors.error),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-            Card(
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _fullNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Nom complet',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _emailController,
-                      readOnly: true,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(labelText: 'Téléphone'),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _dateOfBirthController,
-                      decoration: const InputDecoration(
-                        labelText: 'Date de naissance',
-                        hintText: 'YYYY-MM-DD',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _genderController,
-                      decoration: const InputDecoration(labelText: 'Genre'),
-                    ),
-                  ],
-                ),
-              ),
+    );
+  }
+
+  // ── Widgets helpers ───────────────────────────────────────────────────────
+
+  Widget _buildAvatarSection(UserProfileProvider userProfile, bool isDark) {
+    final photoUrl = userProfile.profileImageUrl;
+    return Column(
+      children: [
+        CircleAvatar(
+          radius: 44,
+          backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+          backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
+              ? NetworkImage(photoUrl) : null,
+          child: (photoUrl == null || photoUrl.isEmpty)
+              ? const Icon(Icons.person_rounded,
+                  size: 44, color: AppColors.primary)
+              : null,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          userProfile.fullName.isEmpty ? 'Patient' : userProfile.fullName,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: isDark ? AppColors.darkTextPrimary : AppColors.textDark,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.spo2Bg,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Text(
+            'Patient',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.spo2,
             ),
-            const SizedBox(height: 20),
-            Card(
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            '🏥 Médecin traitant :',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            doctorName ?? 'Non renseigné',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ],
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: _isLoadingDoctors
-                          ? null
-                          : _openDoctorSelection,
-                      child: Text(
-                        _isLoadingDoctors
-                            ? 'Chargement...'
-                            : 'Modifier médecin',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Center(
-              child: ElevatedButton.icon(
-                onPressed: _isSaving ? null : () => _handleSave(userProfile),
-                icon: const Icon(Icons.save),
-                label: Text(_isSaving ? 'Enregistrement...' : 'Enregistrer'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(200, 50),
-                ),
-              ),
-            ),
-          ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Carte médecin assigné (lecture seule, non modifiable) ─────────────────
+  Widget _buildDoctorCard(String doctorName, bool isDark) {
+    final hasDoctor = doctorName != 'Non assigné';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: hasDoctor
+            ? AppColors.primary.withValues(alpha: 0.05)
+            : (isDark ? AppColors.darkSurface : Colors.white),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: hasDoctor
+              ? AppColors.primary.withValues(alpha: 0.2)
+              : (isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : AppColors.surfaceLight),
         ),
       ),
-      floatingActionButton: const PatientChatbotFAB(),
+      child: Row(children: [
+        Container(
+          width: 42, height: 42,
+          decoration: BoxDecoration(
+            color: hasDoctor
+                ? AppColors.primary.withValues(alpha: 0.1)
+                : (isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : AppColors.surfaceLight),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            Icons.medical_services_outlined,
+            size: 20,
+            color: hasDoctor ? AppColors.primary : AppColors.textMedium,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Médecin traitant',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textMedium,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                doctorName,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: hasDoctor
+                      ? (isDark
+                          ? AppColors.darkTextPrimary
+                          : AppColors.textDark)
+                      : AppColors.textMedium,
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Icône cadenas = non modifiable
+        Icon(
+          Icons.lock_outline_rounded,
+          size: 16,
+          color: isDark
+              ? AppColors.darkTextSecondary
+              : AppColors.textLight,
+        ),
+      ]),
+    );
+  }
+
+  Widget _sectionTitle(String title, bool isDark) {
+    return Row(children: [
+      Text(
+        title,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: isDark ? AppColors.darkTextPrimary : AppColors.textDark,
+        ),
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Divider(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : AppColors.surfaceLight,
+        ),
+      ),
+    ]);
+  }
+
+  Widget _buildField({
+    required TextEditingController controller,
+    required String   label,
+    required IconData icon,
+    required bool     isDark,
+    TextInputType?    keyboard,
+    bool              readOnly = false,
+    VoidCallback?     onTap,
+  }) {
+    return TextFormField(
+      controller:   controller,
+      readOnly:     readOnly,
+      keyboardType: keyboard,
+      onTap:        onTap,
+      style: TextStyle(
+        fontSize: 14,
+        color: isDark ? AppColors.darkTextPrimary : AppColors.textDark,
+      ),
+      decoration: _inputDeco(label, icon, isDark),
+    );
+  }
+
+  Widget _buildReadOnly({
+    required String   value,
+    required String   label,
+    required IconData icon,
+    required bool     isDark,
+  }) {
+    return TextFormField(
+      readOnly:   true,
+      controller: TextEditingController(text: value),
+      style: TextStyle(
+        fontSize: 14,
+        color: isDark ? AppColors.darkTextSecondary : AppColors.textMedium,
+      ),
+      decoration: _inputDeco(label, icon, isDark),
+    );
+  }
+
+  InputDecoration _inputDeco(String label, IconData icon, bool isDark) {
+    final fillColor   = isDark ? AppColors.darkSurface : Colors.white;
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : AppColors.surfaceLight;
+    return InputDecoration(
+      labelText: label,
+      prefixIcon: Padding(
+        padding: const EdgeInsets.only(left: 14, right: 10),
+        child: Icon(icon, color: AppColors.textMedium, size: 18),
+      ),
+      prefixIconConstraints:
+          const BoxConstraints(minWidth: 0, minHeight: 0),
+      filled:    true,
+      fillColor: fillColor,
+      labelStyle: TextStyle(
+        fontSize: 13,
+        color: isDark
+            ? AppColors.darkTextSecondary
+            : AppColors.textMedium,
+      ),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: borderColor),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: borderColor),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide:
+            const BorderSide(color: AppColors.primary, width: 1.5),
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.04)
+                : AppColors.surfaceLight),
+      ),
     );
   }
 }

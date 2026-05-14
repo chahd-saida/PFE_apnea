@@ -16,9 +16,7 @@ UserProfileProvider useUser(BuildContext context) {
 
 UserProfileProvider? useDoctorProfile(BuildContext context) {
   final profile = context.watch<UserProfileProvider>();
-  if (profile.role != 'doctor') {
-    return null;
-  }
+  if (profile.role != 'doctor') return null;
   return profile;
 }
 
@@ -36,26 +34,31 @@ class UserProfileProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _lastError;
 
+  // ── Getters publics ───────────────────────────────────────────────────────
+
   Map<String, dynamic>? get user => _user;
   bool get isLoading => _isLoading;
   String? get lastError => _lastError;
 
   String get fullName => _readString('fullName') ?? 'Utilisateur';
-  String get email => _readString('email') ?? 'Non renseigne';
+  String get email => _readString('email') ?? 'Non renseigné';
   String get role => _normalizeRole(_user?['role']) ?? 'patient';
-  String get phone => _readString('phone') ?? 'Non renseigne';
+  String get phone => _readString('phone') ?? 'Non renseigné';
+
+  // Médecin assigné (patient uniquement)
   String? get doctorUid => _readString('doctorUid');
   String? get doctorName =>
       _readString('doctorName') ?? _readString('assignedDoctorName');
+
+  // Profil médecin
   String get specialization =>
-      _readString('specialization') ?? 'Non renseignee';
-  String get medicalLicenseNumber =>
-      _readString('medicalLicenseNumber') ?? 'Non renseigne';
-  String get yearsOfExperience =>
-      _readString('yearsOfExperience') ?? 'Non renseigne';
-  String get clinicName => _readString('clinicName') ?? 'Non renseigne';
+      _readString('specialization') ?? 'Non renseignée';
+
+  // Photo de profil
   String? get profileImageUrl =>
       _readString('profileImageUrl') ?? _readString('photoUrl');
+
+  // ── bindAuth ──────────────────────────────────────────────────────────────
 
   void bindAuth(AuthProvider authProvider) {
     final firebaseUser = authProvider.user;
@@ -83,6 +86,8 @@ class UserProfileProvider extends ChangeNotifier {
     unawaited(_initializeForUser(firebaseUser, authProvider.role));
   }
 
+  // ── _initializeForUser ────────────────────────────────────────────────────
+
   Future<void> _initializeForUser(User firebaseUser, String? role) async {
     _activeUid = firebaseUser.uid;
     _isLoading = true;
@@ -90,6 +95,7 @@ class UserProfileProvider extends ChangeNotifier {
 
     await _profileSubscription?.cancel();
 
+    // Charger le cache pendant que le stream se met en place
     final cached = await _loadCached();
     if (cached != null && cached['uid'] == firebaseUser.uid) {
       _user = _composeUserData(
@@ -116,7 +122,7 @@ class UserProfileProvider extends ChangeNotifier {
             notifyListeners();
           },
           onError: (Object error) {
-            _lastError = 'Erreur chargement profil: $error';
+            _lastError = 'Erreur chargement profil : $error';
             _isLoading = false;
             notifyListeners();
           },
@@ -126,24 +132,26 @@ class UserProfileProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── updateProfile ─────────────────────────────────────────────────────────
+
   Future<void> updateProfile(Map<String, dynamic> updates) async {
     final uid = _activeUid;
-    if (uid == null) {
-      return;
-    }
+    if (uid == null) return;
 
-    _user = <String, dynamic>{...(_user ?? <String, dynamic>{}), ...updates};
+    // Mise à jour optimiste locale
+    _user = <String, dynamic>{...(_user ?? {}), ...updates};
     notifyListeners();
     await _persist(_user!);
 
+    // Persistance Firestore — appel direct sans passer par la méthode manquante
     await _firebaseService.updateUserProfile(uid, updates);
   }
 
+  // ── refreshProfile ────────────────────────────────────────────────────────
+
   Future<void> refreshProfile() async {
     final uid = _activeUid;
-    if (uid == null) {
-      return;
-    }
+    if (uid == null) return;
 
     _isLoading = true;
     _lastError = null;
@@ -152,19 +160,18 @@ class UserProfileProvider extends ChangeNotifier {
     try {
       final profile = await _firebaseService.getUserProfile(uid);
       if (profile != null) {
-        _user = <String, dynamic>{
-          ...(_user ?? <String, dynamic>{}),
-          ...profile,
-        };
+        _user = <String, dynamic>{...(_user ?? {}), ...profile};
         await _persist(_user!);
       }
     } catch (e) {
-      _lastError = 'Erreur chargement profil: $e';
+      _lastError = 'Erreur chargement profil : $e';
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
+
+  // ── clear ─────────────────────────────────────────────────────────────────
 
   Future<void> clear() async {
     await _profileSubscription?.cancel();
@@ -177,6 +184,8 @@ class UserProfileProvider extends ChangeNotifier {
     await prefs.remove(_storageKey);
     notifyListeners();
   }
+
+  // ── _composeUserData ──────────────────────────────────────────────────────
 
   Map<String, dynamic> _composeUserData({
     required User firebaseUser,
@@ -198,11 +207,13 @@ class UserProfileProvider extends ChangeNotifier {
       'phone': _pickFirstString(profile?['phone']),
       'dateOfBirth': _pickFirstString(profile?['dateOfBirth']),
       'gender': _pickFirstString(profile?['gender']),
+      // Assignation médecin
       'doctorUid': _pickFirstString(profile?['doctorUid']),
       'doctorName': _pickFirstString(
         profile?['doctorName'],
         profile?['assignedDoctorName'],
       ),
+      // Photo
       'profileImageUrl': _pickFirstString(
         profile?['profileImageUrl'],
         profile?['photoUrl'],
@@ -211,52 +222,38 @@ class UserProfileProvider extends ChangeNotifier {
     };
   }
 
+  // ── Helpers privés ────────────────────────────────────────────────────────
+
   String? _normalizeRole(dynamic raw) {
-    if (raw is! String) {
-      return null;
-    }
+    if (raw is! String) return null;
     final value = raw.trim().toLowerCase();
-    if (value == 'doctor' || value == 'patient') {
-      return value;
-    }
-    return null;
+    return (value == 'doctor' || value == 'patient') ? value : null;
   }
 
   String? _pickFirstString([dynamic a, dynamic b, dynamic c]) {
-    final values = <dynamic>[a, b, c];
-    for (final value in values) {
-      if (value is String && value.trim().isNotEmpty) {
-        return value.trim();
-      }
+    for (final value in [a, b, c]) {
+      if (value is String && value.trim().isNotEmpty) return value.trim();
     }
     return null;
   }
 
   String? _readString(String key) {
     final value = _user?[key];
-    if (value is String && value.trim().isNotEmpty) {
-      return value.trim();
-    }
+    if (value is String && value.trim().isNotEmpty) return value.trim();
     return null;
   }
 
   Future<Map<String, dynamic>?> _loadCached() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString(_storageKey);
-    if (jsonString == null || jsonString.isEmpty) {
-      return null;
-    }
-
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = prefs.getString(_storageKey);
+      if (jsonString == null || jsonString.isEmpty) return null;
       final decoded = jsonDecode(jsonString);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
+      if (decoded is Map<String, dynamic>) return decoded;
       if (decoded is Map) {
-        return decoded.map((key, value) => MapEntry('$key', value));
+        return decoded.map((k, v) => MapEntry('$k', v));
       }
     } catch (_) {}
-
     return null;
   }
 
@@ -266,37 +263,24 @@ class UserProfileProvider extends ChangeNotifier {
     await prefs.setString(_storageKey, jsonEncode(sanitized));
   }
 
-  Map<String, dynamic> _sanitizeMapForJson(Map<String, dynamic> data) {
-    return data.map((key, value) => MapEntry(key, _sanitizeForJson(value)));
-  }
+  Map<String, dynamic> _sanitizeMapForJson(Map<String, dynamic> data) =>
+      data.map((k, v) => MapEntry(k, _sanitizeForJson(v)));
 
   dynamic _sanitizeForJson(dynamic value) {
-    if (value is Timestamp) {
-      return value.toDate().toIso8601String();
-    }
-    if (value is DateTime) {
-      return value.toIso8601String();
-    }
-    if (value is Map) {
-      return value.map((key, item) => MapEntry('$key', _sanitizeForJson(item)));
-    }
-    if (value is Iterable) {
-      return value.map(_sanitizeForJson).toList();
-    }
+    if (value is Timestamp) return value.toDate().toIso8601String();
+    if (value is DateTime) return value.toIso8601String();
+    if (value is Map)
+      return value.map((k, v) => MapEntry('$k', _sanitizeForJson(v)));
+    if (value is Iterable) return value.map(_sanitizeForJson).toList();
     return value;
   }
 
   bool _mapEquals(Map<String, dynamic>? a, Map<String, dynamic>? b) {
-    if (identical(a, b)) {
-      return true;
-    }
-    if (a == null || b == null || a.length != b.length) {
-      return false;
-    }
+    if (identical(a, b)) return true;
+    if (a == null || b == null || a.length != b.length) return false;
     for (final entry in a.entries) {
-      if (!b.containsKey(entry.key) || b[entry.key] != entry.value) {
+      if (!b.containsKey(entry.key) || b[entry.key] != entry.value)
         return false;
-      }
     }
     return true;
   }

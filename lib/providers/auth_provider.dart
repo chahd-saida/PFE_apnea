@@ -74,7 +74,9 @@ class AuthProvider extends ChangeNotifier {
         debugPrint('✅ Role fetched successfully: $_role for uid: $uid');
       } else {
         _role = null;
-        debugPrint('⚠️ No valid role found for uid: $uid (fetched: $fetchedRole)');
+        debugPrint(
+          '⚠️ No valid role found for uid: $uid (fetched: $fetchedRole)',
+        );
       }
     } catch (e) {
       _role = null;
@@ -110,13 +112,14 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('🔵 Firebase sign-in successful for: ${firebaseUser.uid}');
 
       // Récupérer le rôle via Firestore
-      final String? fetchedRole =
-          await _firebaseService.getUserRole(firebaseUser.uid);
-      
+      final String? fetchedRole = await _firebaseService.getUserRole(
+        firebaseUser.uid,
+      );
+
       debugPrint(
         '🔍 Role resolution: fetched=$fetchedRole, selectedRole=$selectedRole',
       );
-      
+
       if (fetchedRole == 'doctor' || fetchedRole == 'patient') {
         _role = fetchedRole;
         debugPrint('✅ Valid role assigned: $_role');
@@ -141,7 +144,9 @@ class AuthProvider extends ChangeNotifier {
         final roleLabel = fetchedRole == 'doctor' ? 'Médecin' : 'Patient';
         _loginError =
             'Le rôle sélectionné ne correspond pas à ce compte ($roleLabel).';
-        debugPrint('❌ Role mismatch: selected=$selectedRole, actual=$fetchedRole');
+        debugPrint(
+          '❌ Role mismatch: selected=$selectedRole, actual=$fetchedRole',
+        );
         return 'roleMismatch:${fetchedRole ?? ''}';
       }
 

@@ -21,15 +21,6 @@ class DoctorProfileScreen extends StatelessWidget {
     final specializationController = TextEditingController(
       text: doctorProfile.specialization,
     );
-    final licenseController = TextEditingController(
-      text: doctorProfile.medicalLicenseNumber,
-    );
-    final experienceController = TextEditingController(
-      text: doctorProfile.yearsOfExperience,
-    );
-    final clinicController = TextEditingController(
-      text: doctorProfile.clinicName,
-    );
 
     await showDialog<void>(
       context: context,
@@ -58,28 +49,6 @@ class DoctorProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 TextField(
-                  controller: licenseController,
-                  decoration: const InputDecoration(
-                    labelText: 'Numéro de licence médicale',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: experienceController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Années d\'expérience',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: clinicController,
-                  decoration: const InputDecoration(
-                    labelText: 'Clinique / Hôpital',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
                   controller: imageController,
                   decoration: const InputDecoration(
                     labelText: 'Photo de profil (URL)',
@@ -100,9 +69,6 @@ class DoctorProfileScreen extends StatelessWidget {
                   'fullName': nameController.text.trim(),
                   'phone': phoneController.text.trim(),
                   'specialization': specializationController.text.trim(),
-                  'medicalLicenseNumber': licenseController.text.trim(),
-                  'yearsOfExperience': experienceController.text.trim(),
-                  'clinicName': clinicController.text.trim(),
                   'profileImageUrl': image.isEmpty ? null : image,
                 });
 
@@ -125,9 +91,6 @@ class DoctorProfileScreen extends StatelessWidget {
     phoneController.dispose();
     imageController.dispose();
     specializationController.dispose();
-    licenseController.dispose();
-    experienceController.dispose();
-    clinicController.dispose();
   }
 
   @override
@@ -150,9 +113,6 @@ class DoctorProfileScreen extends StatelessWidget {
     final email = doctorProfile.email;
     final phone = doctorProfile.phone;
     final specialization = doctorProfile.specialization;
-    final licenseNumber = doctorProfile.medicalLicenseNumber;
-    final yearsOfExperience = doctorProfile.yearsOfExperience;
-    final clinicName = doctorProfile.clinicName;
     final photoUrl = doctorProfile.profileImageUrl;
     final dateOfBirth = (doctor?['dateOfBirth'] as String?) ?? 'Non renseigné';
     final gender = (doctor?['gender'] as String?) ?? 'Non renseigné';
@@ -214,20 +174,7 @@ class DoctorProfileScreen extends StatelessWidget {
                       style: const TextStyle(fontSize: 16),
                     ),
                     const SizedBox(height: 5),
-                    Text(
-                      '🪪 Licence: $licenseNumber',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '⏳ Expérience: $yearsOfExperience ans',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '🏥 $clinicName',
-                      style: const TextStyle(fontSize: 16),
-                    ),
+                
                     const SizedBox(height: 5),
                     Text(
                       '🎂 $dateOfBirth',

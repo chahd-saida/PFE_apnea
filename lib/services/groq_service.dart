@@ -3,8 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 class GroqService {
-  static const String _apiKey =
-      'gsk_your_groq_api_key_here'; // Replace with actual key
+  static const String _apiKey = 'YOUR_GROQ_API_KEY_HERE';
   static const String _baseUrl =
       'https://api.groq.com/openai/v1/chat/completions';
   static const String _model = 'llama-3.3-70b-versatile';
