@@ -1,8 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-
+import 'package:firebase_core/firebase_core.dart';
 import 'package:apnea_project/models/patient.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 class FirebaseService {
   FirebaseService({FirebaseAuth? auth, FirebaseFirestore? firestore})
@@ -62,15 +63,21 @@ class FirebaseService {
     String? phone,
     String? gender,
     String? profileImageUrl,
-    String? specialization,
-    String? medicalLicenseNumber,
-    String? yearsOfExperience,
-    String? clinicName,
   }) async {
+    // Normalize role to lowercase to ensure consistency
+    final normalizedRole = role.trim().toLowerCase();
+    if (normalizedRole != 'doctor' && normalizedRole != 'patient') {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'invalid-argument',
+        message: 'Le rôle doit être "doctor" ou "patient".',
+      );
+    }
+
     final credential = await signUp(
       email: email.trim(),
       password: password,
-      userRole: role,
+      userRole: normalizedRole,
     );
 
     final user = credential.user;
@@ -92,14 +99,10 @@ class FirebaseService {
         await _firestore.collection('users').doc(uid).set({
           'email': email.trim(),
           'fullName': fullName.trim(),
-          'role': role,
+          'role': normalizedRole,
           'dateOfBirth': dateOfBirth?.trim(),
           'phone': phone?.trim(),
           'gender': gender,
-          'specialization': specialization?.trim(),
-          'medicalLicenseNumber': medicalLicenseNumber?.trim(),
-          'yearsOfExperience': yearsOfExperience?.trim(),
-          'clinicName': clinicName?.trim(),
           'profileImageUrl':
               (trimmedProfileImageUrl != null &&
                   trimmedProfileImageUrl.isNotEmpty)
@@ -144,7 +147,7 @@ class FirebaseService {
     ];
 
     for (final candidate in candidates) {
-      if (candidate is String) {
+      if (candidate is String && candidate.isNotEmpty) {
         final normalized = candidate.trim().toLowerCase();
         if (normalized == 'doctor' || normalized == 'patient') {
           return normalized;
@@ -211,6 +214,88 @@ class FirebaseService {
     } catch (e) {
       debugPrint('Erreur ajout patient: $e');
       rethrow;
+    }
+  }
+
+  Future<String> createPatientAccount({
+    required String email,
+    required String password,
+    required String doctorUid,
+    required Map<String, dynamic> patientData,
+  }) async {
+    final currentDoctor = _auth.currentUser;
+    if (currentDoctor == null) {
+      throw FirebaseAuthException(
+        code: 'not-authenticated',
+        message: 'Médecin non authentifié.',
+      );
+    }
+
+    // ── Récupérer le nom du médecin AVANT de créer l'app secondaire ──
+    String doctorName = 'Médecin';
+    try {
+      final doctorDoc = await _firestore
+          .collection('users')
+          .doc(doctorUid)
+          .get();
+      final name = (doctorDoc.data()?['fullName'] as String?)?.trim();
+      if (name != null && name.isNotEmpty) {
+        doctorName = name;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Impossible de récupérer le nom du médecin: $e');
+    }
+
+    debugPrint(
+      '🔵 Création patient → doctorUid=$doctorUid, doctorName=$doctorName',
+    );
+
+    final secondaryApp = await Firebase.initializeApp(
+      name: 'patient_${DateTime.now().millisecondsSinceEpoch}',
+      options: Firebase.app().options,
+    );
+
+    try {
+      final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+
+      final cred = await secondaryAuth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+      final patientUid = cred.user!.uid;
+
+      // ── Écrire Firestore avec doctorUid ET doctorName garantis ──
+      await _firestore.collection('users').doc(patientUid).set({
+        // Données du patient
+        'uid': patientUid,
+        'email': email.trim(),
+        'role': 'patient', // Always lowercase
+        'fullName': patientData['fullName'] ?? '',
+        'firstName': patientData['firstName'] ?? '',
+        'lastName': patientData['lastName'] ?? '',
+        'age': patientData['age'],
+        'dateOfBirth': patientData['dateOfBirth'],
+        'gender': patientData['gender'],
+        'phone': patientData['phone'],
+        'medicalNotes': patientData['medicalNotes'],
+        // ── Assignation médecin — toujours présents et non nuls ──
+        'doctorUid': doctorUid, // ← pour streamDoctorPatients()
+        'doctorName': doctorName, // ← pour l'affichage dans les profils
+        // ── Métadonnées ──
+        'createdByDoctor': true,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      debugPrint(
+        '✅ Patient $patientUid créé → doctorUid=$doctorUid, doctorName=$doctorName',
+      );
+      await secondaryAuth.signOut();
+      return patientUid;
+    } catch (e) {
+      debugPrint('❌ Erreur createPatientAccount: $e');
+      rethrow;
+    } finally {
+      await secondaryApp.delete();
     }
   }
 
