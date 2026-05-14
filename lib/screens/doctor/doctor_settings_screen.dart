@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 
 import 'package:apnea_project/providers/locale_provider.dart';
 import 'package:apnea_project/providers/theme_provider.dart';
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/auth_service.dart';
 import 'package:apnea_project/services/settings_service.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 import 'package:apnea_project/widgets/doctor_bottom_navigation_bar.dart';
@@ -21,7 +21,7 @@ class DoctorSettingsScreen extends StatefulWidget {
 
 class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
   final SettingsService _settingsService = SettingsService();
-  final FirebaseService _firebaseService = FirebaseService();
+  final AuthService _authService = AuthService();
   bool _isLoading = true;
   bool _notificationsEnabled = true;
 
@@ -56,7 +56,7 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
   }
 
   Future<void> _deleteAccount() async {
-    final user = _firebaseService.getCurrentUser();
+    final user = _authService.getCurrentUser();
     if (user == null) {
       return;
     }

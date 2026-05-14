@@ -6,7 +6,8 @@ import 'package:provider/provider.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/screens/doctor/add_patient_screen.dart';
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/user_service.dart';
+import 'package:apnea_project/services/measurement_service.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 import 'package:apnea_project/widgets/doctor_bottom_navigation_bar.dart';
 import 'package:apnea_project/theme/app_colors.dart';
@@ -34,7 +35,8 @@ class _DoctorPatientsListScreenState extends State<DoctorPatientsListScreen> {
       );
     }
 
-    final firebaseService = FirebaseService();
+    final userService = UserService();
+    final measurementService = MeasurementService();
 
     return Scaffold(
       appBar: AppBar(
@@ -92,7 +94,7 @@ class _DoctorPatientsListScreenState extends State<DoctorPatientsListScreen> {
             ),
             const SizedBox(height: 10),
             StreamBuilder<List<Map<String, dynamic>>>(
-              stream: firebaseService.streamDoctorPatients(user.uid),
+              stream: userService.streamDoctorPatients(user.uid),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return const Padding(
@@ -128,7 +130,7 @@ class _DoctorPatientsListScreenState extends State<DoctorPatientsListScreen> {
                         : 'Patient';
 
                     return FutureBuilder<DateTime?>(
-                      future: firebaseService
+                      future: measurementService
                           .getPatientLastMeasurementTimestamp(patientUid),
                       builder: (context, lastMeasurementSnapshot) {
                         final lastDate = lastMeasurementSnapshot.data;

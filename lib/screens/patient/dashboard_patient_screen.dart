@@ -1,7 +1,5 @@
 // lib/screens/patient/dashboard_patient_screen.dart
 // ignore_for_file: use_build_context_synchronously
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -13,7 +11,8 @@ import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/theme_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/services/alert_service.dart';
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/user_service.dart';
+import 'package:apnea_project/services/measurement_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/theme/app_dimensions.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
@@ -722,7 +721,8 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
 
     _maybeShowAlertsFromRoute(user.uid);
 
-    final svc = FirebaseService();
+    final userService = UserService();
+    final measurementService = MeasurementService();
 
     return Scaffold(
       backgroundColor: isDark ? _bgDark : AppColors.background,
@@ -731,7 +731,7 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
           _GradientHeader(isDark: isDark, pulseCtrl: _pulseCtrl),
           Expanded(
             child: StreamBuilder<Map<String, dynamic>?>(
-              stream: svc.streamUserProfile(user.uid),
+              stream: userService.streamUserProfile(user.uid),
               builder: (context, userSnap) {
                 if (userSnap.hasError)
                   return _ErrorState(message: l10n.errorLoadingProfile);
@@ -743,7 +743,10 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
                 final firstName = fullName.split(' ').first;
 
                 return StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: svc.streamMeasurementRecords(uid: user.uid, limit: 1),
+                  stream: measurementService.streamMeasurementRecords(
+                    uid: user.uid,
+                    limit: 1,
+                  ),
                   builder: (context, measSnap) {
                     if (measSnap.hasError)
                       return _ErrorState(

@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
-import 'firebase_service.dart';
-
 enum AlertSeverity { info, warning, critical }
 
 class AlertThresholds {
@@ -16,10 +14,10 @@ class AlertThresholds {
 }
 
 class AlertService {
-  AlertService({FirebaseService? firebaseService})
-    : _firebaseService = firebaseService ?? FirebaseService();
+  AlertService({FirebaseFirestore? firestore})
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
-  final FirebaseService _firebaseService;
+  final FirebaseFirestore _firestore;
 
   Future<void> checkAndCreateAlerts({
     required String patientId,
@@ -122,7 +120,7 @@ class AlertService {
 
     for (final alert in alerts) {
       try {
-        await _firebaseService.createAlertWithData(alert);
+        await createAlertWithData(alert);
       } catch (e) {
         debugPrint('Erreur création alerte: $e');
       }
@@ -131,10 +129,7 @@ class AlertService {
 
   Future<void> markAlertAsRead(String alertId) async {
     try {
-      await FirebaseFirestore.instance
-          .collection('alerts')
-          .doc(alertId)
-          .update({'read': true});
+      await _firestore.collection('alerts').doc(alertId).update({'read': true});
     } catch (e) {
       debugPrint('Erreur marquage alerte lue: $e');
     }
@@ -142,13 +137,13 @@ class AlertService {
 
   Future<void> markAllAlertsAsRead(String patientId) async {
     try {
-      final snapshot = await FirebaseFirestore.instance
+      final snapshot = await _firestore
           .collection('alerts')
           .where('patientId', isEqualTo: patientId)
           .where('read', isEqualTo: false)
           .get();
 
-      final batch = FirebaseFirestore.instance.batch();
+      final batch = _firestore.batch();
       for (final doc in snapshot.docs) {
         batch.update(doc.reference, {'read': true});
       }
@@ -160,10 +155,7 @@ class AlertService {
 
   Future<void> deleteAlert(String alertId) async {
     try {
-      await FirebaseFirestore.instance
-          .collection('alerts')
-          .doc(alertId)
-          .delete();
+      await _firestore.collection('alerts').doc(alertId).delete();
     } catch (e) {
       debugPrint('Erreur suppression alerte: $e');
       rethrow;
@@ -171,7 +163,7 @@ class AlertService {
   }
 
   Stream<List<Map<String, dynamic>>> streamPatientAlerts(String patientId) {
-    return FirebaseFirestore.instance
+    return _firestore
         .collection('alerts')
         .where('patientId', isEqualTo: patientId)
         .orderBy('createdAt', descending: true)
@@ -181,6 +173,73 @@ class AlertService {
               .map((doc) => <String, dynamic>{...doc.data(), 'id': doc.id})
               .toList(),
         );
+  }
+
+  Future<List<Map<String, dynamic>>> getPatientAlerts(String patientId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('alerts')
+          .where('patientId', isEqualTo: patientId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => <String, dynamic>{...doc.data(), 'id': doc.id})
+          .toList();
+    } catch (e) {
+      debugPrint('Erreur récupération alertes: $e');
+      return [];
+    }
+  }
+
+  Future<void> createAlert({
+    required String patientId,
+    required String severity,
+    required String message,
+  }) async {
+    try {
+      await _firestore.collection('alerts').add({
+        'patientId': patientId,
+        'severity': severity,
+        'message': message,
+        'createdAt': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+    } catch (e) {
+      debugPrint('Erreur création alerte: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> createAlertWithData(Map<String, dynamic> alertData) async {
+    try {
+      await _firestore.collection('alerts').add(alertData);
+    } catch (e) {
+      debugPrint('Erreur création alerte: $e');
+      rethrow;
+    }
+  }
+
+  Stream<QuerySnapshot> getAlertsStream(String patientId) {
+    return _firestore
+        .collection('alerts')
+        .where('patientId', isEqualTo: patientId)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  Stream<List<Map<String, dynamic>>> streamDoctorAlerts(String doctorUid) {
+    final query = _firestore
+        .collection('alerts')
+        .where('doctorUid', isEqualTo: doctorUid)
+        .orderBy('createdAt', descending: true)
+        .limit(100);
+
+    return query.snapshots().map(
+      (snapshot) => snapshot.docs
+          .map((doc) => <String, dynamic>{...doc.data(), 'id': doc.id})
+          .toList(),
+    );
   }
 
   String getSeverityLabel(String severity) {

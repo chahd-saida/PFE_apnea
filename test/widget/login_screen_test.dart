@@ -5,11 +5,16 @@ import 'package:provider/provider.dart';
 
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/screens/auth/login_screen.dart';
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/auth_service.dart';
+import 'package:apnea_project/services/user_service.dart';
 
 class _FakeAuthProvider extends AuthProvider {
   _FakeAuthProvider()
-    : super(firebaseService: FirebaseService(), listenToAuthChanges: false);
+    : super(
+        authService: AuthService(),
+        userService: UserService(),
+        listenToAuthChanges: false,
+      );
 }
 
 void main() {

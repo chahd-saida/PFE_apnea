@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/note_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 
@@ -19,7 +19,7 @@ class NightDetailScreen extends StatefulWidget {
 }
 
 class _NightDetailScreenState extends State<NightDetailScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  final NoteService _noteService = NoteService();
   final TextEditingController _noteController = TextEditingController();
   bool _isSavingNote = false;
   late Future<Map<String, dynamic>?> _measurementFuture;
@@ -69,7 +69,7 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
     setState(() => _isSavingNote = true);
     try {
       final user = context.read<AuthProvider>().user;
-      await _firebaseService.saveDoctorNote(
+      await _noteService.saveDoctorNote(
         patientId: patientId,
         doctorUid: user?.uid ?? '',
         doctorName: 'Patient',

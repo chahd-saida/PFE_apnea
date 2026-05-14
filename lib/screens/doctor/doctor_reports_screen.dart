@@ -9,7 +9,10 @@ import 'package:provider/provider.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/stats_service.dart';
+import 'package:apnea_project/services/measurement_service.dart';
+import 'package:apnea_project/services/note_service.dart';
+import 'package:apnea_project/services/user_service.dart';
 import 'package:apnea_project/services/pdf_report_service.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 import 'package:apnea_project/widgets/doctor_bottom_navigation_bar.dart';
@@ -23,7 +26,10 @@ class DoctorReportsScreen extends StatefulWidget {
 }
 
 class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  final StatsService _statsService = StatsService();
+  final MeasurementService _measurementService = MeasurementService();
+  final NoteService _noteService = NoteService();
+  final UserService _userService = UserService();
   final PdfReportService _pdfReportService = PdfReportService();
 
   String? _selectedPatientUid;
@@ -118,12 +124,15 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
 
   Future<ReportData> _buildReportData({required String doctorName}) async {
     final patientId = _selectedPatientUid!;
-    final stats = await _firebaseService.getPatientStats(patientId);
-    final allMeasurements = await _firebaseService.getMeasurementRecords(
+    final stats = await _statsService.getPatientStats(
+      patientId,
+      getMeasurementRecords: _measurementService.getMeasurementRecords,
+    );
+    final allMeasurements = await _measurementService.getMeasurementRecords(
       uid: patientId,
       limit: 100,
     );
-    final allNotes = await _firebaseService.getPatientNotes(patientId);
+    final allNotes = await _noteService.getPatientNotes(patientId);
 
     final measurements = _filterByDateRange(
       allMeasurements,
@@ -513,7 +522,7 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
     }
 
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _firebaseService.streamDoctorPatients(doctorUid),
+      stream: _userService.streamDoctorPatients(doctorUid),
       builder: (context, snapshot) {
         final patients = snapshot.data ?? [];
 

@@ -3,16 +3,19 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/auth_service.dart';
+import 'package:apnea_project/services/user_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   AuthProvider({
-    FirebaseService? firebaseService,
+    AuthService? authService,
+    UserService? userService,
     FirebaseAuth? auth,
     bool listenToAuthChanges = true,
     User? initialUser,
     String? initialRole,
-  }) : _firebaseService = firebaseService ?? FirebaseService(),
+  }) : _authService = authService ?? AuthService(),
+       _userService = userService ?? UserService(),
        _auth = listenToAuthChanges ? (auth ?? FirebaseAuth.instance) : null,
        _user = initialUser,
        _role = initialRole {
@@ -39,7 +42,8 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  final FirebaseService _firebaseService;
+  final AuthService _authService;
+  final UserService _userService;
   final FirebaseAuth? _auth;
   StreamSubscription<User?>? _authSubscription;
 
@@ -68,7 +72,7 @@ class AuthProvider extends ChangeNotifier {
     _isLoadingRole = true;
     notifyListeners();
     try {
-      final String? fetchedRole = await _firebaseService.getUserRole(uid);
+      final String? fetchedRole = await _userService.getUserRole(uid);
       if (fetchedRole == 'doctor' || fetchedRole == 'patient') {
         _role = fetchedRole;
         debugPrint('✅ Role fetched successfully: $_role for uid: $uid');
@@ -98,10 +102,7 @@ class AuthProvider extends ChangeNotifier {
     _isLoadingRole = true;
     notifyListeners();
     try {
-      final cred = await _firebaseService.signIn(
-        email: email,
-        password: password,
-      );
+      final cred = await _authService.signIn(email: email, password: password);
       final User? firebaseUser = cred.user;
       if (firebaseUser == null) {
         _loginError = 'Erreur de connexion inattendue.';
@@ -112,7 +113,7 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('🔵 Firebase sign-in successful for: ${firebaseUser.uid}');
 
       // Récupérer le rôle via Firestore
-      final String? fetchedRole = await _firebaseService.getUserRole(
+      final String? fetchedRole = await _userService.getUserRole(
         firebaseUser.uid,
       );
 
@@ -138,7 +139,7 @@ class AuthProvider extends ChangeNotifier {
 
       // Le rôle choisi dans l'UI ne correspond pas au rôle du compte
       if (selectedRole != null && selectedRole != _role) {
-        await _firebaseService.signOut();
+        await _authService.signOut();
         _user = null;
         _role = null;
         final roleLabel = fetchedRole == 'doctor' ? 'Médecin' : 'Patient';
@@ -180,7 +181,7 @@ class AuthProvider extends ChangeNotifier {
     _isLoadingRole = true;
     notifyListeners();
     try {
-      await _firebaseService.registerUser(
+      await _authService.registerUser(
         email: email,
         password: password,
         role: role,
@@ -192,7 +193,7 @@ class AuthProvider extends ChangeNotifier {
       );
 
       // Auto-login après inscription
-      final loginCred = await _firebaseService.signIn(
+      final loginCred = await _authService.signIn(
         email: email,
         password: password,
       );
@@ -206,7 +207,7 @@ class AuthProvider extends ChangeNotifier {
       // Récupérer le rôle avec retry (propagation Firestore)
       String? fetchedRole;
       for (int i = 0; i < 5; i++) {
-        fetchedRole = await _firebaseService.getUserRole(firebaseUser.uid);
+        fetchedRole = await _userService.getUserRole(firebaseUser.uid);
         if (fetchedRole == 'doctor' || fetchedRole == 'patient') break;
         await Future.delayed(const Duration(milliseconds: 200));
       }

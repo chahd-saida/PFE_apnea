@@ -12,7 +12,7 @@ import 'package:apnea_project/theme/app_theme.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/providers/theme_provider.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/measurement_service.dart';
 import 'package:apnea_project/services/monitoring_service.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 import 'package:apnea_project/providers/monitoring_provider.dart';
@@ -155,7 +155,7 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
     with TickerProviderStateMixin {
   // ── Fix 3 : _wsService supprimé — géré par MonitoringProvider ──────────
   late final MonitoringService _monitoringService;
-  final FirebaseService _firebaseService = FirebaseService();
+  final MeasurementService _measurementService = MeasurementService();
 
   StreamSubscription<Map<String, dynamic>>? _streamSub;
   bool _isMonitoring = false;
@@ -365,7 +365,7 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
         _bpmHist.isNotEmpty &&
         _spo2Hist.isNotEmpty) {
       try {
-        await _firebaseService.saveMonitoringSession(
+        await _measurementService.saveMonitoringSession(
           uid: user.uid,
           startTime: start,
           endTime: end,

@@ -4,8 +4,9 @@ import 'package:provider/provider.dart';
 
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
-import 'package:apnea_project/services/firebase_service.dart';
-import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/services/note_service.dart';
+import 'package:apnea_project/services/measurement_service.dart';
+import 'package:apnea_project/services/user_service.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 
 class DoctorAnalysisScreen extends StatefulWidget {
@@ -23,7 +24,9 @@ class DoctorAnalysisScreen extends StatefulWidget {
 }
 
 class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  final NoteService _noteService = NoteService();
+  final MeasurementService _measurementService = MeasurementService();
+  final UserService _userService = UserService();
   final TextEditingController _diagnosisController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
 
@@ -60,7 +63,7 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
       final doctorProfile = context.read<UserProfileProvider>();
       final doctorName = doctorProfile.fullName;
 
-      await _firebaseService.saveDoctorNote(
+      await _noteService.saveDoctorNote(
         patientId: Uri.decodeComponent(widget.patientId),
         doctorUid: user?.uid ?? '',
         doctorName: doctorName,
@@ -154,7 +157,7 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     String date,
   ) async {
     try {
-      final records = await _firebaseService.getMeasurementRecords(
+      final records = await _measurementService.getMeasurementRecords(
         uid: patientId,
         limit: 100,
       );
@@ -167,7 +170,7 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
 
   Widget _buildPatientHeader(String patientId, String date) {
     return FutureBuilder<Map<String, dynamic>?>(
-      future: _firebaseService.getUserProfile(patientId),
+      future: _userService.getUserProfile(patientId),
       builder: (context, snap) {
         final name = (snap.data?['fullName'] as String?)?.trim() ?? 'Patient';
         return Container(
@@ -414,7 +417,7 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
 
   Widget _buildPreviousNotes(String patientId) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _firebaseService.streamPatientNotes(patientId),
+      stream: _noteService.streamPatientNotes(patientId),
       builder: (context, snapshot) {
         final notes = snapshot.data ?? [];
         if (notes.isEmpty) return const SizedBox.shrink();

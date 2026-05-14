@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:apnea_project/providers/auth_provider.dart';
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/user_service.dart';
 
 UserProfileProvider useUser(BuildContext context) {
   return context.watch<UserProfileProvider>();
@@ -21,12 +21,12 @@ UserProfileProvider? useDoctorProfile(BuildContext context) {
 }
 
 class UserProfileProvider extends ChangeNotifier {
-  UserProfileProvider({FirebaseService? firebaseService})
-    : _firebaseService = firebaseService ?? FirebaseService();
+  UserProfileProvider({UserService? userService})
+    : _userService = userService ?? UserService();
 
   static const _storageKey = 'session.userProfile';
 
-  final FirebaseService _firebaseService;
+  final UserService _userService;
 
   StreamSubscription<Map<String, dynamic>?>? _profileSubscription;
   String? _activeUid;
@@ -106,7 +106,7 @@ class UserProfileProvider extends ChangeNotifier {
       notifyListeners();
     }
 
-    _profileSubscription = _firebaseService
+    _profileSubscription = _userService
         .streamUserProfile(firebaseUser.uid)
         .listen(
           (profile) {
@@ -144,7 +144,7 @@ class UserProfileProvider extends ChangeNotifier {
     await _persist(_user!);
 
     // Persistance Firestore — appel direct sans passer par la méthode manquante
-    await _firebaseService.updateUserProfile(uid, updates);
+    await _userService.updateUserProfile(uid, updates);
   }
 
   // ── refreshProfile ────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ class UserProfileProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final profile = await _firebaseService.getUserProfile(uid);
+      final profile = await _userService.getUserProfile(uid);
       if (profile != null) {
         _user = <String, dynamic>{...(_user ?? {}), ...profile};
         await _persist(_user!);

@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/messaging_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 
@@ -21,7 +21,7 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
   String? _selectedPatientName;
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final FirebaseService _firebaseService = FirebaseService();
+  final MessagingService _messagingService = MessagingService();
 
   @override
   void dispose() {
@@ -36,7 +36,7 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
 
     _messageController.clear();
     try {
-      await _firebaseService.sendMessage(
+      await _messagingService.sendMessage(
         conversationId: _selectedConversationId!,
         senderId: doctorUid,
         senderName: doctorName,
@@ -119,7 +119,7 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
 
   Widget _buildConversationList(String doctorUid) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _firebaseService.streamConversations(doctorUid),
+      stream: _messagingService.streamConversations(doctorUid),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return const Center(child: Text('Erreur chargement conversations.'));
@@ -218,7 +218,7 @@ class _DoctorMessagesScreenState extends State<DoctorMessagesScreen> {
       children: [
         Expanded(
           child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _firebaseService.streamMessages(_selectedConversationId!),
+            stream: _messagingService.streamMessages(_selectedConversationId!),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return const Center(child: Text('Erreur chargement messages.'));

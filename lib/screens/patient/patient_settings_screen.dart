@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 
 import 'package:apnea_project/providers/locale_provider.dart';
 import 'package:apnea_project/providers/theme_provider.dart';
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/auth_service.dart';
 import 'package:apnea_project/services/settings_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
@@ -20,7 +20,7 @@ class PatientSettingsScreen extends StatefulWidget {
 
 class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
   final SettingsService _settingsService = SettingsService();
-  final FirebaseService _firebaseService = FirebaseService();
+  final AuthService _authService = AuthService();
   final TextEditingController _currentPasswordController =
       TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
@@ -88,7 +88,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
   }
 
   Future<void> _deleteAccount() async {
-    final user = _firebaseService.getCurrentUser();
+    final user = _authService.getCurrentUser();
     if (user == null) {
       return;
     }
@@ -152,7 +152,7 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
     });
 
     try {
-      await _firebaseService.changePassword(
+      await _authService.changePassword(
         currentPassword: currentPassword,
         newPassword: newPassword,
       );

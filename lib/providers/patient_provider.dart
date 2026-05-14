@@ -1,13 +1,16 @@
 import 'package:flutter/foundation.dart';
 
 import 'package:apnea_project/models/patient.dart';
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/user_service.dart';
+import 'package:apnea_project/services/note_service.dart';
 
 class PatientProvider extends ChangeNotifier {
-  PatientProvider({FirebaseService? firebaseService})
-    : _firebaseService = firebaseService ?? FirebaseService();
+  PatientProvider({UserService? userService, NoteService? noteService})
+    : _userService = userService ?? UserService(),
+      _noteService = noteService ?? NoteService();
 
-  final FirebaseService _firebaseService;
+  final UserService _userService;
+  final NoteService _noteService;
 
   bool _isSaving = false;
   String? _error;
@@ -21,7 +24,7 @@ class PatientProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      await _firebaseService.addPatient(patient);
+      await _userService.addPatient(patient);
       return true;
     } catch (e) {
       _error = _mapError(e);
@@ -53,8 +56,8 @@ class PatientProvider extends ChangeNotifier {
         'phone': patient.telephone,
         'medicalNotes': patient.notesMedicales,
       };
-      // doctorUid passé séparément → sera forcé dans FirebaseService
-      return await _firebaseService.createPatientAccount(
+      // doctorUid passé séparément → sera forcé dans UserService
+      return await _userService.createPatientAccount(
         email: email,
         password: password,
         doctorUid: doctorUid,
@@ -79,7 +82,7 @@ class PatientProvider extends ChangeNotifier {
     String? measurementId,
   }) async {
     try {
-      await _firebaseService.saveDoctorNote(
+      await _noteService.saveDoctorNote(
         patientId: patientId,
         doctorUid: doctorUid,
         doctorName: doctorName,
@@ -95,7 +98,7 @@ class PatientProvider extends ChangeNotifier {
   }
 
   String newDocumentId(String collection) =>
-      _firebaseService.newDocumentId(collection);
+      _userService.newDocumentId(collection);
 
   String _mapError(Object e) {
     final msg = e.toString();

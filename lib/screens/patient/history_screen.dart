@@ -7,7 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:apnea_project/l10n/app_localizations.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/measurement_service.dart';
+import 'package:apnea_project/services/stats_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 
@@ -19,7 +20,8 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  final MeasurementService _measurementService = MeasurementService();
+  final StatsService _statsService = StatsService();
   late Future<List<Map<String, dynamic>>> _historyFuture;
   String _searchQuery = '';
   String? _selectedFilter;
@@ -33,7 +35,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Future<List<Map<String, dynamic>>> _loadHistory() async {
     final user = context.read<AuthProvider>().user;
     if (user == null) return [];
-    return _firebaseService.getMeasurementRecords(uid: user.uid, limit: 50);
+    return _measurementService.getMeasurementRecords(uid: user.uid, limit: 50);
   }
 
   Future<void> _refreshHistory() async {
@@ -268,7 +270,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
 
     return FutureBuilder<Map<String, dynamic>>(
-      future: _firebaseService.getPatientStats(user.uid),
+      future: _statsService.getPatientStats(
+        user.uid,
+        getMeasurementRecords: _measurementService.getMeasurementRecords,
+      ),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -365,7 +370,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
               const SizedBox(height: 12),
               FutureBuilder<List<Map<String, dynamic>>>(
-                future: _firebaseService.getMeasurementRecords(
+                future: _measurementService.getMeasurementRecords(
                   uid: user.uid,
                   limit: 7,
                 ),
@@ -463,7 +468,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                       const SizedBox(height: 12),
                       FutureBuilder<List<Map<String, dynamic>>>(
-                        future: _firebaseService.getMeasurementRecords(
+                        future: _measurementService.getMeasurementRecords(
                           uid: user.uid,
                           limit: 10,
                         ),

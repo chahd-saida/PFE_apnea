@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
-import 'package:apnea_project/services/firebase_service.dart';
+import 'package:apnea_project/services/auth_service.dart';
 
 class LogoutScreen extends StatefulWidget {
   const LogoutScreen({super.key});
@@ -14,7 +14,7 @@ class LogoutScreen extends StatefulWidget {
 }
 
 class _LogoutScreenState extends State<LogoutScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  final AuthService _authService = AuthService();
   bool _isLoading = false;
 
   Future<void> _confirmLogout() async {
@@ -22,7 +22,7 @@ class _LogoutScreenState extends State<LogoutScreen> {
       _isLoading = true;
     });
 
-    await _firebaseService.signOut();
+    await _authService.signOut();
     if (!mounted) {
       return;
     }
