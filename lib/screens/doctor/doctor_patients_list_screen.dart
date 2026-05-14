@@ -21,6 +21,72 @@ class DoctorPatientsListScreen extends StatefulWidget {
 }
 
 class _DoctorPatientsListScreenState extends State<DoctorPatientsListScreen> {
+  String _searchQuery = '';
+  String _selectedFilter = 'Tous';
+
+  /// Détermine le statut d'un patient basé sur la dernière mesure
+  String _getPatientStatus(DateTime? lastMeasurement) {
+    if (lastMeasurement == null) {
+      return 'Inactif';
+    }
+
+    final daysSinceLastMeasurement =
+        DateTime.now().difference(lastMeasurement).inDays;
+
+    if (daysSinceLastMeasurement <= 1) {
+      return 'Actif';
+    } else if (daysSinceLastMeasurement <= 7) {
+      return 'Actif';
+    } else {
+      return 'Inactif';
+    }
+  }
+
+  /// Filtre les patients selon la recherche et le filtre sélectionné
+  List<Map<String, dynamic>> _filterPatients(
+    List<Map<String, dynamic>> patients,
+    Map<String, DateTime?> patientLastMeasurements,
+  ) {
+    return patients.where((patient) {
+      final name = (patient['fullName'] as String?)?.toLowerCase() ?? '';
+      final patientUid = patient['uid'] as String? ?? '';
+
+      // Filtre par recherche (nom)
+      final matchesSearch =
+          _searchQuery.isEmpty || name.contains(_searchQuery.toLowerCase());
+
+      // Filtre par statut
+      final status = _getPatientStatus(patientLastMeasurements[patientUid]);
+      final matchesFilter =
+          _selectedFilter == 'Tous' || status == _selectedFilter;
+
+      return matchesSearch && matchesFilter;
+    }).toList();
+  }
+
+  /// Collecte les dernières mesures de tous les patients
+  Future<Map<String, DateTime?>> _getLastMeasurementsForPatients(
+    List<Map<String, dynamic>> patients,
+    MeasurementService measurementService,
+  ) async {
+    final measurements = <String, DateTime?>{};
+
+    for (final patient in patients) {
+      final patientUid = patient['uid'] as String? ?? '';
+      if (patientUid.isNotEmpty) {
+        try {
+          final lastMeasurement = await measurementService
+              .getPatientLastMeasurementTimestamp(patientUid);
+          measurements[patientUid] = lastMeasurement;
+        } catch (e) {
+          measurements[patientUid] = null;
+        }
+      }
+    }
+
+    return measurements;
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
@@ -68,21 +134,40 @@ class _DoctorPatientsListScreenState extends State<DoctorPatientsListScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
               child: TextField(
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
                 decoration: InputDecoration(
-                  labelText: 'Rechercher...',
+                  labelText: 'Rechercher par nom...',
                   prefixIcon: const Icon(Icons.search),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8.0),
                   ),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            setState(() {
+                              _searchQuery = '';
+                            });
+                          },
+                        )
+                      : null,
                 ),
               ),
             ),
             Align(
               alignment: Alignment.centerRight,
               child: DropdownButton<String>(
-                value: 'Tous',
-                onChanged: (String? newValue) {},
-                items: <String>['Tous', 'Actifs', 'En alerte', 'Inactifs']
+                value: _selectedFilter,
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedFilter = newValue ?? 'Tous';
+                  });
+                },
+                items: <String>['Tous', 'Actif', 'Inactif']
                     .map<DropdownMenuItem<String>>((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
@@ -112,42 +197,72 @@ class _DoctorPatientsListScreenState extends State<DoctorPatientsListScreen> {
                   );
                 }
 
-                final patients = snapshot.data ?? <Map<String, dynamic>>[];
-                if (patients.isEmpty) {
+                final allPatients = snapshot.data ?? <Map<String, dynamic>>[];
+                if (allPatients.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.all(16.0),
                     child: Text('Aucun patient assigné pour le moment.'),
                   );
                 }
 
-                return Column(
-                  children: patients.map((patient) {
-                    final patientUid = patient['uid'] as String? ?? '';
-                    final fullName =
-                        (patient['fullName'] as String?)?.trim().isNotEmpty ==
-                            true
-                        ? patient['fullName'] as String
-                        : 'Patient';
+                // Charger les dernières mesures pour tous les patients
+                return FutureBuilder<Map<String, DateTime?>>(
+                  future: _getLastMeasurementsForPatients(
+                    allPatients,
+                    measurementService,
+                  ),
+                  builder: (context, measurementsSnapshot) {
+                    if (!measurementsSnapshot.hasData) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: CircularProgressIndicator(),
+                      );
+                    }
 
-                    return FutureBuilder<DateTime?>(
-                      future: measurementService
-                          .getPatientLastMeasurementTimestamp(patientUid),
-                      builder: (context, lastMeasurementSnapshot) {
-                        final lastDate = lastMeasurementSnapshot.data;
-                        final lastDateLabel = lastDate == null
+                    final patientMeasurements = measurementsSnapshot.data ?? {};
+                    final filteredPatients =
+                        _filterPatients(allPatients, patientMeasurements);
+
+                    if (filteredPatients.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text(
+                          _searchQuery.isEmpty
+                              ? 'Aucun patient avec le statut "$_selectedFilter".'
+                              : 'Aucun patient trouvé pour "$_searchQuery".',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 14,
+                          ),
+                        ),
+                      );
+                    }
+
+                    return Column(
+                      children: filteredPatients.map((patient) {
+                        final patientUid = patient['uid'] as String? ?? '';
+                        final fullName =
+                            (patient['fullName'] as String?)?.trim().isNotEmpty ==
+                                true
+                            ? patient['fullName'] as String
+                            : 'Patient';
+                        final lastMeasurement = patientMeasurements[patientUid];
+                        final status = _getPatientStatus(lastMeasurement);
+                        final lastDateLabel = lastMeasurement == null
                             ? 'Aucune donnée'
-                            : '${lastDate.day.toString().padLeft(2, '0')}/${lastDate.month.toString().padLeft(2, '0')}';
+                            : '${lastMeasurement.day.toString().padLeft(2, '0')}/${lastMeasurement.month.toString().padLeft(2, '0')}';
+
                         return _buildPatientEntry(
                           context,
                           patientId: patientUid,
                           name: fullName,
-                          status: 'Actif',
+                          status: status,
                           lastData: lastDateLabel,
                           apneas: '--',
                         );
-                      },
+                      }).toList(),
                     );
-                  }).toList(),
+                  },
                 );
               },
             ),
@@ -183,24 +298,59 @@ class _DoctorPatientsListScreenState extends State<DoctorPatientsListScreen> {
     required String lastData,
     required String apneas,
   }) {
+    // Déterminer la couleur et l'icône basées sur le statut
+    Color statusColor = AppColors.success;
+    IconData statusIcon = Icons.check_circle;
+
+    switch (status) {
+      case 'Actif':
+        statusColor = AppColors.success;
+        statusIcon = Icons.check_circle;
+        break;
+      case 'Inactif':
+        statusColor = AppColors.warning;
+        statusIcon = Icons.schedule;
+        break;
+      case 'En alerte':
+        statusColor = AppColors.error;
+        statusIcon = Icons.warning_amber_rounded;
+        break;
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8.0),
       elevation: 2,
       child: ListTile(
-        leading: const CircleAvatar(
-          backgroundColor: AppColors.success,
+        leading: CircleAvatar(
+          backgroundColor: statusColor,
           child: Icon(Icons.person, color: Colors.white),
         ),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Statut: $status'),
-            Text('Dernière donnée: $lastData'),
-            Text('Apnées (7j): $apneas'),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(statusIcon, size: 16, color: statusColor),
+                const SizedBox(width: 6),
+                Text(
+                  'Statut: $status',
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text('Dernière donnée: $lastData', style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 2),
+            Text('Apnées (7j): $apneas', style: const TextStyle(fontSize: 12)),
           ],
         ),
-        trailing: const Icon(Icons.arrow_forward_ios),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
           final encodedPatientId = Uri.encodeComponent(patientId);
           context.push(RouteNames.doctorPatientProfile(encodedPatientId));
