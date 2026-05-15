@@ -13,6 +13,7 @@ import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/services/alert_service.dart';
 import 'package:apnea_project/services/user_service.dart';
 import 'package:apnea_project/services/measurement_service.dart';
+import 'package:apnea_project/services/messaging_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/theme/app_dimensions.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
@@ -37,6 +38,7 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
   late final AnimationController _chatPulseCtrl;
 
   final AlertService _alertService = AlertService();
+  final MessagingService _messagingService = MessagingService();
   bool _hasShownAlertsFromRoute = false;
 
   bool _isMonitoring = false;
@@ -461,6 +463,108 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     );
   }
 
+  Widget _buildMessagesSection({
+    required String userId,
+    required bool isDark,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _messagingService.streamConversations(userId),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return const SizedBox.shrink();
+        if (!snapshot.hasData) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? _cardDark : Colors.white,
+              borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.black.withValues(alpha: 0.06),
+              ),
+            ),
+            child: Row(
+              children: const [
+                CircularProgressIndicator(),
+                SizedBox(width: 12),
+                Text('Chargement...'),
+              ],
+            ),
+          );
+        }
+
+        final convos = snapshot.data ?? [];
+        // Attempt to find the conversation where user is participant and doctorUid exists
+        final convo = convos.isNotEmpty ? convos.first : null;
+
+        final lastMessage = convo != null ? (convo['lastMessage'] as String? ?? '') : '';
+        final lastAt = convo != null ? _formatTimestamp(convo['lastMessageAt']) : '';
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isDark ? _cardDark : Colors.white,
+            borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.06),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.medical_services_rounded, color: AppColors.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Messages',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white : AppColors.textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      lastMessage.isEmpty ? l10n.startConversationPrompt : lastMessage,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white70 : Colors.black54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: () => context.push(RouteNames.patientMessages),
+                icon: const Icon(Icons.chat_bubble_outline_rounded),
+                label: const Text('Accéder'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(100, 44),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildAlertCard(Map<String, dynamic> alert, bool isDark) {
     final l10n = AppLocalizations.of(context)!;
     final severity = alert['severity'] as String? ?? 'info';
@@ -823,6 +927,11 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
                             const SizedBox(height: 14),
                             _buildLatestAlertsSection(
                               patientId: user.uid,
+                              isDark: isDark,
+                            ),
+                            const SizedBox(height: 14),
+                            _buildMessagesSection(
+                              userId: user.uid,
                               isDark: isDark,
                             ),
                             const SizedBox(height: 14),
