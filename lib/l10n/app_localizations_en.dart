@@ -554,9 +554,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get allVitalsNormalMessage =>
       'All good! Your vital signs are within normal limits.';
 
-    @override
-    String get startConversationPrompt => 'Start a conversation';
-
   @override
   String get deleteAlertDialogTitle => 'Delete alert';
 
