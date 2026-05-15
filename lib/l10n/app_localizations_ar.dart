@@ -554,6 +554,9 @@ class AppLocalizationsAr extends AppLocalizations {
       'كل شيء على ما يرام! معدلاتك الحيوية ضمن الحدود الطبيعية.';
 
   @override
+  String get startConversationPrompt => 'ابدأ المحادثة';
+
+  @override
   String get deleteAlertDialogTitle => 'حذف التنبيه';
 
   @override

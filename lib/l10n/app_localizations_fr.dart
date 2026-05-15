@@ -563,6 +563,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get allVitalsNormalMessage =>
       'Tout va bien ! Vos paramètres vitaux sont dans les limites normales.';
 
+    @override
+    String get startConversationPrompt => 'Démarrez la conversation';
+
   @override
   String get deleteAlertDialogTitle => 'Supprimer l\'alerte';
 

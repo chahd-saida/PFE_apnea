@@ -1132,6 +1132,12 @@ abstract class AppLocalizations {
   /// **'All good! Your vital signs are within normal limits.'**
   String get allVitalsNormalMessage;
 
+  /// No description provided for @startConversationPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Start a conversation'**
+  String get startConversationPrompt;
+
   /// No description provided for @deleteAlertDialogTitle.
   ///
   /// In en, this message translates to:
