@@ -56,19 +56,48 @@ service cloud.firestore {
 
     // User profile document: user can create and manage only their own profile.
     match /users/{userId} {
-      allow create: if isSelf(userId)
-        && request.resource.data.role is string
-        || (
+      allow create: if (
+          isSelf(userId)
+          && request.resource.data.role is string
+        ) || (
           isSignedIn()
           && request.resource.data.role == 'patient'
           && request.resource.data.doctorUid == request.auth.uid
         );
 
-      allow read, update: if isSelf(userId)
+      // READ: propriétaire OU médecin assigné OU docteur (pour chercher patients non assignés)
+      allow read: if isSelf(userId)
         || (
           isSignedIn()
           && resource.data.role == 'patient'
           && resource.data.doctorUid == request.auth.uid
+        )
+        || (
+          isDoctor()
+          && resource.data.role == 'patient'
+          && (
+            !(resource.data.doctorUid is string)
+            || resource.data.doctorUid == null
+            || resource.data.doctorUid == ''
+          )
+        );
+
+      // UPDATE: propriétaire OU médecin assigné OU docteur assignant patient non assigné
+      allow update: if isSelf(userId)
+        || (
+          isSignedIn()
+          && resource.data.role == 'patient'
+          && resource.data.doctorUid == request.auth.uid
+        )
+        || (
+          isDoctor()
+          && resource.data.role == 'patient'
+          && (
+            !(resource.data.doctorUid is string)
+            || resource.data.doctorUid == null
+            || resource.data.doctorUid == ''
+          )
+          && request.resource.data.doctorUid == request.auth.uid
         );
 
       allow delete: if isSelf(userId);
@@ -99,6 +128,35 @@ service cloud.firestore {
         && (isPatientAlert(request.resource.data) || isDoctorAlert(request.resource.data));
 
       allow delete: if isPatientAlert(resource.data) || isDoctorAlert(resource.data);
+    }
+
+    // Conversations: participants can read/write, creation allowed for signed-in users
+    match /conversations/{conversationId} {
+      allow create: if isSignedIn();
+
+      allow read, update: if isSignedIn()
+        && request.auth.uid in resource.data.participants;
+
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn()
+          && request.auth.uid in
+            get(/databases/$(database)/documents/conversations/$(conversationId))
+              .data.participants;
+      }
+    }
+
+    // Notes: patient and doctor can read, doctor can create/update/delete
+    match /notes/{noteId} {
+      allow read: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid
+        || resource.data.doctorUid == request.auth.uid
+      );
+
+      allow create: if isDoctor()
+        && request.resource.data.doctorUid == request.auth.uid;
+
+      allow update, delete: if isDoctor()
+        && resource.data.doctorUid == request.auth.uid;
     }
   }
 }

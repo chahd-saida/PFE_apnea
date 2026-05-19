@@ -11,6 +11,7 @@ import 'package:apnea_project/services/measurement_service.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 import 'package:apnea_project/widgets/doctor_bottom_navigation_bar.dart';
 import 'package:apnea_project/theme/app_colors.dart';
+import 'package:apnea_project/providers/patient_provider.dart';
 
 class DoctorPatientsListScreen extends StatefulWidget {
   const DoctorPatientsListScreen({super.key});
@@ -30,8 +31,9 @@ class _DoctorPatientsListScreenState extends State<DoctorPatientsListScreen> {
       return 'Inactif';
     }
 
-    final daysSinceLastMeasurement =
-        DateTime.now().difference(lastMeasurement).inDays;
+    final daysSinceLastMeasurement = DateTime.now()
+        .difference(lastMeasurement)
+        .inDays;
 
     if (daysSinceLastMeasurement <= 1) {
       return 'Actif';
@@ -220,8 +222,10 @@ class _DoctorPatientsListScreenState extends State<DoctorPatientsListScreen> {
                     }
 
                     final patientMeasurements = measurementsSnapshot.data ?? {};
-                    final filteredPatients =
-                        _filterPatients(allPatients, patientMeasurements);
+                    final filteredPatients = _filterPatients(
+                      allPatients,
+                      patientMeasurements,
+                    );
 
                     if (filteredPatients.isEmpty) {
                       return Padding(
@@ -242,7 +246,9 @@ class _DoctorPatientsListScreenState extends State<DoctorPatientsListScreen> {
                       children: filteredPatients.map((patient) {
                         final patientUid = patient['uid'] as String? ?? '';
                         final fullName =
-                            (patient['fullName'] as String?)?.trim().isNotEmpty ==
+                            (patient['fullName'] as String?)
+                                    ?.trim()
+                                    .isNotEmpty ==
                                 true
                             ? patient['fullName'] as String
                             : 'Patient';
@@ -282,11 +288,122 @@ class _DoctorPatientsListScreenState extends State<DoctorPatientsListScreen> {
                 minimumSize: const Size(double.infinity, 50),
               ),
             ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _showAssignPatientDialog(context, user.uid),
+              icon: const Icon(Icons.person_search),
+              label: const Text('Assigner un patient existant'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+              ),
+            ),
           ],
         ),
       ),
       floatingActionButton: const DoctorChatbotFAB(),
       bottomNavigationBar: const DoctorBottomNavigationBar(currentIndex: 1),
+    );
+  }
+
+  void _showAssignPatientDialog(BuildContext context, String doctorUid) {
+    final emailController = TextEditingController();
+    bool isLoading = false;
+    String? errorMessage;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Assigner un patient existant'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Entrez l\'email du patient qui a déjà créé son compte :',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: 'Email du patient',
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      errorText: errorMessage,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annuler'),
+                ),
+                ElevatedButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          final email = emailController.text.trim();
+                          if (email.isEmpty) {
+                            setDialogState(
+                              () => errorMessage = 'Veuillez entrer un email.',
+                            );
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isLoading = true;
+                            errorMessage = null;
+                          });
+
+                          final error = await context
+                              .read<PatientProvider>()
+                              .assignPatientByEmail(
+                                email: email,
+                                doctorUid: doctorUid,
+                              );
+
+                          if (!dialogContext.mounted) return;
+
+                          if (error != null) {
+                            setDialogState(() {
+                              isLoading = false;
+                              errorMessage = error;
+                            });
+                          } else {
+                            Navigator.of(dialogContext).pop();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Patient assigné avec succès.'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          }
+                        },
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Assigner'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -345,7 +462,10 @@ class _DoctorPatientsListScreenState extends State<DoctorPatientsListScreen> {
               ],
             ),
             const SizedBox(height: 4),
-            Text('Dernière donnée: $lastData', style: const TextStyle(fontSize: 12)),
+            Text(
+              'Dernière donnée: $lastData',
+              style: const TextStyle(fontSize: 12),
+            ),
             const SizedBox(height: 2),
             Text('Apnées (7j): $apneas', style: const TextStyle(fontSize: 12)),
           ],

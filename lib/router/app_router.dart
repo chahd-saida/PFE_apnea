@@ -1,3 +1,4 @@
+import 'package:apnea_project/screens/patient/patient_messages_screen.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:apnea_project/providers/auth_provider.dart';
@@ -48,6 +49,7 @@ class RouteNames {
   static const patientSettings = '/patient-settings';
   static const patientDevices = '/patient-devices';
   static const patientProfile = '/patient-profile';
+  static const patientMessages = '/patient-messages';
 
   static const doctorDashboard = '/doctor-dashboard';
   static const doctorPatients = '/doctor-patients';
@@ -148,6 +150,11 @@ GoRouter createAppRouter(
         path: RouteNames.patientProfile,
         name: RouteNames.patientProfile,
         builder: (context, state) => const PatientProfileScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.patientMessages,
+        name: RouteNames.patientMessages,
+        builder: (context, state) => const PatientMessagesScreen(),
       ),
       GoRoute(
         path: RouteNames.doctorPatients,

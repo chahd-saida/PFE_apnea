@@ -311,6 +311,12 @@ class _PatientSettingsScreenState extends State<PatientSettingsScreen> {
                       ),
                     ),
                   ],
+                  ListTile(
+                    leading: const Icon(Icons.chat_outlined),
+                    title: const Text('Messages avec mon médecin'),
+                    trailing: const Icon(Icons.arrow_forward_ios),
+                    onTap: () => context.push(RouteNames.patientMessages),
+                  ),
                   const SizedBox(height: 30),
                   Text(
                     l10n.notificationsTitle,

@@ -13,7 +13,6 @@ import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/services/alert_service.dart';
 import 'package:apnea_project/services/user_service.dart';
 import 'package:apnea_project/services/measurement_service.dart';
-import 'package:apnea_project/services/messaging_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/theme/app_dimensions.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
@@ -35,10 +34,8 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
   late final AnimationController _fadeCtrl;
   late final AnimationController _slideCtrl;
   late final AnimationController _pulseCtrl;
-  late final AnimationController _chatPulseCtrl;
 
   final AlertService _alertService = AlertService();
-  final MessagingService _messagingService = MessagingService();
   bool _hasShownAlertsFromRoute = false;
 
   bool _isMonitoring = false;
@@ -59,10 +56,6 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
       vsync: this,
       duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
-    _chatPulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat(reverse: true);
     Future.delayed(
       const Duration(milliseconds: 150),
       () => _slideCtrl.forward(),
@@ -74,7 +67,6 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     _fadeCtrl.dispose();
     _slideCtrl.dispose();
     _pulseCtrl.dispose();
-    _chatPulseCtrl.dispose();
     super.dispose();
   }
 
@@ -463,108 +455,6 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     );
   }
 
-  Widget _buildMessagesSection({
-    required String userId,
-    required bool isDark,
-  }) {
-    final l10n = AppLocalizations.of(context)!;
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _messagingService.streamConversations(userId),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) return const SizedBox.shrink();
-        if (!snapshot.hasData) {
-          return Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isDark ? _cardDark : Colors.white,
-              borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : Colors.black.withValues(alpha: 0.06),
-              ),
-            ),
-            child: Row(
-              children: const [
-                CircularProgressIndicator(),
-                SizedBox(width: 12),
-                Text('Chargement...'),
-              ],
-            ),
-          );
-        }
-
-        final convos = snapshot.data ?? [];
-        // Attempt to find the conversation where user is participant and doctorUid exists
-        final convo = convos.isNotEmpty ? convos.first : null;
-
-        final lastMessage = convo != null ? (convo['lastMessage'] as String? ?? '') : '';
-        final lastAt = convo != null ? _formatTimestamp(convo['lastMessageAt']) : '';
-
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: isDark ? _cardDark : Colors.white,
-            borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.06)
-                  : Colors.black.withValues(alpha: 0.06),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.medical_services_rounded, color: AppColors.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Messages',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : AppColors.textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      lastMessage.isEmpty ? l10n.startConversationPrompt : lastMessage,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDark ? Colors.white70 : Colors.black54,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: () => context.push(RouteNames.patientMessages),
-                icon: const Icon(Icons.chat_bubble_outline_rounded),
-                label: const Text('Accéder'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(100, 44),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildAlertCard(Map<String, dynamic> alert, bool isDark) {
     final l10n = AppLocalizations.of(context)!;
     final severity = alert['severity'] as String? ?? 'info';
@@ -927,17 +817,6 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
                             const SizedBox(height: 14),
                             _buildLatestAlertsSection(
                               patientId: user.uid,
-                              isDark: isDark,
-                            ),
-                            const SizedBox(height: 14),
-                            _buildMessagesSection(
-                              userId: user.uid,
-                              isDark: isDark,
-                            ),
-                            const SizedBox(height: 14),
-                            // ── Fix 1 : chatbot → patientChatbot ─────────
-                            _ChatbotBanner(
-                              pulseCtrl: _chatPulseCtrl,
                               isDark: isDark,
                             ),
                             const SizedBox(height: 14),
@@ -1709,203 +1588,6 @@ class _VitalCardState extends State<_VitalCard>
       ),
     );
   }
-}
-
-// ── CHATBOT BANNER — Fix 1 : RouteNames.patientChatbot ───────────────────────
-class _ChatbotBanner extends StatelessWidget {
-  final AnimationController pulseCtrl;
-  final bool isDark;
-  const _ChatbotBanner({required this.pulseCtrl, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      // ── Fix 1 : patientChatbot au lieu de chatbot ─────────────────
-      onTap: () => context.push(RouteNames.chatbot('patient')),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF0D1B3E), Color(0xFF1A4FA8), Color(0xFF0E9D94)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
-          boxShadow: [
-            BoxShadow(
-              color: _teal.withValues(alpha: 0.3),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            AnimatedBuilder(
-              animation: pulseCtrl,
-              builder: (_, __) => Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(
-                        alpha: 0.05 + 0.05 * pulseCtrl.value,
-                      ),
-                      border: Border.all(
-                        color: Colors.white.withValues(
-                          alpha: 0.08 + 0.08 * pulseCtrl.value,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.12),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.25),
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.smart_toy_rounded,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Text(
-                        'ApneaBot',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        child: AnimatedBuilder(
-                          animation: pulseCtrl,
-                          builder: (_, __) => Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 5,
-                                height: 5,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: const Color(0xFF4ADE80),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF4ADE80).withValues(
-                                        alpha: 0.5 + 0.4 * pulseCtrl.value,
-                                      ),
-                                      blurRadius: 4,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Text(
-                                'Groq',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Posez vos questions sur le sommeil, interprétez vos données, obtenez des conseils.',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.75),
-                      fontSize: 12,
-                      height: 1.4,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      _chatChip('💤 Apnée ?'),
-                      _chatChip('📊 Mon SpO₂'),
-                      _chatChip('🌙 Sommeil'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-              ),
-              child: const Icon(
-                Icons.arrow_forward_ios_rounded,
-                color: Colors.white,
-                size: 14,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _chatChip(String label) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-    ),
-    child: Text(
-      label,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 10,
-        fontWeight: FontWeight.w500,
-      ),
-    ),
-  );
 }
 
 // ── MONITORING BUTTON ─────────────────────────────────────────────────────────

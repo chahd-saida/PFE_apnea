@@ -72,6 +72,29 @@ class PatientProvider extends ChangeNotifier {
     }
   }
 
+
+  // ── Assigné patient par email ────────────────────────────────────────
+  Future<String?> assignPatientByEmail({
+    required String email,
+    required String doctorUid,
+  }) async {
+    _isSaving = true;
+    _error = null;
+    notifyListeners();
+    try {
+      return await _userService.assignPatientByEmail(
+        email: email,
+        doctorUid: doctorUid,
+      );
+    } catch (e) {
+      _error = _mapError(e);
+      return _error;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
   // ── Sauvegarder diagnostic médecin ────────────────────────────────────────
   Future<bool> saveDiagnosis({
     required String patientId,

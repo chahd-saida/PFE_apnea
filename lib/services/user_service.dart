@@ -190,6 +190,58 @@ class UserService {
     }
   }
 
+  Future<String?> assignPatientByEmail({
+    required String email,
+    required String doctorUid,
+  }) async {
+    try {
+      // Chercher le patient par email
+      final snapshot = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email.trim().toLowerCase())
+          .where('role', isEqualTo: 'patient')
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        return 'Aucun patient trouvé avec cet email.';
+      }
+
+      final doc = snapshot.docs.first;
+      final data = doc.data();
+
+      // Vérifier que le patient n'est pas déjà assigné à un autre médecin
+      final existingDoctorUid = data['doctorUid'] as String?;
+      if (existingDoctorUid != null &&
+          existingDoctorUid.isNotEmpty &&
+          existingDoctorUid != doctorUid) {
+        return 'Ce patient est déjà assigné à un autre médecin.';
+      }
+
+      // Récupérer le nom du médecin
+      String doctorName = 'Médecin';
+      try {
+        final doctorDoc = await _firestore
+            .collection('users')
+            .doc(doctorUid)
+            .get();
+        final name = (doctorDoc.data()?['fullName'] as String?)?.trim();
+        if (name != null && name.isNotEmpty) doctorName = name;
+      } catch (_) {}
+
+      // Assigner le médecin au patient
+      await _firestore.collection('users').doc(doc.id).update({
+        'doctorUid': doctorUid,
+        'doctorName': doctorName,
+      });
+
+      return null; // null = succès
+    } catch (e) {
+      debugPrint('Erreur assignPatientByEmail: $e');
+      return 'Erreur : $e';
+    }
+  }
+
   Future<void> updateUserProfile(String uid, Map<String, dynamic> data) async {
     try {
       await _firestore.collection('users').doc(uid).update(data);
