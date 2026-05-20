@@ -48,10 +48,8 @@ class ReportData {
     this.averageHeartRate,
     this.totalApneas,
     this.totalSessions,
-    this.measurements = const <Map<String, dynamic>>[],
     this.notes = const <Map<String, dynamic>>[],
     this.includeClinicalData = true,
-    this.includeSignalGraphs = true,
     this.includeApneaEvents = true,
     this.includeDoctorDiagnosis = true,
     this.includeRecommendations = true,
@@ -70,10 +68,8 @@ class ReportData {
   final double? averageHeartRate;
   final int? totalApneas;
   final int? totalSessions;
-  final List<Map<String, dynamic>> measurements;
   final List<Map<String, dynamic>> notes;
   final bool includeClinicalData;
-  final bool includeSignalGraphs;
   final bool includeApneaEvents;
   final bool includeDoctorDiagnosis;
   final bool includeRecommendations;
@@ -101,10 +97,6 @@ class PdfReportService {
           if (data.includeClinicalData) ...<pw.Widget>[
             pw.SizedBox(height: 14),
             _clinicalSection(data),
-          ],
-          if (data.includeSignalGraphs) ...<pw.Widget>[
-            pw.SizedBox(height: 14),
-            _measurementTable(data.measurements),
           ],
           if (data.includeDoctorDiagnosis) ...<pw.Widget>[
             pw.SizedBox(height: 14),
@@ -250,44 +242,6 @@ class PdfReportService {
             'Fréquence cardiaque moyenne: ${data.averageHeartRate?.toStringAsFixed(0) ?? 'N/A'} bpm',
           ),
         ],
-      ),
-    );
-  }
-
-  pw.Widget _measurementTable(List<Map<String, dynamic>> measurements) {
-    if (measurements.isEmpty) {
-      return _sectionCard(
-        title: 'Tableau des mesures',
-        child: pw.Text(
-          'Aucune donnée de mesure disponible pour la période sélectionnée.',
-        ),
-      );
-    }
-
-    final rows = measurements.take(12).map((item) {
-      final date = _extractDateTime(item['timestamp']);
-      final spo2 = (item['avgSpo2'] ?? item['spo2'])?.toString() ?? 'N/A';
-      final hr =
-          (item['avgHeartRate'] ?? item['heartRate'])?.toString() ?? 'N/A';
-      final apneas = item['apneas']?.toString() ?? '0';
-
-      return <String>[
-        date != null ? _formatDateTime(date) : 'N/A',
-        spo2,
-        hr,
-        apneas,
-      ];
-    }).toList();
-
-    return _sectionCard(
-      title: 'Tableau des mesures (dernières sessions)',
-      child: pw.TableHelper.fromTextArray(
-        headers: const <String>['Date', 'SpO2', 'FC', 'Apnées'],
-        data: rows,
-        border: pw.TableBorder.all(color: PdfColors.grey300),
-        headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-        headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
-        cellAlignment: pw.Alignment.centerLeft,
       ),
     );
   }

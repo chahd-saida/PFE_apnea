@@ -37,7 +37,6 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
   Map<String, dynamic>? _selectedPatientData;
   DateTimeRange? _selectedDateRange;
   bool _includeClinicalData = true;
-  bool _includeSignalGraphs = true;
   bool _includeApneaEvents = true;
   bool _includeDoctorDiagnosis = true;
   bool _includeRecommendations = true;
@@ -128,17 +127,8 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
       patientId,
       getMeasurementRecords: _measurementService.getMeasurementRecords,
     );
-    final allMeasurements = await _measurementService.getMeasurementRecords(
-      uid: patientId,
-      limit: 100,
-    );
     final allNotes = await _noteService.getPatientNotes(patientId);
 
-    final measurements = _filterByDateRange(
-      allMeasurements,
-      _selectedDateRange,
-      key: 'timestamp',
-    );
     final notes = _filterByDateRange(
       allNotes,
       _selectedDateRange,
@@ -163,10 +153,8 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
       averageHeartRate: avgHeartRate,
       totalApneas: _includeApneaEvents ? totalApneas : 0,
       totalSessions: totalSessions,
-      measurements: measurements,
       notes: notes,
       includeClinicalData: _includeClinicalData,
-      includeSignalGraphs: _includeSignalGraphs,
       includeApneaEvents: _includeApneaEvents,
       includeDoctorDiagnosis: _includeDoctorDiagnosis,
       includeRecommendations: _includeRecommendations,
@@ -392,13 +380,7 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
                     onChanged: (v) =>
                         setState(() => _includeClinicalData = v ?? false),
                   ),
-                  CheckboxListTile(
-                    title: const Text('Graphiques signaux'),
-                    subtitle: const Text('Courbes ECG, SpO₂'),
-                    value: _includeSignalGraphs,
-                    onChanged: (v) =>
-                        setState(() => _includeSignalGraphs = v ?? false),
-                  ),
+
                   CheckboxListTile(
                     title: const Text('Événements apnée'),
                     subtitle: const Text('Liste et classification'),

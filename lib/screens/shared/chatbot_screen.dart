@@ -1,55 +1,15 @@
 // lib/screens/shared/chatbot_screen.dart
 // Chatbot IA unifié — Patient (LLaMA 3.1-8B) + Médecin (LLaMA 3.3-70B)
-// ignore_for_file: use_build_context_synchronously
-import 'dart:convert';
+// Appels via FastAPI /chatbot/chat — clé Groq côté serveur uniquement
+// ignore_file: use_build_context_synchronously
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:apnea_project/theme/app_colors.dart';
-
-// ── Config Groq ──────────────────────────────────────────────────────────────
-const String _groqApiKey = 'YOUR_GROQ_API_KEY_HERE';
-const String _groqBaseUrl = 'https://api.groq.com/openai/v1/chat/completions';
-
-// Modèles selon le rôle
-const String _modelPatient = 'llama-3.1-8b-instant'; // rapide, léger
-const String _modelDoctor = 'llama-3.3-70b-versatile'; // puissant, clinique
-
-// ── Prompts système ───────────────────────────────────────────────────────────
-const String _promptPatient = '''
-Tu es ApneaBot, un assistant médical intelligent spécialisé dans l'apnée du sommeil, intégré dans l'application Apnea Detect.
-
-Tes domaines d'expertise :
-- Apnée du sommeil (obstructive, centrale, mixte) : causes, symptômes, traitements
-- Interprétation des données : SpO₂, fréquence cardiaque, température nocturne
-- Hygiène du sommeil : routines, environnement, alimentation, exercice
-- Techniques de relaxation et de respiration
-
-Tes règles :
-- Réponds TOUJOURS en français, de façon claire et empathique
-- Ne pose PAS de diagnostic définitif — encourage à consulter un médecin
-- Garde les réponses concises (max 200 mots)
-- Si l'utilisateur partage des valeurs (SpO₂ < 90%, FC > 100 bpm), commente-les cliniquement
-- Propose toujours une action concrète à la fin
-''';
-
-const String _promptDoctor = '''
-Tu es DoctorBot, un assistant clinique spécialisé en pneumologie et médecine du sommeil, intégré dans l'application Apnea Detect pour les médecins.
-
-Tes domaines d'expertise :
-- Diagnostic et classification des apnées (AHI, IAH, AASM 2023)
-- Interprétation des polysomnographies et polygraphies
-- Protocoles thérapeutiques : PPC, VNI, orthèses d'avancement mandibulaire, chirurgie
-- Analyse des données capteurs : SpO₂, ECG (AD8232), accéléromètre (MPU6050)
-- Recommandations basées sur le modèle Stacking IA v4
-
-Tes règles :
-- Réponds TOUJOURS en français avec terminologie médicale appropriée
-- Fournis des recommandations cliniques précises et référencées
-- Analyse les données chiffrées avec rigueur (seuils, tendances, anomalies)
-- Max 300 mots par réponse sauf demande explicite de détails
-''';
+import 'package:apnea_project/providers/auth_provider.dart';
+import 'package:apnea_project/services/api_service.dart';
 
 // ── Suggestions par rôle ──────────────────────────────────────────────────────
 const _suggestionsPatient = [
@@ -88,7 +48,7 @@ class _Message {
 
 // ── SCREEN ────────────────────────────────────────────────────────────────────
 class ChatbotScreen extends StatefulWidget {
-  final String role; // 'patient' ou 'doctor'
+  final String role;
   const ChatbotScreen({super.key, required this.role});
 
   @override
@@ -101,6 +61,10 @@ class _ChatbotScreenState extends State<ChatbotScreen>
   final _scrollCtrl = ScrollController();
   final _focusNode = FocusNode();
 
+  // CORRECTION 1 : ApiService initialisé dans initState()
+  // pour éviter tout problème si le singleton dépend d'un contexte
+  late final ApiService _apiService;
+
   late final AnimationController _pulseCtrl;
   late final AnimationController _dotCtrl;
 
@@ -112,27 +76,45 @@ class _ChatbotScreenState extends State<ChatbotScreen>
 
   // ── Config selon rôle ─────────────────────────────────────────────────────
   bool get _isDoctor => widget.role == 'doctor';
-  String get _model => _isDoctor ? _modelDoctor : _modelPatient;
-  String get _prompt => _isDoctor ? _promptDoctor : _promptPatient;
   String get _botName => _isDoctor ? 'DoctorBot' : 'ApneaBot';
   String get _modelLabel => _isDoctor ? 'LLaMA 3.3-70B' : 'LLaMA 3.1-8B';
-  Color get _accentColor => _isDoctor
-      ? const Color(0xFF6366F1) // violet médecin
-      : const Color(0xFF4DBDB8); // teal patient
+
+  Color get _accentColor =>
+      _isDoctor ? const Color(0xFF6366F1) : const Color(0xFF4DBDB8);
+
   List<(String, String)> get _suggestions =>
       _isDoctor ? _suggestionsDoctor : _suggestionsPatient;
 
   String get _welcomeMessage => _isDoctor
-      ? 'Bonjour Docteur 👨‍⚕️ Je suis **DoctorBot**, votre assistant clinique spécialisé en pneumologie et médecine du sommeil.\n\nJe peux vous aider à :\n• 📋 Interpréter les données capteurs de vos patients\n• 🫁 Analyser les résultats du modèle IA v4\n• 💊 Recommander des protocoles thérapeutiques\n• 📊 Discuter des cas cliniques complexes\n\nComment puis-je vous assister ?'
-      : 'Bonjour ! 👋 Je suis **ApneaBot**, votre assistant IA spécialisé dans le sommeil.\n\nJe peux vous aider à :\n• 📊 Interpréter vos données de monitoring\n• 💊 Répondre à vos questions sur l\'apnée\n• 🌙 Améliorer votre qualité de sommeil\n• 🧘 Proposer des exercices de relaxation\n\nComment puis-je vous aider ?';
+      ? 'Bonjour Docteur 👨‍⚕️ Je suis **DoctorBot**, votre assistant clinique '
+            'spécialisé en pneumologie et médecine du sommeil.\n\n'
+            'Je peux vous aider à :\n'
+            '• 📋 Interpréter les données capteurs de vos patients\n'
+            '• 🫁 Analyser les résultats du modèle IA v4\n'
+            '• 💊 Recommander des protocoles thérapeutiques\n'
+            '• 📊 Discuter des cas cliniques complexes\n\n'
+            'Comment puis-je vous assister ?'
+      : 'Bonjour ! 👋 Je suis **ApneaBot**, votre assistant IA spécialisé '
+            'dans le sommeil.\n\n'
+            'Je peux vous aider à :\n'
+            '• 📊 Interpréter vos données de monitoring\n'
+            '• 💊 Répondre à vos questions sur l\'apnée\n'
+            '• 🌙 Améliorer votre qualité de sommeil\n'
+            '• 🧘 Proposer des exercices de relaxation\n\n'
+            'Comment puis-je vous aider ?';
 
   @override
   void initState() {
     super.initState();
+
+    // CORRECTION 1 : initialisation ici
+    _apiService = ApiService();
+
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
+
     _dotCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -141,6 +123,25 @@ class _ChatbotScreenState extends State<ChatbotScreen>
     _messages.add(
       _Message(content: _welcomeMessage, isUser: false, time: DateTime.now()),
     );
+
+    // Vérifier que le serveur FastAPI est accessible au démarrage
+    _apiService.checkHealth().then((ok) {
+      if (!ok && mounted) {
+        setState(() {
+          _messages.add(
+            _Message(
+              content:
+                  '⚠️ Serveur FastAPI inaccessible.\n'
+                  'Vérifiez que le serveur est démarré sur '
+                  'http://192.168.1.18:8000',
+              isUser: false,
+              time: DateTime.now(),
+              status: _MsgStatus.error,
+            ),
+          );
+        });
+      }
+    });
   }
 
   @override
@@ -153,7 +154,7 @@ class _ChatbotScreenState extends State<ChatbotScreen>
     super.dispose();
   }
 
-  // ── Envoi message ─────────────────────────────────────────────────────────
+  // ── Envoi message → FastAPI /chatbot/chat ─────────────────────────────────
   Future<void> _sendMessage(String text) async {
     final msg = text.trim();
     if (msg.isEmpty || _isLoading) return;
@@ -177,29 +178,17 @@ class _ChatbotScreenState extends State<ChatbotScreen>
     _scrollToBottom();
     _history.add({'role': 'user', 'content': msg});
 
-    try {
-      final response = await http
-          .post(
-            Uri.parse(_groqBaseUrl),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $_groqApiKey',
-            },
-            body: jsonEncode({
-              'model': _model,
-              'max_tokens': _isDoctor ? 2048 : 1024,
-              'temperature': 0.7,
-              'messages': [
-                {'role': 'system', 'content': _prompt},
-                ..._history,
-              ],
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
+    final uid = context.read<AuthProvider>().user?.uid;
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(utf8.decode(response.bodyBytes));
-        final reply = data['choices'][0]['message']['content'] as String;
+    try {
+      final reply = await _apiService.sendChatMessage(
+        message: msg,
+        role: widget.role,
+        historique: List<Map<String, String>>.from(_history),
+        patientId: uid,
+      );
+
+      if (reply != null && reply.isNotEmpty) {
         _history.add({'role': 'assistant', 'content': reply});
         setState(() {
           _messages.removeLast();
@@ -209,16 +198,15 @@ class _ChatbotScreenState extends State<ChatbotScreen>
           _isLoading = false;
         });
       } else {
-        final err = jsonDecode(response.body);
-        final errMsg =
-            err['error']?['message'] ?? 'Erreur ${response.statusCode}';
-        _handleError(errMsg);
+        _handleError('Aucune réponse du serveur. Réessayez.');
       }
     } catch (e) {
+      // CORRECTION 2 : TimeoutException remonte depuis api_service
+      // (plus de try/catch dans sendChatMessage) → détecté ici correctement
       _handleError(
         e.toString().contains('TimeoutException')
-            ? 'Délai dépassé. Réessayez.'
-            : 'Connexion impossible. Vérifiez votre réseau.',
+            ? 'Délai dépassé (30s). Vérifiez que le serveur est en ligne.'
+            : 'Serveur inaccessible. Vérifiez votre réseau.',
       );
     }
     _scrollToBottom();
@@ -369,7 +357,7 @@ class _ChatbotScreenState extends State<ChatbotScreen>
                 ),
                 const SizedBox(width: 5),
                 Text(
-                  'Groq · $_modelLabel',
+                  'FastAPI · $_modelLabel',
                   style: TextStyle(color: Colors.grey[500], fontSize: 10),
                 ),
               ],
@@ -401,7 +389,7 @@ class _ChatbotScreenState extends State<ChatbotScreen>
     ],
   );
 
-  // ── Banner avertissement ──────────────────────────────────────────────────
+  // ── Banner ────────────────────────────────────────────────────────────────
   Widget _buildBanner() => Container(
     margin: const EdgeInsets.fromLTRB(14, 10, 14, 0),
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -458,7 +446,8 @@ class _ChatbotScreenState extends State<ChatbotScreen>
         ? 'À l\'instant'
         : diff.inMinutes < 60
         ? 'Il y a ${diff.inMinutes} min'
-        : '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+        : '${t.hour.toString().padLeft(2, '0')}:'
+              '${t.minute.toString().padLeft(2, '0')}';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Text(
@@ -571,7 +560,9 @@ class _ChatbotScreenState extends State<ChatbotScreen>
                   child: TextField(
                     controller: _textCtrl,
                     focusNode: _focusNode,
-                    maxLines: 4,
+                    // CORRECTION 3 : maxLines null pour expansion illimitée
+                    // (l'ancien maxLines:4 coupait le texte à 4 lignes)
+                    maxLines: null,
                     minLines: 1,
                     enabled: !_isLoading,
                     textInputAction: TextInputAction.send,
@@ -850,7 +841,10 @@ class _BotBubble extends StatelessWidget {
           );
         }
         return Padding(
-          padding: EdgeInsets.only(bottom: line.startsWith('•') ? 2 : 0),
+          // CORRECTION 4 : trimLeft() pour détecter '•' même avec espace avant
+          padding: EdgeInsets.only(
+            bottom: line.trimLeft().startsWith('•') ? 2 : 0,
+          ),
           child: RichText(
             text: TextSpan(
               children: spans.isEmpty
