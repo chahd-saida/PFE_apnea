@@ -1,0 +1,87 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam actorStyle awesome
+
+title Diagramme de cas d'utilisation — SleepApnea Detect
+
+actor "Patient"       as Patient
+actor "Médecin"       as Doctor
+actor "Firebase Auth" as Auth  #lightgray
+actor "FastAPI + IA"  as API   #lightgray
+
+rectangle "SleepApnea Detect" {
+
+  package "Commun" {
+    usecase "Se connecter"     as Login
+    usecase "Se déconnecter"   as Logout
+    usecase "Vérifier rôle\n(RBAC GoRouter)" as RBAC
+  }
+
+  package "Espace Patient" {
+    usecase "Consulter dashboard"          as PD
+    usecase "Surveiller en temps réel\n(SpO2, BPM, ECG, IA)" as Mon
+    usecase "Consulter historique"         as Hist
+    usecase "Consulter alertes"            as Alerts
+    usecase "Chatbot patient\n(LLaMA 8B)"  as PChat
+    usecase "Exporter rapport PDF"         as PDF
+    usecase "Paramètres / Profil"          as PSet
+    usecase "Contenu relaxation"           as Relax
+  }
+
+  package "Espace Médecin" {
+    usecase "Consulter dashboard"          as DD
+    usecase "Gérer liste patients"         as PatList
+    usecase "Ajouter patient"              as AddPat
+    usecase "Analyser nuit patient"        as Analysis
+    usecase "Saisir note clinique"         as Note
+    usecase "Chatbot médecin\n(LLaMA 70B)" as DChat
+    usecase "Centre d'alertes"             as DAlerts
+    usecase "Messagerie patient"           as Msg
+    usecase "Générer rapport PDF"          as DPDF
+  }
+}
+
+' Patient
+Patient --> Login
+Patient --> PD
+Patient --> Mon
+Patient --> Hist
+Patient --> Alerts
+Patient --> PChat
+Patient --> PDF
+Patient --> PSet
+Patient --> Relax
+Patient --> Logout
+
+' Médecin
+Doctor --> Login
+Doctor --> DD
+Doctor --> PatList
+Doctor --> AddPat
+Doctor --> Analysis
+Doctor --> DChat
+Doctor --> DAlerts
+Doctor --> Msg
+Doctor --> DPDF
+Doctor --> Logout
+
+' Acteurs externes
+Auth --> Login
+Auth --> Logout
+API  --> Mon
+API  --> PChat
+API  --> DChat
+
+' include
+Login    ..> RBAC    : <<include>>
+PD       ..> RBAC    : <<include>>
+DD       ..> RBAC    : <<include>>
+Analysis ..> RBAC    : <<include>>
+
+' extend
+Analysis ..> Note    : <<extend>>
+Hist     ..> PDF     : <<extend>>
+Mon      ..> Alerts  : <<extend>>
+
+@enduml

@@ -1,19 +1,34 @@
 // lib/services/api_service.dart
+// Import pour la gestion des operations asynchrones
 import 'dart:async';
+// Import pour l'encodage/decodage JSON
 import 'dart:convert';
+// Import Flutter foundation pour debugPrint
 import 'package:flutter/foundation.dart';
+// Import HTTP pour les requetes reseau vers le backend FastAPI
 import 'package:http/http.dart' as http;
 
+// Service API pour communiquer avec le backend FastAPI
+// Implemente le pattern Singleton pour une instance unique
 class ApiService {
+  // URL de base du serveur FastAPI (backend)
   static const String _baseUrl = 'http://192.168.1.18:8000';
+  //static const String _baseUrl = 'http://localhost:8000';
+  // Timeout standard pour les requetes courtes (10 secondes)
   static const Duration _timeout = Duration(seconds: 10);
+  // Timeout pour le chatbot (requetes plus longues, 30 secondes)
   static const Duration _timeoutChatbot = Duration(seconds: 30);
+  // Timeout pour les analyses de nuit (requetes tres longues, 60 secondes)
   static const Duration _timeoutNuit = Duration(seconds: 60);
 
+  // Instance singleton du service
   static final ApiService _instance = ApiService._internal();
+  // Factory pour retourner l'instance unique
   factory ApiService() => _instance;
+  // Constructeur prive pour le singleton
   ApiService._internal();
 
+  // En-tetes HTTP standard pour toutes les requetes JSON
   static const Map<String, String> _headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -23,6 +38,9 @@ class ApiService {
   // SANTÉ SERVEUR
   // ═══════════════════════════════════════════════════════════════
 
+  // Verifie si le serveur FastAPI est accessible et en bonne sante
+  // Effectue un GET vers l'endpoint /health
+  // Retourne: true si le serveur repond avec le code 200, false sinon
   Future<bool> checkHealth() async {
     try {
       final response = await http
@@ -39,6 +57,15 @@ class ApiService {
   // PATIENTS
   // ═══════════════════════════════════════════════════════════════
 
+  // Enregistre un nouveau patient dans le backend
+  // Envoie les informations du patient a l'endpoint POST /api/patients
+  // Parametre patientId: UID Firebase du patient
+  // Parametre nom: Nom de famille du patient
+  // Parametre prenom: Prenom du patient
+  // Parametre dateNaissance: Date de naissance (format ISO, optionnel)
+  // Parametre telephone: Numero de telephone (optionnel)
+  // Parametre medecinId: UID du medecin assigné (optionnel)
+  // Retourne: true si enregistrement reussi, false sinon
   Future<bool> enregistrerPatient({
     required String patientId,
     required String nom,
@@ -74,6 +101,10 @@ class ApiService {
     }
   }
 
+  // Recupere les informations d'un patient depuis le backend
+  // Effectue un GET vers /api/patients/{patientId}
+  // Parametre patientId: UID Firebase du patient
+  // Retourne: Map contenant les donnees du patient, ou null en cas d'erreur
   Future<Map<String, dynamic>?> getInfosPatient(String patientId) async {
     try {
       final response = await http
@@ -93,6 +124,9 @@ class ApiService {
     }
   }
 
+  // Recupere la liste de tous les patients enregistres
+  // Effectue un GET vers /api/patients
+  // Retourne: Liste des patients (vide si aucun ou erreur)
   Future<List<Map<String, dynamic>>> getTousPatients() async {
     try {
       final response = await http
@@ -109,9 +143,11 @@ class ApiService {
     }
   }
 
-  // ── POST /api/config/patient_id ───────────────────────────────
-  // AJOUT : publie l'UID Firebase sur MQTT → l'ESP32 met à jour
-  // son patientId dynamiquement via moniteur/config/patient_id
+  // POST /api/config/patient_id
+  // Envoie l'UID Firebase au serveur pour que l'ESP32 soit configure
+  // Le serveur publie l'UID sur MQTT → l'ESP32 met a jour son patientId dynamiquement
+  // Parametre uid: UID Firebase du patient
+  // Retourne: true si UID envoye avec succes, false sinon
   Future<bool> envoyerUidEsp32(String uid) async {
     try {
       final response = await http
@@ -137,6 +173,11 @@ class ApiService {
   // DONNÉES CAPTEURS — HISTORIQUE SQLITE
   // ═══════════════════════════════════════════════════════════════
 
+  // Recupere l'historique des mesures d'un patient depuis la base de donnees SQLite
+  // Effectue un GET vers /api/historique/{patientId}
+  // Parametre patientId: UID du patient
+  // Parametre limite: Nombre maximum de mesures a retourner (par defaut 100)
+  // Retourne: Liste des mesures triees (vide si aucune ou erreur)
   Future<List<Map<String, dynamic>>> getHistoriqueMesures({
     required String patientId,
     int limite = 100,
@@ -159,6 +200,12 @@ class ApiService {
     }
   }
 
+  // Recupere les resultats d'analyse IA pour un patient
+  // Les resultats incluent les diagnostics et predictions du modele IA
+  // Effectue un GET vers /api/resultats_ia/{patientId}
+  // Parametre patientId: UID du patient
+  // Parametre limite: Nombre maximum de resultats a retourner (par defaut 50)
+  // Retourne: Liste des resultats IA (vide si aucun ou erreur)
   Future<List<Map<String, dynamic>>> getResultatsIA({
     required String patientId,
     int limite = 50,
@@ -181,6 +228,12 @@ class ApiService {
     }
   }
 
+  // Recupere les alarmes declenchees pour un patient
+  // Les alarmes representent des depassements de seuils detectes
+  // Effectue un GET vers /api/alarmes/{patientId}
+  // Parametre patientId: UID du patient
+  // Parametre limite: Nombre maximum d'alarmes a retourner (par defaut 50)
+  // Retourne: Liste des alarmes (vide si aucune ou erreur)
   Future<List<Map<String, dynamic>>> getAlarmes({
     required String patientId,
     int limite = 50,
@@ -203,6 +256,11 @@ class ApiService {
     }
   }
 
+  // Recupere les statistiques aggregees pour un patient
+  // Les statistiques incluent moyennes, medians, valeurs min/max, etc.
+  // Effectue un GET vers /api/statistiques/{patientId}
+  // Parametre patientId: UID du patient
+  // Retourne: Map contenant les donnees statistiques, ou null en cas d'erreur
   Future<Map<String, dynamic>?> getStatistiques(String patientId) async {
     try {
       final response = await http
@@ -226,6 +284,14 @@ class ApiService {
   // CHATBOT
   // ═══════════════════════════════════════════════════════════════
 
+  // Envoie un message au chatbot IA et recoit une reponse
+  // Le chatbot genere des reponses intelligentes basees sur le contexte medical
+  // Effectue un POST vers /chatbot/chat avec timeout prolonge
+  // Parametre message: Message de l'utilisateur
+  // Parametre role: Role de l'utilisateur (doctor, patient)
+  // Parametre historique: Historique de la conversation precedente
+  // Parametre patientId: UID du patient (contexte, optionnel)
+  // Retourne: Reponse du chatbot, ou null en cas d'erreur
   Future<String?> sendChatMessage({
     required String message,
     required String role,
@@ -252,6 +318,12 @@ class ApiService {
     return null;
   }
 
+  // Genere un resume IA des donnees de la nuit (resume_nuit)
+  // Analyse les mesures de la nuit et produit un rapport structure
+  // Effectue un POST vers /chatbot/resume_nuit avec timeout prolonge
+  // Parametre donneesNuit: Dictionnaire contenant les donnees de la nuit
+  // Parametre role: Role utilisateur pour contextualiser le resume (doctor par defaut)
+  // Retourne: Map contenant le resume genere, ou null en cas d'erreur
   Future<Map<String, dynamic>?> resumeNuit({
     required Map<String, dynamic> donneesNuit,
     String role = 'doctor',
@@ -275,6 +347,9 @@ class ApiService {
     }
   }
 
+  // Analyse les dernieres alarmes declenchees
+  // Effectue un GET vers /chatbot/analyse_alarme
+  // Retourne: Map contenant l'analyse des alarmes, ou null en cas d'erreur
   Future<Map<String, dynamic>?> analyseAlarme() async {
     try {
       final response = await http
@@ -291,6 +366,10 @@ class ApiService {
     }
   }
 
+  // Recupere le statut actuel du chatbot
+  // Indique si le chatbot est disponible et ses capacites
+  // Effectue un GET vers /chatbot/statut
+  // Retourne: Map contenant les informations de statut, ou null en cas d'erreur
   Future<Map<String, dynamic>?> statutChatbot() async {
     try {
       final response = await http
@@ -307,6 +386,10 @@ class ApiService {
     }
   }
 
+  // Recupere les cas critiques identifies par le chatbot IA
+  // Les cas critiques sont des situations medicales qui demandent une attention immediate
+  // Effectue un GET vers /chatbot/cas_critiques avec timeout prolonge
+  // Retourne: Map contenant les cas critiques identifies, ou null en cas d'erreur
   Future<Map<String, dynamic>?> getCasCritiques() async {
     try {
       final response = await http
@@ -323,6 +406,11 @@ class ApiService {
     }
   }
 
+  // Effectue une analyse detaillee de la nuit d'un patient
+  // Genere un rapport complet avec tendances, anomalies et recommandations
+  // Effectue un GET vers /chatbot/analyse_nuit/{patientId} avec timeout tres prolonge
+  // Parametre patientId: UID du patient a analyser
+  // Retourne: Map contenant l'analyse complete de la nuit, ou null en cas d'erreur
   Future<Map<String, dynamic>?> analyseNuit(String patientId) async {
     try {
       final response = await http

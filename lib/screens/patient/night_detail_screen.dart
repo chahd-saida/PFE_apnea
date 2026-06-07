@@ -6,20 +6,21 @@ import 'package:provider/provider.dart';
 
 import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
+import 'package:apnea_project/services/alert_service.dart';
 import 'package:apnea_project/services/note_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 
 class NightDetailScreen extends StatefulWidget {
-  final String nightId;
+  final String nightId; // ID Firestore de la mesure à afficher
   const NightDetailScreen({super.key, required this.nightId});
-
   @override
   State<NightDetailScreen> createState() => _NightDetailScreenState();
 }
 
 class _NightDetailScreenState extends State<NightDetailScreen> {
   final NoteService _noteService = NoteService();
+  final AlertService _alertService = AlertService();
   final TextEditingController _noteController = TextEditingController();
   bool _isSavingNote = false;
   late Future<Map<String, dynamic>?> _measurementFuture;
@@ -27,36 +28,82 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
   @override
   void initState() {
     super.initState();
-    debugPrint('NightDetailScreen → nightId="${widget.nightId}"');
-    _measurementFuture = _loadMeasurement();
+    _measurementFuture = _loadMeasurement(); // Charge dès l'ouverture
   }
 
-  /// Charge la mesure par ID Firestore direct.
-  /// L'ID vient de getMeasurementRecords → doc.id, donc correspond exactement.
   Future<Map<String, dynamic>?> _loadMeasurement() async {
     try {
       final doc = await FirebaseFirestore.instance
           .collection('measurements')
           .doc(widget.nightId)
           .get();
-
       if (doc.exists && doc.data() != null) {
         final data = <String, dynamic>{...doc.data()!, 'id': doc.id};
-        debugPrint('✅ Mesure trouvée: ${doc.id} — score=${data['score']}');
+
+        // CORRECTION : si apneas == 0 dans le document de mesure,
+        // on compte les alertes IA de type apnée dans la fenêtre de la nuit
+        // comme source de secours (fallback), pour afficher le vrai nombre.
+
+        // final storedApneas = (data['apneas'] as num?)?.toInt() ?? 0;
+        //if (storedApneas == 0) {
+        //final ts = _extractDateTime(data['timestamp']);
+        // if (ts != null) {
+        // final counted = await _countApneaAlertsForNight(ts);
+        // if (counted > 0) {
+        // data['apneas'] = counted;
+        // }
+        // }
+        //}
+
+        final storedApneas = (data['apneas'] as num?)?.toInt() ?? 0;
+        final ts = _extractDateTime(data['timestamp']);
+        if (ts != null) {
+          final counted = await _countApneaAlertsForNight(ts);
+          // Prendre le maximum entre ce qui est stocké et ce qu'on compte dans les alertes
+          data['apneas'] = counted > storedApneas ? counted : storedApneas;
+        }
+
         return data;
       }
-      debugPrint('⚠️ Aucun document avec id=${widget.nightId}');
       return null;
     } catch (e) {
-      debugPrint('❌ Erreur chargement mesure: $e');
-      rethrow;
+      rethrow; // Propage l'erreur pour que FutureBuilder l'attrape
     }
   }
 
-  void _retry() {
-    setState(() => _measurementFuture = _loadMeasurement());
+  /// Compte les alertes Firestore de type apnée déclenchées
+  /// dans la fenêtre [timestamp - 1h … timestamp + 12h].
+  /// Utilisé uniquement si le champ `apneas` du document vaut 0.
+  Future<int> _countApneaAlertsForNight(DateTime timestamp) async {
+    try {
+      final uid = context.read<AuthProvider>().user?.uid ?? '';
+      if (uid.isEmpty) return 0;
+      final start = timestamp.subtract(const Duration(hours: 1));
+      final end = timestamp.add(const Duration(hours: 12));
+      final snap = await FirebaseFirestore.instance
+          .collection('alerts')
+          .where('patientId', isEqualTo: uid)
+          .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
+          .get();
+      // Compte uniquement les alertes dont le type contient "apnea" ou "apnee"
+      int count = 0;
+      for (final d in snap.docs) {
+        final type = (d.data()['type'] as String? ?? '').toLowerCase();
+        if (type.contains('apnea') || type.contains('apnee')) {
+          count++;
+        }
+      }
+      return count;
+    } catch (_) {
+      return 0;
+    }
   }
 
+  // relancer le chargement depuis les vues d'erreur ou de données manquantes.
+  void _retry() => setState(() => _measurementFuture = _loadMeasurement());
+
+  // Libère la mémoire du contrôleur quand le widget est détruit.
   @override
   void dispose() {
     _noteController.dispose();
@@ -65,81 +112,69 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
 
   Future<void> _saveNote(String patientId) async {
     final note = _noteController.text.trim();
-    if (note.isEmpty) return;
-    setState(() => _isSavingNote = true);
+    if (note.isEmpty) return; // Ne rien faire si la note est vide
+    setState(() => _isSavingNote = true); // Désactive le bouton
     try {
       final user = context.read<AuthProvider>().user;
       await _noteService.saveDoctorNote(
         patientId: patientId,
         doctorUid: user?.uid ?? '',
-        doctorName: 'Patient',
+        doctorName: 'Patient', // Le patient écrit sa propre note
         note: note,
         measurementId: widget.nightId,
       );
-      _noteController.clear();
+      _noteController.clear(); // Vide le champ après succès
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
+        // Confirmation visuelle
         const SnackBar(content: Text('Note enregistrée avec succès.')),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
+        // Message d'erreur
         SnackBar(content: Text('Erreur: $e'), backgroundColor: AppColors.error),
       );
     } finally {
-      if (mounted) setState(() => _isSavingNote = false);
+      if (mounted) setState(() => _isSavingNote = false); // Réactive le bouton
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final uid = context.watch<AuthProvider>().user?.uid ?? '';
-
     return Scaffold(
       appBar: AppBar(title: const Text('Détail de la nuit')),
-      floatingActionButton: const PatientChatbotFAB(),
+      floatingActionButton: const PatientChatbotFAB(), // Bouton chatbot IA
       body: FutureBuilder<Map<String, dynamic>?>(
         future: _measurementFuture,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return _buildErrorView('${snapshot.error}');
-          }
-
+          if (snapshot.connectionState == ConnectionState.waiting)
+            return const Center(
+              child: CircularProgressIndicator(),
+            ); // Chargement en cours
+          if (snapshot.hasError)
+            return _buildErrorView('${snapshot.error}'); // Erreur Firestore
           final data = snapshot.data;
-          if (data == null || data.isEmpty) {
-            return _buildFallbackView();
-          }
-
-          return _buildDetailView(data, uid);
+          if (data == null || data.isEmpty)
+            return _buildFallbackView(); // Document introuvable
+          return _buildDetailView(data, uid); // Affichage normal
         },
       ),
     );
   }
 
-  // ─── Vue principale avec les données réelles ───────────────────────────
   Widget _buildDetailView(Map<String, dynamic> data, String uid) {
     final timestamp = _extractDateTime(data['timestamp']);
-
-    // SpO2 — accepte avgSpo2 ou spo2
-    final spo2Raw = data['avgSpo2'] ?? data['spo2'];
+    final spo2Raw = data['avgSpo2'] ?? data['spo2']; // Clé primaire ou fallback
     final spo2 = (spo2Raw as num?)?.toDouble() ?? 0.0;
-
-    // Fréquence cardiaque — accepte avgHeartRate ou heartRate
     final hrRaw = data['avgHeartRate'] ?? data['heartRate'];
     final heartRate = (hrRaw as num?)?.toDouble() ?? 0.0;
-
     final score = (data['score'] as num?)?.toInt() ?? 0;
     final apneas = (data['apneas'] as num?)?.toInt() ?? 0;
     final duration = (data['durationMinutes'] as num?)?.toInt() ?? 0;
-
-    // Température si disponible
     final tempRaw = data['avgTemperature'] ?? data['temperature'];
     final temperature = (tempRaw as num?)?.toDouble();
-
     final scoreColor = score >= 80
         ? Colors.green
         : score >= 50
@@ -156,15 +191,12 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── En-tête date ──────────────────────────────────────────
           if (timestamp != null) _buildDateHeader(timestamp),
           if (timestamp != null) const SizedBox(height: 16),
 
-          // ── Score de sommeil ──────────────────────────────────────
           _buildScoreCard(score, scoreColor, scoreLabel, duration),
           const SizedBox(height: 16),
 
-          // ── Vitaux en grille 3 colonnes ───────────────────────────
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -199,15 +231,12 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
             ],
           ),
 
-          // ── Température si disponible ─────────────────────────────
           if (temperature != null && temperature > 0) ...[
             const SizedBox(height: 12),
             _buildTemperatureCard(temperature),
           ],
 
           const SizedBox(height: 20),
-
-          // ── Résumé textuel ────────────────────────────────────────
           _buildSummaryCard(
             score: score,
             spo2: spo2,
@@ -216,9 +245,17 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
             duration: duration,
           ),
 
-          const SizedBox(height: 20),
+          // Section alertes Firestore de cette nuit
+          if (timestamp != null) ...[
+            const SizedBox(height: 20),
+            _NightAlertsSection(
+              patientUid: uid,
+              timestamp: timestamp,
+              alertService: _alertService,
+            ),
+          ],
 
-          // ── Notes personnelles ────────────────────────────────────
+          const SizedBox(height: 20),
           _buildNotesSection(uid),
           const SizedBox(height: 80),
         ],
@@ -226,7 +263,6 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
     );
   }
 
-  // ─── Résumé clinique simple ────────────────────────────────────────────
   Widget _buildSummaryCard({
     required int score,
     required double spo2,
@@ -235,40 +271,33 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
     required int duration,
   }) {
     final lines = <String>[];
-
-    if (duration > 0) {
+    if (duration > 0)
       lines.add('⏱ Durée de la session : ${_formatDuration(duration)}');
-    }
     if (spo2 > 0) {
-      if (spo2 < 90) {
+      if (spo2 < 90)
         lines.add(
           '🔴 SpO₂ critique (${spo2.toStringAsFixed(1)}%) — consulter un médecin',
         );
-      } else if (spo2 < 94) {
+      else if (spo2 < 94)
         lines.add('🟠 SpO₂ légèrement bas (${spo2.toStringAsFixed(1)}%)');
-      } else {
+      else
         lines.add('🟢 SpO₂ normale (${spo2.toStringAsFixed(1)}%)');
-      }
     }
     if (heartRate > 0) {
-      if (heartRate < 45 || heartRate > 100) {
+      if (heartRate < 45 || heartRate > 100)
         lines.add('🔴 FC anormale (${heartRate.toStringAsFixed(0)} bpm)');
-      } else {
+      else
         lines.add('🟢 FC normale (${heartRate.toStringAsFixed(0)} bpm)');
-      }
     }
-    if (apneas >= 5) {
+    if (apneas >= 5)
       lines.add('🔴 Nombre élevé d\'apnées ($apneas événements)');
-    } else if (apneas >= 3) {
+    else if (apneas >= 3)
       lines.add('🟠 Apnées modérées ($apneas événements)');
-    } else if (apneas > 0) {
+    else if (apneas > 0)
       lines.add('🟡 Quelques apnées détectées ($apneas événements)');
-    } else {
+    else
       lines.add('🟢 Aucune apnée détectée');
-    }
-
     if (lines.isEmpty) return const SizedBox.shrink();
-
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -297,7 +326,6 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
     );
   }
 
-  // ─── Carte température ─────────────────────────────────────────────────
   Widget _buildTemperatureCard(double temp) {
     final color = temp > 38.0
         ? AppColors.error
@@ -309,7 +337,6 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
         : temp > 37.5
         ? 'Légère fièvre'
         : 'Normal';
-
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -358,7 +385,7 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
     );
   }
 
-  // ─── Fallback ──────────────────────────────────────────────────────────
+  // le document n'existe pas dans Firestore → propose de démarrer une nouvelle surveillance
   Widget _buildFallbackView() {
     return Center(
       child: Padding(
@@ -397,7 +424,7 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
     );
   }
 
-  // ─── Erreur ────────────────────────────────────────────────────────────
+  // une erreur technique (réseau, permissions) → affiche le message d'erreur et propose "Réessayer"
   Widget _buildErrorView(String error) {
     return Center(
       child: Padding(
@@ -429,23 +456,20 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
     );
   }
 
-  // ─── Helpers couleur ───────────────────────────────────────────────────
+  // logique de coloration selon l'état de santé
   Color _getSpo2Color(double v) => v < 90
       ? AppColors.error
       : v < 95
       ? AppColors.warning
       : AppColors.primary;
-
   Color _getHeartRateColor(double v) =>
       (v < 45 || v > 100) ? AppColors.error : AppColors.success;
-
   Color _getApneaColor(int v) => v >= 5
       ? AppColors.error
       : v >= 3
       ? AppColors.warning
       : AppColors.success;
 
-  // ─── En-tête date ──────────────────────────────────────────────────────
   Widget _buildDateHeader(DateTime date) {
     const months = [
       'janvier',
@@ -509,7 +533,6 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
     );
   }
 
-  // ─── Score card ────────────────────────────────────────────────────────
   Widget _buildScoreCard(int score, Color color, String label, int duration) {
     return Card(
       elevation: 2,
@@ -622,7 +645,6 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
     );
   }
 
-  // ─── Vital card ────────────────────────────────────────────────────────
   Widget _buildVitalCard(
     String label,
     String value,
@@ -660,7 +682,6 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
     );
   }
 
-  // ─── Notes section ─────────────────────────────────────────────────────
   Widget _buildNotesSection(String uid) {
     return Card(
       elevation: 1,
@@ -687,12 +708,12 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            // ── Fix: minimumSize override pour éviter le crash Row ───
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 ElevatedButton.icon(
                   onPressed: _isSavingNote ? null : () => _saveNote(uid),
+                  // null = bouton désactivé pendant la sauvegarde
                   icon: _isSavingNote
                       ? const SizedBox(
                           width: 16,
@@ -719,7 +740,7 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
     );
   }
 
-  // ─── Helpers statiques ─────────────────────────────────────────────────
+  // → Normalise Timestamp Firestore, DateTime ou String en DateTime Dart
   static DateTime? _extractDateTime(dynamic value) {
     if (value is Timestamp) return value.toDate();
     if (value is DateTime) return value;
@@ -727,9 +748,244 @@ class _NightDetailScreenState extends State<NightDetailScreen> {
     return null;
   }
 
+  // → "2h 05min" ou "45 min" selon la durée
   static String _formatDuration(int minutes) {
     final h = minutes ~/ 60;
     final m = minutes % 60;
-    return h == 0 ? '${m} min' : '${h}h ${m.toString().padLeft(2, '0')}min';
+    return h == 0 ? '$m min' : '${h}h ${m.toString().padLeft(2, '0')}min';
+  }
+}
+
+// ── SECTION ALERTES FIRESTORE DE LA NUIT ─────────────────────────────────────
+class _NightAlertsSection extends StatefulWidget {
+  final String patientUid;
+  final DateTime timestamp;
+  final AlertService alertService;
+  const _NightAlertsSection({
+    required this.patientUid,
+    required this.timestamp,
+    required this.alertService,
+  });
+  @override
+  State<_NightAlertsSection> createState() => _NightAlertsSectionState();
+}
+
+class _NightAlertsSectionState extends State<_NightAlertsSection> {
+  List<Map<String, dynamic>>? _alerts;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final start = widget.timestamp.subtract(const Duration(hours: 1));
+    final end = widget.timestamp.add(const Duration(hours: 12));
+    // DEBUG
+    debugPrint('🔍 Recherche alertes pour ${widget.patientUid}');
+    debugPrint('🕐 Fenêtre : $start → $end');
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('alerts')
+          .where('patientId', isEqualTo: widget.patientUid)
+          .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
+          .orderBy('createdAt', descending: false)
+          .get();
+
+      debugPrint('📋 Alertes trouvées : ${snap.docs.length}');
+      for (final d in snap.docs) {
+        debugPrint('  → ${d.data()}');
+      }
+
+      final list = snap.docs
+          .map((d) => <String, dynamic>{...d.data(), 'id': d.id})
+          .toList();
+      if (mounted) setState(() => _alerts = list);
+    } catch (_) {
+      if (mounted) setState(() => _alerts = []);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_alerts == null) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Text('Chargement des alertes...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.notifications_active_rounded,
+                  size: 18,
+                  color: AppColors.warning,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  '🔔 Alertes de cette nuit',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+                if (_alerts!.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${_alerts!.length}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.error,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_alerts!.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.success.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline,
+                      color: AppColors.success,
+                      size: 18,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Aucune alerte déclenchée cette nuit.',
+                      style: TextStyle(fontSize: 13, color: AppColors.success),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ..._alerts!.map((alert) {
+                final severity = alert['severity'] as String? ?? 'info';
+                final message = alert['message'] as String? ?? '';
+                final type = alert['type'] as String? ?? '';
+                final ts = _fmtTime(alert['createdAt']);
+                final isRead = alert['read'] as bool? ?? false;
+
+                final Color color;
+                final IconData icon;
+                switch (severity) {
+                  case 'critical':
+                    color = AppColors.error;
+                    icon = Icons.warning_rounded;
+                    break;
+                  case 'warning':
+                    color = AppColors.warning;
+                    icon = Icons.error_outline_rounded;
+                    break;
+                  default:
+                    color = AppColors.primary;
+                    icon = Icons.info_outline_rounded;
+                    break;
+                }
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border(left: BorderSide(color: color, width: 3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(icon, color: color, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.alertService.getAlertTypeLabel(type),
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: isRead
+                                    ? FontWeight.w500
+                                    : FontWeight.w700,
+                                color: AppColors.textDark,
+                              ),
+                            ),
+                            if (message.isNotEmpty)
+                              Text(
+                                message,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textBody,
+                                  height: 1.3,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        ts,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _fmtTime(dynamic v) {
+    // → "HH:mm" pour l'heure d'une alerte
+    DateTime? d;
+    if (v is Timestamp)
+      d = v.toDate();
+    else if (v is String)
+      d = DateTime.tryParse(v);
+    if (d == null) return '';
+    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 }

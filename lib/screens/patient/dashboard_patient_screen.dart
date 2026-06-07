@@ -31,19 +31,25 @@ class DashboardPatientScreen extends StatefulWidget {
 
 class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     with TickerProviderStateMixin {
-  late final AnimationController _fadeCtrl;
-  late final AnimationController _slideCtrl;
-  late final AnimationController _pulseCtrl;
+  // ── Contrôleurs d'animation pour les transitions visuelles ──────────────
+  late final AnimationController
+  _fadeCtrl; // Contrôle l'animation de fondu (fade)
+  late final AnimationController
+  _slideCtrl; // Contrôle l'animation de glissement
+  late final AnimationController
+  _pulseCtrl; // Crée l'effet de pulsation du badge "Live"
 
+  // ── Services et état du dashboad ──────────────────────────────────────
   final AlertService _alertService = AlertService();
-  bool _hasShownAlertsFromRoute = false;
-
-  bool _isMonitoring = false;
-  bool _showLastSession = false;
+  bool _hasShownAlertsFromRoute =
+      false; // Évite l'affichage répété des alertes au démarrage
+  bool _isMonitoring = false; // Indique si le monitrage est actif
+  bool _showLastSession = false; // Affiche la barre de dernière session
 
   @override
   void initState() {
     super.initState();
+    // ── Initialisation des contrôleurs d'animation ────────────────────────
     _fadeCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
@@ -56,6 +62,7 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
       vsync: this,
       duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
+    // Lance l'animation de glissement avec un léger délai pour créer un effet cascade
     Future.delayed(
       const Duration(milliseconds: 150),
       () => _slideCtrl.forward(),
@@ -70,33 +77,39 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     super.dispose();
   }
 
+  // ── Retourne le salut approprié en fonction de l'heure de la journée ──
   String _greeting(AppLocalizations l10n) {
     final h = DateTime.now().hour;
-    if (h < 12) return l10n.greetingMorning;
-    if (h < 18) return l10n.greetingAfternoon;
-    return l10n.greetingEvening;
+    if (h < 12) return l10n.greetingMorning; // Avant midi
+    if (h < 18) return l10n.greetingAfternoon; // Après-midi
+    return l10n.greetingEvening; // Soir
   }
 
+  // ── Retourne le libellé du score (Excellent, Moyen, Mauvais) ──────────
   String _scoreLabel(AppLocalizations l10n, int s) {
     if (s >= 80) return l10n.scoreExcellent;
     if (s >= 50) return l10n.scoreAverage;
     return l10n.scorePoor;
   }
 
+  // ── Retourne la couleur du score selon sa valeur ──────────────────────
   Color _scoreColor(int s) => s >= 80
       ? AppColors.scoreGood
       : s >= 50
       ? AppColors.scoreAverage
       : AppColors.scorePoor;
+  // ── Retourne la couleur de fond du score selon sa valeur ────────────────
   Color _scoreBgColor(int s) => s >= 80
       ? AppColors.scoreGoodBg
       : s >= 50
       ? AppColors.scoreAverageBg
       : AppColors.scorePoorBg;
 
+  // ── Formate une date au format JJ/MM/AAAA ─────────────────────────────
   String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
+  // ── Récupère une valeur double depuis une carte avec plusieurs clés alternatives ──
   static double? _dbl(Map<String, dynamic> m, List<String> keys) {
     for (final k in keys) {
       final v = m[k];
@@ -105,6 +118,7 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     return null;
   }
 
+  // ── Récupère une valeur entière depuis une carte avec plusieurs clés alternatives ──
   static int? _int(Map<String, dynamic> m, List<String> keys) {
     for (final k in keys) {
       final v = m[k];
@@ -113,21 +127,24 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     return null;
   }
 
+  // ── Marque toutes les alertes comme lues et affiche une confirmation ───
   Future<void> _markAllRead(String patientId) async {
     await _alertService.markAllAlertsAsRead(patientId);
-    if (!mounted) return;
+    if (!mounted) return; // Vérifie que le widget est toujours actif
     final l10n = AppLocalizations.of(context)!;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(l10n.alertsAllMarkedRead)));
   }
 
+  // ── Supprime une alerte et gère les erreurs ──────────────────────────
   Future<void> _deleteAlert(String alertId) async {
     try {
       await _alertService.deleteAlert(alertId);
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) return; // Vérifie que le widget est toujours actif
       final l10n = AppLocalizations.of(context)!;
+      // Affiche un message d'erreur en cas d'échec
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.alertDeleteError),
@@ -137,19 +154,23 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     }
   }
 
+  // ── Affiche le panneau des alertes si une navigation l'a demandé ────
   void _maybeShowAlertsFromRoute(String patientId) {
-    if (_hasShownAlertsFromRoute) return;
+    if (_hasShownAlertsFromRoute) return; // Évite l'affichage répété
     final extra = GoRouterState.of(context).extra;
     if (extra == true) {
       _hasShownAlertsFromRoute = true;
+      // Utilise addPostFrameCallback pour afficher après le rendu initial
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _openAlertsSheet(patientId);
       });
     }
   }
 
+  // ── Ouvre un panneau modal affichant toutes les alertes du patient ───
   void _openAlertsSheet(String patientId) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Affiche une bottom sheet avec la liste des alertes
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -209,15 +230,12 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
                           ),
                         );
                       }
-
                       if (!snapshot.hasData) {
                         return const Center(child: CircularProgressIndicator());
                       }
-
                       final alerts = snapshot.data ?? [];
-                      if (alerts.isEmpty) {
+                      if (alerts.isEmpty)
                         return _buildAlertsEmptyState(l10n, isDark);
-                      }
 
                       final criticals = alerts
                           .where((a) => a['severity'] == 'critical')
@@ -277,11 +295,13 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     );
   }
 
+  // ── Construit la section "Dernières alertes" avec un StreamBuilder ──
   Widget _buildLatestAlertsSection({
     required String patientId,
     required bool isDark,
   }) {
     return StreamBuilder<List<Map<String, dynamic>>>(
+      // Écoute les alertes du patient en temps réel
       stream: _alertService.streamPatientAlerts(patientId),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -293,14 +313,12 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
             ),
           );
         }
-
         if (!snapshot.hasData) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 10),
             child: Center(child: CircularProgressIndicator()),
           );
         }
-
         final alerts = snapshot.data ?? [];
         final latest = alerts.take(3).toList();
 
@@ -335,7 +353,7 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Dernieres alertes',
+                      'Dernières alertes',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -365,21 +383,21 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     );
   }
 
+  // ── Construit une miniature d'alerte pour la section d'aperçu ───────
   Widget _buildAlertPreviewCard(Map<String, dynamic> alert, bool isDark) {
+    // Extrait les données de l'alerte avec valeurs par défaut
     final severity = alert['severity'] as String? ?? 'info';
     final message = alert['message'] as String? ?? 'Alerte';
     final isRead = alert['read'] as bool? ?? false;
     final alertId = alert['id'] as String?;
     final createdAt = _formatTimestamp(alert['createdAt']);
     final type = alert['type'] as String?;
-
     final colors = _severityColors(severity);
 
     return GestureDetector(
       onTap: () async {
-        if (!isRead && alertId != null) {
+        if (!isRead && alertId != null)
           await _alertService.markAlertAsRead(alertId);
-        }
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
@@ -455,17 +473,19 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     );
   }
 
+  // ── Construit une carte d'alerte avec glissement pour suppression ────
   Widget _buildAlertCard(Map<String, dynamic> alert, bool isDark) {
     final l10n = AppLocalizations.of(context)!;
+    // Extrait les données de l'alerte avec valeurs par défaut
     final severity = alert['severity'] as String? ?? 'info';
     final message = alert['message'] as String? ?? 'Alerte';
     final isRead = alert['read'] as bool? ?? false;
     final alertId = alert['id'] as String?;
     final createdAt = _formatTimestamp(alert['createdAt']);
     final type = alert['type'] as String?;
-
     final colors = _severityColors(severity);
 
+    // Utilise Dismissible pour permettre la suppression par glissement
     return Dismissible(
       key: Key(alertId ?? message),
       direction: DismissDirection.endToStart,
@@ -475,34 +495,31 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
         color: AppColors.error.withValues(alpha: 0.1),
         child: const Icon(Icons.delete_outline, color: AppColors.error),
       ),
-      confirmDismiss: (_) async {
-        return await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(l10n.deleteAlertDialogTitle),
-            content: Text(l10n.deleteAlertDialogContent),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: Text(l10n.cancelButton),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                style: TextButton.styleFrom(foregroundColor: AppColors.error),
-                child: Text(l10n.deleteButton),
-              ),
-            ],
-          ),
-        );
-      },
+      confirmDismiss: (_) async => await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l10n.deleteAlertDialogTitle),
+          content: Text(l10n.deleteAlertDialogContent),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(l10n.cancelButton),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: TextButton.styleFrom(foregroundColor: AppColors.error),
+              child: Text(l10n.deleteButton),
+            ),
+          ],
+        ),
+      ),
       onDismissed: (_) {
         if (alertId != null) _deleteAlert(alertId);
       },
       child: GestureDetector(
         onTap: () async {
-          if (!isRead && alertId != null) {
+          if (!isRead && alertId != null)
             await _alertService.markAlertAsRead(alertId);
-          }
         },
         child: Container(
           margin: const EdgeInsets.only(bottom: 10),
@@ -646,12 +663,10 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     );
   }
 
-  Widget _buildAlertSectionHeader(String title, Color color) {
-    return Text(
-      title,
-      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
-    );
-  }
+  Widget _buildAlertSectionHeader(String title, Color color) => Text(
+    title,
+    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
+  );
 
   _SeverityColors _severityColors(String severity) {
     switch (severity) {
@@ -682,30 +697,30 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
     }
   }
 
+  // ── Formate un timestamp au format JJ/MM/AAAA à HH:MM ───────────────
   static String _formatTimestamp(dynamic value) {
     if (value == null) return '';
     DateTime? date;
-    if (value is DateTime) {
+    // Gère plusieurs types de timestamps (DateTime, String, Timestamp Firestore)
+    if (value is DateTime)
       date = value;
-    } else if (value is String) {
+    else if (value is String)
       date = DateTime.tryParse(value);
-    } else if (value is Timestamp) {
+    else if (value is Timestamp)
       date = value.toDate();
-    }
     if (date == null) return '';
-    final day = date.day.toString().padLeft(2, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    final hour = date.hour.toString().padLeft(2, '0');
-    final minute = date.minute.toString().padLeft(2, '0');
-    return '$day/$month/${date.year} a $hour:$minute';
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}'
+        ' à ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
+    // ── Récupère les localisations et l'état utilisateur ──────────────────
     final l10n = AppLocalizations.of(context)!;
     final user = context.watch<AuthProvider>().user;
     final isDark = context.watch<ThemeProvider>().isDarkMode;
 
+    // Vérifie que l'utilisateur est toujours connecté
     if (user == null) {
       return Scaffold(
         appBar: AppBar(title: Text(l10n.dashboardTitle)),
@@ -798,7 +813,6 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
                                   context.go(RouteNames.patientHistory),
                             ),
                             const SizedBox(height: 14),
-                            // ── Fix 2 : patientDevices → relaxation ──────
                             _QuickActionsRow(
                               isDark: isDark,
                               onAlerts: () => _openAlertsSheet(user.uid),
@@ -855,7 +869,11 @@ class _DashboardPatientScreenState extends State<DashboardPatientScreen>
   }
 }
 
-// ── GRADIENT HEADER ───────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── WIDGETS PERSONNALISÉS ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── EN-TÊTE AVEC DÉGRADÉ : Affiche le titre et le badge "Live" ─────────────────
 class _GradientHeader extends StatelessWidget {
   final bool isDark;
   final AnimationController pulseCtrl;
@@ -993,7 +1011,7 @@ class _GradientHeader extends StatelessWidget {
   }
 }
 
-// ── GREETING ROW ──────────────────────────────────────────────────────────────
+// ── LIGNE DE SALUTATION : Affiche le message d'accueil et la date ──────────────
 class _GreetingRow extends StatelessWidget {
   final String greeting, date;
   final bool isDark;
@@ -1047,7 +1065,7 @@ class _GreetingRow extends StatelessWidget {
   );
 }
 
-// ── SCORE CARD ────────────────────────────────────────────────────────────────
+// ── CARTE DE SCORE : Affiche le score de sommeil avec barre circulaire ─────────
 class _ScoreCard extends StatelessWidget {
   final int score;
   final String label;
@@ -1140,6 +1158,7 @@ class _ScoreCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Row(
                     children: [
+                      // Badge coloré affichant le label du score
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
@@ -1177,12 +1196,14 @@ class _ScoreCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
+            // Barre circulaire animée du score
             SizedBox(
               width: 95,
               height: 95,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
+                  // Cercle de fond
                   Container(
                     width: 95,
                     height: 95,
@@ -1191,6 +1212,7 @@ class _ScoreCard extends StatelessWidget {
                       color: scoreColor.withValues(alpha: 0.06),
                     ),
                   ),
+                  // Barre circulaire avec animation
                   TweenAnimationBuilder<double>(
                     duration: const Duration(milliseconds: 1400),
                     curve: Curves.easeOutCubic,
@@ -1235,7 +1257,7 @@ class _ScoreCard extends StatelessWidget {
   }
 }
 
-// ── QUICK ACTIONS ROW — Fix 2 : patientDevices → relaxation ──────────────────
+// ── LIGNE D'ACTIONS RAPIDES : 5 boutons de navigation ────────────────────────
 class _QuickActionsRow extends StatelessWidget {
   final bool isDark;
   final VoidCallback onAlerts;
@@ -1243,6 +1265,7 @@ class _QuickActionsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Définit les 5 actions rapides avec icône, label et callback
     final actions = [
       _QAction(
         'Alertes',
@@ -1275,60 +1298,63 @@ class _QuickActionsRow extends StatelessWidget {
         () => context.go(RouteNames.patientHistory, extra: 1),
       ),
     ];
-
     return Row(
-      children: actions.map((a) {
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(right: a == actions.last ? 0 : 10),
-            child: GestureDetector(
-              onTap: a.onTap,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: isDark ? _cardDark : Colors.white,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.06)
-                        : Colors.black.withValues(alpha: 0.06),
+      children: actions
+          .map(
+            (a) => Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(right: a == actions.last ? 0 : 10),
+                child: GestureDetector(
+                  onTap: a.onTap,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isDark ? _cardDark : Colors.white,
+                      borderRadius: BorderRadius.circular(
+                        AppDimensions.radiusMd,
+                      ),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.black.withValues(alpha: 0.06),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: a.color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(a.icon, color: a.color, size: 18),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          a.label,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white70 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: a.color.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(a.icon, color: a.color, size: 18),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      a.label,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white70 : Colors.black54,
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ),
-          ),
-        );
-      }).toList(),
+          )
+          .toList(),
     );
   }
 }
@@ -1343,10 +1369,7 @@ class _QAction {
 
 class _SeverityColors {
   final IconData icon;
-  final Color iconColor;
-  final Color bg;
-  final Color badgeBg;
-  final Color border;
+  final Color iconColor, bg, badgeBg, border;
   const _SeverityColors({
     required this.icon,
     required this.iconColor,
@@ -1356,7 +1379,7 @@ class _SeverityColors {
   });
 }
 
-// ── VITALS GRID ───────────────────────────────────────────────────────────────
+// ── GRILLE DE SIGNES VITAUX : 4 cartes avec apnées, SpO2, fréq. cardiaque, température ──
 class _VitalsGrid extends StatelessWidget {
   final int apneas, spo2, heartRate;
   final double temperature;
@@ -1372,20 +1395,45 @@ class _VitalsGrid extends StatelessWidget {
     required this.onMonitor,
   });
 
+  // ── Badge dynamique des apnées selon leur nombre ──────────────────────
+  String _apneaTag(int n) {
+    if (n >= 5) return 'Critique';
+    if (n >= 3) return 'Modéré';
+    if (n >= 1) return 'Léger';
+    return 'Normal';
+  }
+
+  // ── Couleur du badge des apnées selon leur nombre ─────────────────────
+  Color _apneaTagColor(int n) {
+    if (n >= 5) return AppColors.error;
+    if (n >= 3) return AppColors.warning;
+    if (n >= 1) return AppColors.eventOrange;
+    return AppColors.success;
+  }
+
+  // ── Couleur de fond du badge des apnées selon leur nombre ──────────────
+  Color _apneaTagBg(int n) {
+    if (n >= 5) return AppColors.error.withValues(alpha: 0.1);
+    if (n >= 3) return AppColors.warning.withValues(alpha: 0.1);
+    if (n >= 1) return AppColors.eventOrangeBg;
+    return AppColors.success.withValues(alpha: 0.1);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    // Construit les 4 cartes de signes vitaux avec leurs données
     final vitals = [
       _Vital(
         icon: Icons.warning_amber_rounded,
-        iconColor: AppColors.eventOrange,
-        iconBg: AppColors.eventOrangeBg,
-        valueColor: AppColors.eventOrange,
-        tagColor: AppColors.eventOrange,
-        tagBg: AppColors.eventOrangeBg,
+        iconColor: _apneaTagColor(apneas),
+        iconBg: _apneaTagBg(apneas),
+        valueColor: _apneaTagColor(apneas),
+        tagColor: _apneaTagColor(apneas),
+        tagBg: _apneaTagBg(apneas),
         label: l10n.eventsLabel,
         value: '$apneas',
-        tag: l10n.moderateLabel,
+        tag: _apneaTag(apneas), // CORRECTION : dynamique
         onTap: onAlerts,
       ),
       _Vital(
@@ -1425,7 +1473,6 @@ class _VitalsGrid extends StatelessWidget {
         onTap: onMonitor,
       ),
     ];
-
     return LayoutBuilder(
       builder: (ctx, c) => GridView.builder(
         shrinkWrap: true,
@@ -1472,6 +1519,7 @@ class _VitalCard extends StatefulWidget {
 
 class _VitalCardState extends State<_VitalCard>
     with SingleTickerProviderStateMixin {
+  // Contrôleur pour l'animation de pression au toucher
   late final AnimationController _c;
   @override
   void initState() {
@@ -1490,6 +1538,7 @@ class _VitalCardState extends State<_VitalCard>
 
   @override
   Widget build(BuildContext context) {
+    // Crée une carte avec effet tactile (scale down quand pressée)
     final v = widget.v;
     final isDark = widget.isDark;
     return GestureDetector(
@@ -1590,7 +1639,7 @@ class _VitalCardState extends State<_VitalCard>
   }
 }
 
-// ── MONITORING BUTTON ─────────────────────────────────────────────────────────
+// ── BOUTON MONITRAGE : Bouton prominent pour lancer/arrêter le monitrage ──────
 class _MonitoringButton extends StatelessWidget {
   final bool isMonitoring;
   final double pulseValue;
@@ -1640,7 +1689,7 @@ class _MonitoringButton extends StatelessWidget {
   }
 }
 
-// ── LAST SESSION BAR ──────────────────────────────────────────────────────────
+// ── BARRE DERNIÈRE SESSION : Affiche un lien vers la dernière session ────────
 class _LastSessionBar extends StatelessWidget {
   final bool isDark;
   const _LastSessionBar({required this.isDark});
@@ -1682,7 +1731,7 @@ class _LastSessionBar extends StatelessWidget {
   }
 }
 
-// ── BOTTOM NAV ────────────────────────────────────────────────────────────────
+// ── BARRE DE NAVIGATION INFÉRIEURE : Navigation à 5 onglets ──────────────────
 class _BottomNav extends StatelessWidget {
   final bool isDark;
   const _BottomNav({required this.isDark});
@@ -1718,6 +1767,7 @@ class _BottomNav extends StatelessWidget {
         unselectedFontSize: 10,
         currentIndex: 0,
         onTap: (i) {
+          // Liste des 5 routes de navigation
           const routes = [
             RouteNames.patientDashboard,
             RouteNames.patientHistory,
@@ -1741,7 +1791,7 @@ class _BottomNav extends StatelessWidget {
             label: l10n.monitoringShortLabel,
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.self_improvement_rounded),
+            icon: const Icon(Icons.spa_rounded),
             label: l10n.relaxationLabel,
           ),
           BottomNavigationBarItem(
@@ -1754,7 +1804,9 @@ class _BottomNav extends StatelessWidget {
   }
 }
 
-// ── LOADING / ERROR / EMPTY ───────────────────────────────────────────────────
+// ── ÉTATS DE CHARGEMENT, ERREUR ET VIDE ────────────────────────────────────────
+
+// ── SHIMMER DE CHARGEMENT : Affiche un chargement style squelette ──────────────
 class _LoadingShimmer extends StatelessWidget {
   final bool isDark;
   const _LoadingShimmer({required this.isDark});
@@ -1820,38 +1872,13 @@ class _LoadingShimmer extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: List.generate(
-              2,
-              (i) => Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(right: i < 1 ? 12 : 0),
-                  child: Container(
-                    height: 110,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            height: 90,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-          ),
         ],
       ),
     ),
   );
 }
 
+// ── ÉTAT D'ERREUR : Affiche un message d'erreur avec icône ────────────────────
 class _ErrorState extends StatelessWidget {
   final String message;
   const _ErrorState({required this.message});
@@ -1887,6 +1914,7 @@ class _ErrorState extends StatelessWidget {
   );
 }
 
+// ── ÉTAT VIDE : Affiche un message quand aucune mesure n'existe ────────────────
 class _EmptyState extends StatelessWidget {
   final String fullName;
   const _EmptyState({required this.fullName});

@@ -1,0 +1,102 @@
+@startuml
+title Diagramme de cas d'utilisation — SleepApnea Detect
+
+left to right direction
+skinparam packageStyle rectangle
+
+actor Patient
+actor Médecin
+actor "ESP32 / MQTT" as ESP32
+
+rectangle "SleepApnea Detect" {
+
+  rectangle "Espace Patient" {
+    usecase "Consulter dashboard" as UC_PDash
+    usecase "Surveiller en temps réel" as UC_Monitor
+    usecase "Consulter historique" as UC_History
+    usecase "Consulter alertes" as UC_PAlerts
+    usecase "Utiliser chatbot\n(ApneaBot — LLaMA 3.1-8B)" as UC_PChat
+    usecase "Exporter rapport PDF" as UC_PPDF
+    usecase "Gérer profil" as UC_PProfile
+    usecase "Configurer préférences\n(langue, thème, notifs)" as UC_Prefs
+    usecase "Consulter relaxation\n& bien-être" as UC_Relax
+    usecase "Gérer capteurs\n(DevicesScreen)" as UC_Devices
+    usecase "Se déconnecter" as UC_PLogout
+  }
+
+  rectangle "Espace Médecin" {
+    usecase "Consulter dashboard" as UC_DDash
+    usecase "Ajouter un patient" as UC_AddPat
+    usecase "Gérer liste patients" as UC_Patients
+    usecase "Analyser nuit patient" as UC_Analysis
+    usecase "Saisir note clinique" as UC_Note
+    usecase "Utiliser chatbot\n(DoctorBot — LLaMA 3.3-70B)" as UC_DChat
+    usecase "Consulter alertes" as UC_DAlerts
+    usecase "Messagerie patient" as UC_Msg
+    usecase "Générer rapport PDF" as UC_DPDF
+    usecase "Configurer préférences\n(langue, thème, notifs)" as UC_DPrefs
+    usecase "Se déconnecter" as UC_DLogout
+  }
+
+  usecase "S'authentifier\n(Firebase Auth)" as UC_Auth
+}
+
+' ── Relations Patient ──────────────────────────────────
+Patient --> UC_PDash
+Patient --> UC_Monitor
+Patient --> UC_History
+Patient --> UC_PAlerts
+Patient --> UC_PChat
+Patient --> UC_PPDF
+Patient --> UC_PProfile
+Patient --> UC_Prefs
+Patient --> UC_Relax
+Patient --> UC_Devices
+Patient --> UC_PLogout
+
+UC_PDash ..> UC_Auth : <<include>>
+UC_Monitor ..> UC_Auth : <<include>>
+UC_History ..> UC_Auth : <<include>>
+UC_PAlerts ..> UC_Auth : <<include>>
+UC_PChat ..> UC_Auth : <<include>>
+UC_PPDF ..> UC_Auth : <<include>>
+UC_PProfile ..> UC_Auth : <<include>>
+UC_Prefs ..> UC_Auth : <<include>>
+UC_Relax ..> UC_Auth : <<include>>
+UC_Devices ..> UC_Auth : <<include>>
+UC_PLogout ..> UC_Auth : <<include>>
+
+UC_Monitor ..> UC_PAlerts : <<extend>>\nsi seuil dépassé
+
+' ── Relations Médecin ─────────────────────────────────
+Médecin --> UC_DDash
+Médecin --> UC_AddPat
+Médecin --> UC_Patients
+Médecin --> UC_Analysis
+Médecin --> UC_Note
+Médecin --> UC_DChat
+Médecin --> UC_DAlerts
+Médecin --> UC_Msg
+Médecin --> UC_DPDF
+Médecin --> UC_DPrefs
+Médecin --> UC_DLogout
+
+UC_DDash ..> UC_Auth : <<include>>
+UC_AddPat ..> UC_Auth : <<include>>
+UC_Patients ..> UC_Auth : <<include>>
+UC_Analysis ..> UC_Auth : <<include>>
+UC_Note ..> UC_Auth : <<include>>
+UC_DChat ..> UC_Auth : <<include>>
+UC_DAlerts ..> UC_Auth : <<include>>
+UC_Msg ..> UC_Auth : <<include>>
+UC_DPDF ..> UC_Auth : <<include>>
+UC_DPrefs ..> UC_Auth : <<include>>
+UC_DLogout ..> UC_Auth : <<include>>
+
+UC_Analysis ..> UC_Note : <<include>>
+UC_Analysis ..> UC_DPDF : <<extend>>\noptionnel
+
+' ── Relations ESP32 ───────────────────────────────────
+ESP32 --> UC_Monitor : alimente données\nvia MQTT/WebSocket
+
+@enduml

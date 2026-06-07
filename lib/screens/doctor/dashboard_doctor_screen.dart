@@ -1,3 +1,4 @@
+// lib/screens/doctor/dashboard_doctor_screen.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -6,7 +7,6 @@ import 'package:apnea_project/providers/auth_provider.dart';
 import 'package:apnea_project/providers/user_profile_provider.dart';
 import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/services/user_service.dart';
-import 'package:apnea_project/services/alert_service.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 import 'package:apnea_project/widgets/doctor_bottom_navigation_bar.dart';
@@ -19,14 +19,17 @@ class DashboardDoctorScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final doctorProfile = useDoctorProfile(context);
+    // useDoctorProfile() est un hook custom qui lit le UserProfileProvider
+
     final doctorName = doctorProfile?.fullName ?? 'Médecin';
     final photoUrl = doctorProfile?.profileImageUrl;
     final doctorUid = context.watch<AuthProvider>().user?.uid ?? '';
     final userService = UserService();
-    final alertService = AlertService();
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
+      backgroundColor: isDark
+          ? AppColors.darkBackground
+          : const Color(0xFFF1F5F9),
       floatingActionButton: const DoctorChatbotFAB(),
       bottomNavigationBar: const DoctorBottomNavigationBar(currentIndex: 0),
       body: SingleChildScrollView(
@@ -34,51 +37,33 @@ class DashboardDoctorScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _Header(name: doctorName, photoUrl: photoUrl, isDark: isDark),
-
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Vue d'ensemble ───────────────────────────────────
                   _SectionTitle(
                     title: 'Vue d\'ensemble',
                     icon: Icons.dashboard_rounded,
                     isDark: isDark,
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
                   _StatsGrid(
                     doctorUid: doctorUid,
                     userService: userService,
-                    alertService: alertService,
                     isDark: isDark,
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
 
-                  // ── IA & Analyse de Risque ───────────────────────────
                   _SectionTitle(
                     title: 'IA & Analyse de Risque',
-                    icon: Icons.psychology,
+                    icon: Icons.psychology_rounded,
                     isDark: isDark,
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
                   _AIRiskSection(doctorUid: doctorUid, isDark: isDark),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
 
-                  // ── Patients critiques ───────────────────────────────
-                  _SectionTitle(
-                    title: 'Patients Critiques',
-                    icon: Icons.warning_amber_rounded,
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 14),
-                  _CriticalPatientsSection(
-                    doctorUid: doctorUid,
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 28),
-
-                  // ── Mes patients ─────────────────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -87,19 +72,9 @@ class DashboardDoctorScreen extends StatelessWidget {
                         icon: Icons.people_alt_rounded,
                         isDark: isDark,
                       ),
-                      TextButton(
-                        onPressed: () => context.go(RouteNames.doctorPatients),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.primary,
-                          padding: EdgeInsets.zero,
-                        ),
-                        child: const Text(
-                          'Voir tous',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                      _ViewAllButton(
+                        label: 'Voir tous',
+                        onTap: () => context.go(RouteNames.doctorPatients),
                       ),
                     ],
                   ),
@@ -109,9 +84,8 @@ class DashboardDoctorScreen extends StatelessWidget {
                     userService: userService,
                     isDark: isDark,
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
 
-                  // ── Alertes récentes ─────────────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -120,37 +94,22 @@ class DashboardDoctorScreen extends StatelessWidget {
                         icon: Icons.notifications_outlined,
                         isDark: isDark,
                       ),
-                      TextButton(
-                        onPressed: () => context.go(RouteNames.doctorAlerts),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.primary,
-                          padding: EdgeInsets.zero,
-                        ),
-                        child: const Text(
-                          'Voir toutes',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                      _ViewAllButton(
+                        label: 'Voir toutes',
+                        onTap: () => context.go(RouteNames.doctorAlerts),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _AlertsList(
-                    doctorUid: doctorUid,
-                    alertService: alertService,
-                    isDark: isDark,
-                  ),
-                  const SizedBox(height: 28),
+                  _AlertsList(doctorUid: doctorUid, isDark: isDark),
+                  const SizedBox(height: 24),
 
-                  // ── Actions rapides ──────────────────────────────────
                   _SectionTitle(
                     title: 'Actions rapides',
                     icon: Icons.flash_on_rounded,
                     isDark: isDark,
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 12),
                   _QuickActions(isDark: isDark),
                   const SizedBox(height: 32),
                 ],
@@ -164,67 +123,424 @@ class DashboardDoctorScreen extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────
-// SECTION IA & ANALYSE DE RISQUE
+// HEADER
+// ─────────────────────────────────────────────────────────────
+
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.name,
+    required this.photoUrl,
+    required this.isDark,
+  });
+  final String name;
+  final String? photoUrl;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final hour = DateTime.now().hour;
+    final greeting = hour < 12
+        ? 'Bonjour'
+        : hour < 18
+        ? 'Bon après-midi'
+        : 'Bonsoir';
+
+    return Container(
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 16,
+        left: 20,
+        right: 20,
+        bottom: 24,
+      ),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF1A56DB), Color(0xFF0E3FA8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$greeting 👋',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Dr. $name',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF34D399),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'En ligne',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () => context.push(RouteNames.doctorProfile),
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                radius: 26,
+                backgroundColor: const Color(0xFFE0E7FF),
+                backgroundImage: (photoUrl != null && photoUrl!.isNotEmpty)
+                    ? NetworkImage(photoUrl!)
+                    : null,
+                child: (photoUrl == null || photoUrl!.isEmpty)
+                    ? const Icon(
+                        Icons.person_rounded,
+                        color: Color(0xFF1A56DB),
+                        size: 28,
+                      )
+                    : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// STATS GRID
+// ─────────────────────────────────────────────────────────────
+
+class _StatsGrid extends StatelessWidget {
+  const _StatsGrid({
+    required this.doctorUid,
+    required this.userService,
+    required this.isDark,
+  });
+  final String doctorUid;
+  final UserService userService;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: userService.streamDoctorPatients(doctorUid),
+      builder: (context, patientsSnap) {
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('alerts')
+              .where('doctorUid', isEqualTo: doctorUid)
+              .limit(100)
+              .snapshots(),
+          builder: (context, alertsSnap) {
+            // Les deux streams sont lus simultanément
+            final pLoading =
+                patientsSnap.connectionState == ConnectionState.waiting;
+            final aLoading =
+                alertsSnap.connectionState == ConnectionState.waiting;
+
+            final patients = patientsSnap.data ?? [];
+            final alertDocs = alertsSnap.data?.docs ?? [];
+            final alerts = alertDocs
+                .map((d) => d.data() as Map<String, dynamic>)
+                .toList();
+
+            final totalPatients = patients.length;
+            final critical = alerts
+                .where((a) => a['severity'] == 'critical')
+                .length;
+            final unread = alerts.where((a) => a['read'] == false).length;
+            final total = alerts.length;
+
+            return GridView.count(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              childAspectRatio: 1.2,
+              children: [
+                _StatCard(
+                  label: 'Patients',
+                  value: totalPatients.toString(),
+                  icon: Icons.people_alt_rounded,
+                  color: const Color(0xFF1A56DB),
+                  isDark: isDark,
+                  loading: pLoading,
+                  onTap: () => context.go(RouteNames.doctorPatients),
+                ),
+                _StatCard(
+                  label: 'Critiques',
+                  value: critical.toString(),
+                  icon: Icons.warning_rounded,
+                  color: AppColors.error,
+                  isDark: isDark,
+                  loading: aLoading,
+                  onTap: () => context.go(RouteNames.doctorAlerts),
+                ),
+                _StatCard(
+                  label: 'Non lues',
+                  value: unread.toString(),
+                  icon: Icons.notifications_active_outlined,
+                  color: AppColors.warning,
+                  isDark: isDark,
+                  loading: aLoading,
+                  onTap: () => context.go(RouteNames.doctorAlerts),
+                ),
+                _StatCard(
+                  label: 'Total alertes',
+                  value: total.toString(),
+                  icon: Icons.bar_chart_rounded,
+                  color: AppColors.success,
+                  isDark: isDark,
+                  loading: aLoading,
+                  onTap: () => context.go(RouteNames.doctorAlerts),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.isDark,
+    required this.loading,
+    this.onTap,
+  });
+  final String label, value;
+  final IconData icon;
+  final Color color;
+  final bool isDark, loading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.1),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                loading
+                    ? Container(
+                        height: 24,
+                        width: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(4),
+                          // Rectangle gris animé pendant le chargement ("skeleton")
+                        ),
+                      )
+                    : Text(
+                        value,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF0F172A),
+                        ),
+                      ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textMedium,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// IA & ANALYSE DE RISQUE
 // ─────────────────────────────────────────────────────────────
 
 class _AIRiskSection extends StatelessWidget {
   const _AIRiskSection({required this.doctorUid, required this.isDark});
-
   final String doctorUid;
   final bool isDark;
 
   @override
   Widget build(BuildContext context) {
+    // REQUÊTE 1 : récupérer tous les patients du médecin
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
-          .where('doctorUid', isEqualTo: doctorUid)
           .where('role', isEqualTo: 'patient')
+          .where('doctorUid', isEqualTo: doctorUid)
           .snapshots(),
       builder: (context, patientsSnap) {
         if (patientsSnap.connectionState == ConnectionState.waiting) {
           return _aiLoadingCard();
         }
-
         final patientDocs = patientsSnap.data?.docs ?? [];
         if (patientDocs.isEmpty) {
           return _aiNoDataCard('Aucun patient assigné pour l\'analyse IA.');
         }
-
+        // Limite à 10 car whereIn a une limite de 10 valeurs dans Firestore
         final ids = patientDocs.map((d) => d.id).take(10).toList();
 
+        // REQUÊTE 2 : récupérer les mesures récentes de ces patients
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('measurements')
               .where('uid', whereIn: ids)
-              .orderBy('timestamp', descending: true)
               .limit(50)
               .snapshots(),
           builder: (context, measSnap) {
             if (measSnap.connectionState == ConnectionState.waiting) {
               return _aiLoadingCard();
             }
-
-            final docs = measSnap.data?.docs ?? [];
-
-            // Garder uniquement la mesure la plus récente par patient
-            final latestByPatient = <String, Map<String, dynamic>>{};
-            for (final doc in docs) {
-              final d = doc.data() as Map<String, dynamic>;
-              final uid = (d['uid'] as String?) ?? '';
-              if (!latestByPatient.containsKey(uid)) {
-                latestByPatient[uid] = d;
-              }
+            if (measSnap.hasError) {
+              return _aiNoDataCard('Erreur chargement mesures.');
             }
 
-            if (latestByPatient.isEmpty) {
+            final docs = measSnap.data?.docs ?? [];
+            // Trier par timestamp décroissant (plus récent en premier)
+            final sorted = [...docs]
+              ..sort((a, b) {
+                final aRaw = (a.data() as Map)['timestamp'];
+                final bRaw = (b.data() as Map)['timestamp'];
+                DateTime? aT, bT;
+                if (aRaw is Timestamp) {
+                  aT = aRaw.toDate();
+                } else if (aRaw is String) {
+                  aT = DateTime.tryParse(aRaw);
+                }
+                if (bRaw is Timestamp) {
+                  bT = bRaw.toDate();
+                } else if (bRaw is String) {
+                  bT = DateTime.tryParse(bRaw);
+                }
+                if (aT == null && bT == null) return 0;
+                if (aT == null) return 1;
+                if (bT == null) return -1;
+                return bT.compareTo(aT);
+              });
+
+            if (sorted.isEmpty) {
               return _aiNoDataCard(
                 'Aucune mesure disponible pour l\'analyse IA.',
               );
             }
 
-            final stats = _computeStats(latestByPatient, patientDocs);
-            return _buildAICard(context, stats);
+            // Garder uniquement la mesure la plus récente par patient
+            final latest = <String, Map<String, dynamic>>{};
+            for (final doc in sorted) {
+              final d = doc.data() as Map<String, dynamic>;
+              final uid = (d['uid'] as String?) ?? '';
+              if (uid.isNotEmpty && !latest.containsKey(uid)) latest[uid] = d;
+            }
+
+            if (latest.isEmpty) {
+              return _aiNoDataCard(
+                'Aucune mesure disponible pour l\'analyse IA.',
+              );
+            }
+
+            // Construire la map patients pour lookup direct
+            final patientMap = <String, Map<String, dynamic>>{};
+            for (final doc in patientDocs) {
+              patientMap[doc.id] = {
+                ...(doc.data() as Map<String, dynamic>),
+                'id': doc.id,
+              };
+            }
+
+            return _buildAICard(context, _computeStats(latest, patientMap));
           },
         );
       },
@@ -232,77 +548,69 @@ class _AIRiskSection extends StatelessWidget {
   }
 
   _AIStats _computeStats(
-    Map<String, Map<String, dynamic>> latestByPatient,
-    List<QueryDocumentSnapshot> patientDocs,
+    Map<String, Map<String, dynamic>> latest,
+    Map<String, Map<String, dynamic>> patientMap,
   ) {
     double totalScore = 0;
-    int highRiskCount = 0;
-    int severeCount = 0;
-    int moderateCount = 0;
-    String? worstPatientId;
+    int highRisk = 0, severe = 0, moderate = 0;
+    String? worstId;
     double worstRisk = 0;
 
-    for (final entry in latestByPatient.entries) {
-      final d = entry.value;
+    for (final e in latest.entries) {
+      final d = e.value;
       final score = (d['score'] as num?)?.toDouble() ?? 0.0;
       final apneas = (d['apneas'] as num?)?.toInt() ?? 0;
-      final spo2 = (d['avgSpo2'] ?? d['spo2'] as num?)?.toDouble() ?? 100.0;
-
+      final spo2Raw = d['avgSpo2'] ?? d['spo2'];
+      final spo2 = (spo2Raw as num?)?.toDouble() ?? 100.0;
       totalScore += score;
 
-      final isHighRisk = score < 50 || apneas >= 5 || spo2 < 92;
-      if (isHighRisk) highRiskCount++;
-
+      // Seuils médicaux de criticité
+      if (score < 50 || apneas >= 5 || spo2 < 92) highRisk++;
       if (apneas >= 10 || spo2 < 88) {
-        severeCount++;
+        severe++;
       } else if (apneas >= 5 || spo2 < 92) {
-        moderateCount++;
+        moderate++;
       }
 
+      // Formule de score de risque composite
       final risk =
           (100 - score) * 0.5 +
           apneas * 3.0 +
           (spo2 < 92 ? (92 - spo2) * 5 : 0);
       if (risk > worstRisk) {
         worstRisk = risk;
-        worstPatientId = entry.key;
+        worstId = e.key;
       }
     }
 
-    final n = latestByPatient.length;
-    final avgScore = n > 0 ? (totalScore / n) : 0.0;
+    final n = latest.length;
 
-    String worstPatientName = '—';
-    if (worstPatientId != null) {
-      final doc = patientDocs.firstWhere(
-        (d) => d.id == worstPatientId,
-        orElse: () => patientDocs.first,
-      );
-      final data = doc.data() as Map<String, dynamic>;
-      worstPatientName =
-          (data['fullName'] as String?)?.trim() ?? worstPatientId!;
+    // Lookup direct dans la Map pour éviter le problème de type
+    String worstName = '—';
+    if (worstId != null) {
+      final patientData = patientMap[worstId];
+      worstName =
+          (patientData?['fullName'] as String?)?.trim() ??
+          (patientData?['displayName'] as String?)?.trim() ??
+          worstId!;
     }
-
-    String severity;
-    if (severeCount > 0)
-      severity = 'Sévère';
-    else if (moderateCount > 0)
-      severity = 'Modérée';
-    else
-      severity = 'Légère';
 
     return _AIStats(
       totalAnalysed: n,
-      highRiskCount: highRiskCount,
-      avgScore: avgScore,
-      severity: severity,
-      worstPatientName: worstPatientName,
-      worstPatientId: worstPatientId,
+      highRiskCount: highRisk,
+      avgScore: n > 0 ? totalScore / n : 0.0,
+      severity: severe > 0
+          ? 'Sévère'
+          : moderate > 0
+          ? 'Modérée'
+          : 'Légère',
+      worstPatientName: worstName,
+      worstPatientId: worstId,
     );
   }
 
   Widget _buildAICard(BuildContext context, _AIStats stats) {
-    final severityColor = stats.severity == 'Sévère'
+    final sColor = stats.severity == 'Sévère'
         ? const Color(0xFFEF4444)
         : stats.severity == 'Modérée'
         ? const Color(0xFFF59E0B)
@@ -328,7 +636,6 @@ class _AIRiskSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // En-tête
           Row(
             children: [
               Container(
@@ -354,22 +661,21 @@ class _AIRiskSection extends StatelessWidget {
                   ),
                 ),
               ),
+              // Badge de sévérité globale (coloré selon le niveau)
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: severityColor.withValues(alpha: 0.25),
+                  color: sColor.withValues(alpha: 0.25),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: severityColor.withValues(alpha: 0.5),
-                  ),
+                  border: Border.all(color: sColor.withValues(alpha: 0.5)),
                 ),
                 child: Text(
                   stats.severity,
                   style: TextStyle(
-                    color: severityColor,
+                    color: sColor,
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
                   ),
@@ -378,8 +684,6 @@ class _AIRiskSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-
-          // Métriques
           Row(
             children: [
               _aiMetricBox(
@@ -402,10 +706,8 @@ class _AIRiskSection extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-
-          // Patient le plus à risque
-          if (stats.worstPatientId != null)
+          if (stats.worstPatientId != null) ...[
+            const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -465,6 +767,7 @@ class _AIRiskSection extends StatelessWidget {
                 ],
               ),
             ),
+          ],
         ],
       ),
     );
@@ -514,389 +817,45 @@ class _AIRiskSection extends StatelessWidget {
     );
   }
 
-  Widget _aiLoadingCard() {
-    return Container(
-      height: 160,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2E1065), Color(0xFF6D28D9)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
+  Widget _aiLoadingCard() => Container(
+    height: 160,
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF2E1065), Color(0xFF6D28D9)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
       ),
-      child: const Center(
-        child: CircularProgressIndicator(color: Colors.white54, strokeWidth: 2),
-      ),
-    );
-  }
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: const Center(
+      child: CircularProgressIndicator(color: Colors.white54, strokeWidth: 2),
+    ),
+  );
 
-  Widget _aiNoDataCard(String msg) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2E1065), Color(0xFF6D28D9)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
+  Widget _aiNoDataCard(String msg) => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF2E1065), Color(0xFF6D28D9)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.info_outline, color: Colors.white54, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              msg,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
-            ),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.info_outline, color: Colors.white54, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            msg,
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
 }
-
-// ─────────────────────────────────────────────────────────────
-// SECTION PATIENTS CRITIQUES
-// ─────────────────────────────────────────────────────────────
-
-class _CriticalPatientsSection extends StatelessWidget {
-  const _CriticalPatientsSection({
-    required this.doctorUid,
-    required this.isDark,
-  });
-
-  final String doctorUid;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('alerts')
-          .where('doctorUid', isEqualTo: doctorUid)
-          .where('severity', isEqualTo: 'critical')
-          .where('read', isEqualTo: false)
-          .limit(5)
-          .snapshots(),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return _skeleton();
-        }
-
-        if (snap.hasError) {
-          return _errorCard(snap.error.toString());
-        }
-
-        final docs = snap.data?.docs ?? [];
-        final sorted = [...docs]
-          ..sort((a, b) {
-            final aData = a.data() as Map<String, dynamic>;
-            final bData = b.data() as Map<String, dynamic>;
-            final aTs = aData['createdAt'];
-            final bTs = bData['createdAt'];
-            if (aTs is Timestamp && bTs is Timestamp) {
-              return bTs.compareTo(aTs);
-            }
-            return 0;
-          });
-
-        if (docs.isEmpty) {
-          return _emptyCard();
-        }
-
-        return Column(
-          children: docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            return _CriticalPatientTile(
-              data: data,
-              isDark: isDark,
-              onTap: () {
-                final patientId = data['patientId'] as String?;
-                if (patientId != null && patientId.isNotEmpty) {
-                  context.push(RouteNames.doctorPatientProfile(patientId));
-                }
-              },
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
-
-  Widget _skeleton() {
-    return Column(
-      children: List.generate(
-        2,
-        (_) => Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          height: 72,
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.darkSurface : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _emptyCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.green.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.green.shade200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.green.shade100,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.check_circle_outline,
-              color: Colors.green,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Aucun patient critique',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    color: Colors.green,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Tous vos patients sont stables.',
-                  style: TextStyle(fontSize: 12, color: Colors.green),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _errorCard(String error) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.red.shade50,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        'Erreur chargement : $error',
-        style: const TextStyle(fontSize: 12, color: Colors.red),
-      ),
-    );
-  }
-}
-
-class _CriticalPatientTile extends StatelessWidget {
-  const _CriticalPatientTile({
-    required this.data,
-    required this.isDark,
-    required this.onTap,
-  });
-
-  final Map<String, dynamic> data;
-  final bool isDark;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final patientId = (data['patientId'] as String?) ?? '';
-    final message = (data['message'] as String?) ?? 'Alerte critique';
-    final type = (data['type'] as String?) ?? 'apnea';
-    final value = (data['value'] as num?)?.toStringAsFixed(0) ?? '—';
-    final createdAt = _formatTimestamp(data['createdAt']);
-    final (icon, color, unit) = _resolveType(type);
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.darkSurface : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFFEF4444).withValues(alpha: 0.3),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFEF4444).withValues(alpha: 0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _shortenMessage(message),
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                            color: isDark
-                                ? Colors.white
-                                : const Color(0xFF0F172A),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '$value$unit',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: color,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.person_outline,
-                        size: 11,
-                        color: Colors.grey,
-                      ),
-                      const SizedBox(width: 3),
-                      _PatientNameFetcher(patientId: patientId),
-                      const Spacer(),
-                      Text(
-                        createdAt,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
-          ],
-        ),
-      ),
-    );
-  }
-
-  (IconData, Color, String) _resolveType(String type) {
-    switch (type) {
-      case 'spo2':
-        return (Icons.air, const Color(0xFF3B82F6), '%');
-      case 'heartRate':
-        return (Icons.favorite, const Color(0xFFEF4444), ' bpm');
-      case 'apnea':
-        return (Icons.airline_seat_flat, const Color(0xFFF59E0B), ' evt');
-      default:
-        return (Icons.warning_amber_rounded, const Color(0xFFEF4444), '');
-    }
-  }
-
-  String _shortenMessage(String msg) {
-    final idx = msg.indexOf(':');
-    return idx > 0 ? msg.substring(0, idx) : msg;
-  }
-
-  String _formatTimestamp(dynamic raw) {
-    if (raw == null) return '';
-    DateTime? dt;
-    if (raw is Timestamp) dt = raw.toDate();
-    if (raw is String) dt = DateTime.tryParse(raw);
-    if (dt == null) return '';
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) return 'il y a ${diff.inMinutes} min';
-    if (diff.inHours < 24) return 'il y a ${diff.inHours} h';
-    return 'il y a ${diff.inDays} j';
-  }
-}
-
-class _PatientNameFetcher extends StatelessWidget {
-  const _PatientNameFetcher({required this.patientId});
-  final String patientId;
-
-  @override
-  Widget build(BuildContext context) {
-    if (patientId.isEmpty) {
-      return const Text(
-        '—',
-        style: TextStyle(fontSize: 11, color: Colors.grey),
-      );
-    }
-    return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance
-          .collection('users')
-          .doc(patientId)
-          .get(),
-      builder: (context, snap) {
-        if (!snap.hasData) {
-          return const Text(
-            '...',
-            style: TextStyle(fontSize: 11, color: Colors.grey),
-          );
-        }
-        final d = snap.data?.data() as Map<String, dynamic>?;
-        final name = (d?['fullName'] as String?)?.trim();
-        return Text(
-          name != null && name.isNotEmpty ? name : patientId,
-          style: const TextStyle(fontSize: 11, color: Colors.grey),
-          overflow: TextOverflow.ellipsis,
-        );
-      },
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Modèle interne stats IA
-// ─────────────────────────────────────────────────────────────
 
 class _AIStats {
   const _AIStats({
@@ -907,280 +866,298 @@ class _AIStats {
     required this.worstPatientName,
     required this.worstPatientId,
   });
-
-  final int totalAnalysed;
-  final int highRiskCount;
+  final int totalAnalysed, highRiskCount;
   final double avgScore;
-  final String severity;
-  final String worstPatientName;
+  final String severity, worstPatientName;
   final String? worstPatientId;
 }
 
 // ─────────────────────────────────────────────────────────────
-// Header
+// ALERTES RÉCENTES
 // ─────────────────────────────────────────────────────────────
 
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.name,
-    required this.photoUrl,
-    required this.isDark,
-  });
-
-  final String name;
-  final String? photoUrl;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 20,
-        left: 24,
-        right: 24,
-        bottom: 28,
-      ),
-      decoration: const BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _greeting(),
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Dr. $name',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.3,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: () => context.push(RouteNames.doctorProfile),
-            child: Container(
-              padding: const EdgeInsets.all(2),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: CircleAvatar(
-                radius: 24,
-                backgroundColor: AppColors.surfaceLight,
-                backgroundImage: (photoUrl != null && photoUrl!.isNotEmpty)
-                    ? NetworkImage(photoUrl!)
-                    : null,
-                child: (photoUrl == null || photoUrl!.isEmpty)
-                    ? const Icon(
-                        Icons.person_rounded,
-                        color: AppColors.primary,
-                        size: 26,
-                      )
-                    : null,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _greeting() {
-    final h = DateTime.now().hour;
-    if (h < 12) return 'Bonjour,';
-    if (h < 18) return 'Bon après-midi,';
-    return 'Bonsoir,';
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Stats Grid
-// ─────────────────────────────────────────────────────────────
-
-class _StatsGrid extends StatelessWidget {
-  const _StatsGrid({
-    required this.doctorUid,
-    required this.userService,
-    required this.alertService,
-    required this.isDark,
-  });
-
+class _AlertsList extends StatelessWidget {
+  const _AlertsList({required this.doctorUid, required this.isDark});
   final String doctorUid;
-  final UserService userService;
-  final AlertService alertService;
   final bool isDark;
+
+  Stream<List<Map<String, dynamic>>> _stream() {
+    return FirebaseFirestore.instance
+        .collection('alerts')
+        .where('doctorUid', isEqualTo: doctorUid)
+        .limit(20)
+        .snapshots()
+        .map((snap) {
+          final list = snap.docs
+              .map((d) => <String, dynamic>{...d.data(), 'id': d.id})
+              .toList();
+          // Tri côté client par timestamp décroissant
+          list.sort((a, b) {
+            DateTime? at, bt;
+            final ar = a['createdAt'];
+            final br = b['createdAt'];
+            if (ar is Timestamp) at = ar.toDate();
+            if (br is Timestamp) bt = br.toDate();
+            if (at == null && bt == null) return 0;
+            if (at == null) return 1;
+            if (bt == null) return -1;
+            return bt.compareTo(at); // Plus récent en premier
+          });
+          return list;
+        });
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: userService.streamDoctorPatients(doctorUid),
-      builder: (context, patientsSnap) {
-        return StreamBuilder<List<Map<String, dynamic>>>(
-          stream: alertService.streamDoctorAlerts(doctorUid),
-          builder: (context, alertsSnap) {
-            final patients = patientsSnap.data ?? [];
-            final alerts = alertsSnap.data ?? [];
-            final totalPatients = patients.length;
-            final critical = alerts
-                .where((a) => a['severity'] == 'critical')
-                .length;
-            final unread = alerts.where((a) => a['read'] == false).length;
+      stream: _stream(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return _AlertSkeleton(isDark: isDark);
+        }
+        if (snap.hasError) {
+          return _alertEmpty(
+            isDark: isDark,
+            icon: Icons.error_outline_rounded,
+            message: 'Impossible de charger les alertes.',
+            color: AppColors.error,
+          );
+        }
 
-            return GridView.count(
-              crossAxisCount: 2,
-              crossAxisSpacing: 14,
-              mainAxisSpacing: 14,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              childAspectRatio: 1.6,
-              children: [
-                _StatCard(
-                  label: 'Patients',
-                  value: totalPatients.toString(),
-                  icon: Icons.people_alt_rounded,
-                  color: AppColors.primary,
-                  isDark: isDark,
-                  loading: !patientsSnap.hasData,
+        final alerts = snap.data ?? [];
+        if (alerts.isEmpty) {
+          return _alertEmpty(
+            isDark: isDark,
+            icon: Icons.check_circle_outline_rounded,
+            message: 'Aucune alerte.\nTous vos patients vont bien.',
+            color: AppColors.success,
+          );
+        }
+
+        return Column(
+          children: alerts.take(3).map((alert) {
+            final severity = alert['severity'] as String? ?? 'info';
+            final message =
+                (alert['message'] as String?) ??
+                (alert['type'] as String?) ??
+                'Alerte';
+            final patientId =
+                (alert['patientId'] as String?) ??
+                (alert['patientUid'] as String?) ??
+                '';
+            final isRead = alert['read'] as bool? ?? false;
+            final createdAt = _formatTime(alert['createdAt']);
+            final (color, icon) = _severityStyle(severity);
+
+            return GestureDetector(
+              onTap: () {
+                if (patientId.isNotEmpty) {
+                  context.push(
+                    RouteNames.doctorPatientProfile(
+                      Uri.encodeComponent(patientId),
+                    ),
+                  );
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSurface : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isRead
+                        ? (isDark
+                              ? Colors.white.withValues(alpha: 0.06)
+                              : Colors.grey.shade100)
+                        : color.withValues(alpha: 0.3),
+                    width: isRead ? 1 : 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: isRead
+                          ? Colors.transparent
+                          : color.withValues(alpha: 0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                _StatCard(
-                  label: 'Alertes critiques',
-                  value: critical.toString(),
-                  icon: Icons.warning_rounded,
-                  color: AppColors.error,
-                  isDark: isDark,
-                  loading: !alertsSnap.hasData,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(icon, color: color, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  message,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isRead
+                                        ? FontWeight.w500
+                                        : FontWeight.w700,
+                                    color: isDark
+                                        ? Colors.white
+                                        : const Color(0xFF0F172A),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              // Indicateur "non lue" : point coloré
+                              if (!isRead)
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  margin: const EdgeInsets.only(left: 6),
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  _severityLabel(severity),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: color,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                createdAt,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: isDark
+                                      ? AppColors.darkTextSecondary
+                                      : AppColors.textMedium,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 16,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.textLight,
+                    ),
+                  ],
                 ),
-                _StatCard(
-                  label: 'Non lues',
-                  value: unread.toString(),
-                  icon: Icons.notifications_outlined,
-                  color: AppColors.warning,
-                  isDark: isDark,
-                  loading: !alertsSnap.hasData,
-                ),
-                _StatCard(
-                  label: 'Total alertes',
-                  value: alerts.length.toString(),
-                  icon: Icons.bar_chart_rounded,
-                  color: AppColors.success,
-                  isDark: isDark,
-                  loading: !alertsSnap.hasData,
-                ),
-              ],
+              ),
             );
-          },
+          }).toList(),
         );
       },
     );
   }
-}
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-    required this.isDark,
-    required this.loading,
-  });
+  (Color, IconData) _severityStyle(String severity) {
+    switch (severity) {
+      case 'critical':
+        return (AppColors.error, Icons.warning_rounded);
+      case 'warning':
+        return (AppColors.warning, Icons.info_outline_rounded);
+      default:
+        return (AppColors.info, Icons.notifications_outlined);
+    }
+  }
 
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-  final bool isDark;
-  final bool loading;
+  String _severityLabel(String s) {
+    switch (s) {
+      case 'critical':
+        return 'CRITIQUE';
+      case 'warning':
+        return 'AVERT.';
+      default:
+        return 'INFO';
+    }
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  String _formatTime(dynamic raw) {
+    if (raw == null) return '';
+    DateTime? dt;
+    if (raw is Timestamp) dt = raw.toDate();
+    if (raw is String) dt = DateTime.tryParse(raw);
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'À l\'instant';
+    if (diff.inMinutes < 60) return 'Il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'Il y a ${diff.inHours} h';
+    return 'Il y a ${diff.inDays} j';
+  }
+
+  Widget _alertEmpty({
+    required bool isDark,
+    required IconData icon,
+    required String message,
+    required Color color,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isDark
               ? Colors.white.withValues(alpha: 0.06)
-              : AppColors.surfaceLight,
+              : Colors.grey.shade100,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Row(
         children: [
           Container(
-            width: 32,
-            height: 32,
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+              shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 16),
+            child: Icon(icon, color: color, size: 22),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              loading
-                  ? Container(
-                      height: 20,
-                      width: 40,
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.08)
-                            : AppColors.surfaceLight,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    )
-                  : Flexible(
-                      child: Text(
-                        value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: isDark ? Colors.white : AppColors.textDark,
-                        ),
-                      ),
-                    ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isDark
-                      ? AppColors.darkTextSecondary
-                      : AppColors.textMedium,
-                ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textMedium,
+                height: 1.5,
               ),
-            ],
+            ),
           ),
         ],
       ),
@@ -1188,8 +1165,68 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+class _AlertSkeleton extends StatelessWidget {
+  const _AlertSkeleton({required this.isDark});
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: List.generate(
+        3,
+        (i) => Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          height: 68,
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Container(
+                margin: const EdgeInsets.all(14),
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 12,
+                      width: 180,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 10,
+                      width: 100,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
-// Liste patients
+// LISTE PATIENTS
 // ─────────────────────────────────────────────────────────────
 
 class _PatientsList extends StatelessWidget {
@@ -1198,7 +1235,6 @@ class _PatientsList extends StatelessWidget {
     required this.userService,
     required this.isDark,
   });
-
   final String doctorUid;
   final UserService userService;
   final bool isDark;
@@ -1216,25 +1252,28 @@ class _PatientsList extends StatelessWidget {
             ),
           );
         }
-
         final patients = snap.data!;
-
         if (patients.isEmpty) {
           return _EmptyState(
             icon: Icons.person_add_outlined,
-            message:
-                'Aucun patient pour l\'instant.\nAjoutez votre premier patient.',
+            message: 'Aucun patient.\nAjoutez votre premier patient.',
             isDark: isDark,
           );
         }
-
         return Column(
-          children: patients.take(3).map((patient) {
-            final uid = patient['uid'] as String? ?? '';
-            final name = (patient['fullName'] as String?)?.trim() ?? 'Patient';
-            final gender = patient['gender'] as String? ?? '';
-            final age = patient['age'];
-            final initials = name.isNotEmpty ? name[0].toUpperCase() : 'P';
+          children: patients.take(3).map((p) {
+            // Afficher seulement 3
+            final uid = p['uid'] as String? ?? '';
+            final name = (p['fullName'] as String?)?.trim() ?? 'Patient';
+            final age = p['age'];
+            final gender = p['gender'] as String? ?? '';
+            final initial = name.isNotEmpty
+                ? name[0].toUpperCase()
+                : 'P'; // Initiale pour l'avatar
+            final subtitle = [
+              if (age != null) '$age ans',
+              if (gender.isNotEmpty) gender,
+            ].join(' · ');
 
             return GestureDetector(
               onTap: () => context.push(
@@ -1249,16 +1288,17 @@ class _PatientsList extends StatelessWidget {
                   border: Border.all(
                     color: isDark
                         ? Colors.white.withValues(alpha: 0.06)
-                        : AppColors.surfaceLight,
+                        : Colors.grey.shade100,
                   ),
                 ),
                 child: Row(
                   children: [
                     CircleAvatar(
                       radius: 20,
-                      backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                      backgroundColor:
+                          AppColors.primary.withValues(alpha: 0.1),
                       child: Text(
-                        initials,
+                        initial,
                         style: const TextStyle(
                           color: AppColors.primary,
                           fontWeight: FontWeight.w700,
@@ -1276,22 +1316,21 @@ class _PatientsList extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white : AppColors.textDark,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            [
-                              if (age != null) '$age ans',
-                              if (gender.isNotEmpty) gender,
-                            ].join(' · '),
-                            style: TextStyle(
-                              fontSize: 12,
                               color: isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.textMedium,
+                                  ? Colors.white
+                                  : AppColors.textDark,
                             ),
                           ),
+                          if (subtitle.isNotEmpty)
+                            Text(
+                              subtitle,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.textMedium,
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -1314,151 +1353,56 @@ class _PatientsList extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Liste alertes
+// HELPERS
 // ─────────────────────────────────────────────────────────────
 
-class _AlertsList extends StatelessWidget {
-  const _AlertsList({
-    required this.doctorUid,
-    required this.alertService,
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({
+    required this.title,
+    required this.icon,
     required this.isDark,
   });
-
-  final String doctorUid;
-  final AlertService alertService;
+  final String title;
+  final IconData icon;
   final bool isDark;
 
   @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: alertService.streamDoctorAlerts(doctorUid),
-      builder: (context, snap) {
-        if (!snap.hasData) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-
-        final alerts = snap.data!;
-
-        if (alerts.isEmpty) {
-          return _EmptyState(
-            icon: Icons.check_circle_outline_rounded,
-            message: 'Aucune alerte active.\nTous vos patients vont bien.',
-            isDark: isDark,
-            color: AppColors.success,
-          );
-        }
-
-        return Column(
-          children: alerts.take(3).map((alert) {
-            final severity = alert['severity'] as String? ?? 'info';
-            final message =
-                alert['message'] as String? ??
-                alert['type'] as String? ??
-                'Alerte';
-            final patientId =
-                alert['patientId'] as String? ??
-                alert['patientUid'] as String? ??
-                '';
-            final isRead = alert['read'] as bool? ?? false;
-
-            final color = severity == 'critical'
-                ? AppColors.error
-                : severity == 'warning'
-                ? AppColors.warning
-                : AppColors.info;
-
-            return GestureDetector(
-              onTap: () {
-                if (patientId.isNotEmpty) {
-                  context.push(
-                    RouteNames.doctorPatientProfile(
-                      Uri.encodeComponent(patientId),
-                    ),
-                  );
-                }
-              },
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkSurface : Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border(
-                    left: BorderSide(color: color, width: 4),
-                    top: BorderSide(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.06)
-                          : AppColors.surfaceLight,
-                    ),
-                    right: BorderSide(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.06)
-                          : AppColors.surfaceLight,
-                    ),
-                    bottom: BorderSide(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.06)
-                          : AppColors.surfaceLight,
-                    ),
-                  ),
-                ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  leading: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      severity == 'critical'
-                          ? Icons.warning_rounded
-                          : Icons.notifications_outlined,
-                      color: color,
-                      size: 18,
-                    ),
-                  ),
-                  title: Text(
-                    message,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isRead ? FontWeight.w400 : FontWeight.w600,
-                      color: isDark ? Colors.white : AppColors.textDark,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: !isRead
-                      ? Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
-                          ),
-                        )
-                      : null,
-                ),
-              ),
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(icon, size: 18, color: AppColors.primary),
+      const SizedBox(width: 8),
+      Text(
+        title,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          color: isDark ? Colors.white : const Color(0xFF0F172A),
+        ),
+      ),
+    ],
+  );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Actions rapides
-// ─────────────────────────────────────────────────────────────
+class _ViewAllButton extends StatelessWidget {
+  const _ViewAllButton({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => TextButton(
+    onPressed: onTap,
+    style: TextButton.styleFrom(
+      foregroundColor: AppColors.primary,
+      padding: EdgeInsets.zero,
+      // Supprime le padding minimum par défaut
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    ),
+    child: Text(
+      label,
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+    ),
+  );
+}
 
 class _QuickActions extends StatelessWidget {
   const _QuickActions({required this.isDark});
@@ -1492,7 +1436,6 @@ class _QuickActions extends StatelessWidget {
         () => context.go(RouteNames.doctorSettings),
       ),
     ];
-
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: actions.map((a) {
@@ -1530,84 +1473,47 @@ class _QuickActions extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Helpers communs
-// ─────────────────────────────────────────────────────────────
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({
-    required this.title,
-    required this.icon,
-    required this.isDark,
-  });
-
-  final String title;
-  final IconData icon;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: AppColors.primary),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: isDark ? Colors.white : AppColors.textDark,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _EmptyState extends StatelessWidget {
+  // Icône + message de placeholder quand une liste est vide
+  // Réutilisé dans _PatientsList
   const _EmptyState({
     required this.icon,
     required this.message,
     required this.isDark,
-    this.color = AppColors.textMedium,
   });
-
   final IconData icon;
   final String message;
   final bool isDark;
-  final Color color;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : AppColors.surfaceLight,
-        ),
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: isDark ? AppColors.darkSurface : Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.grey.shade100,
       ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                fontSize: 13,
-                color: isDark
-                    ? AppColors.darkTextSecondary
-                    : AppColors.textMedium,
-                height: 1.5,
-              ),
+    ),
+    child: Row(
+      children: [
+        Icon(icon, color: AppColors.textMedium, size: 28),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            message,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textMedium,
+              height: 1.5,
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
 }

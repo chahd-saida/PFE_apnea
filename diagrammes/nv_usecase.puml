@@ -1,0 +1,164 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #888888
+  ArrowColor #444444
+}
+
+title Diagramme de cas d'utilisation — SleepApnea Detect (Flutter + FastAPI + Firebase)
+
+' ═══════════════════════════════════════════
+' ACTEURS
+' ═══════════════════════════════════════════
+actor "Patient"       as Patient
+actor "Médecin"       as Doctor
+actor "ESP32\n(capteurs)" as ESP32
+actor "Firebase Auth" as FBAuth  #lightgray
+actor "Firestore"     as FSStore #lightgray
+actor "Groq LLaMA"   as Groq    #lightgray
+actor "FastAPI\nBackend" as Backend #lightgray
+
+' ═══════════════════════════════════════════
+' SYSTÈME
+' ═══════════════════════════════════════════
+rectangle "Application SleepApnea Detect" {
+
+  ' ── Cas communs ──────────────────────────
+  package "Authentification" {
+    usecase "Se connecter"                   as UC_Login
+    usecase "Saisir email / mot de passe"    as UC_Creds
+    usecase "Vérifier rôle utilisateur"      as UC_Role
+    usecase "Rediriger vers dashboard"       as UC_Redirect
+    usecase "Récupérer mot de passe"         as UC_Forgot
+    usecase "Se déconnecter"                 as UC_Logout
+  }
+
+  ' ── Cas Patient ──────────────────────────
+  package "Espace Patient" {
+    usecase "Consulter dashboard patient"    as UC_PatDash
+    usecase "Démarrer surveillance"          as UC_StartMon
+    usecase "Visualiser données temps réel\n(SpO2, BPM, Temp, ECG, IA)" as UC_Realtime
+    usecase "Arrêter surveillance\n+ sauvegarder session" as UC_StopMon
+    usecase "Consulter historique sessions"  as UC_History
+    usecase "Consulter détails d'une nuit"   as UC_NightDetail
+    usecase "Consulter alertes patient"      as UC_PatAlerts
+    usecase "Chatbot patient\n(LLaMA 3.1-8B)" as UC_PatChat
+    usecase "Exporter rapport PDF"           as UC_ExportPDF
+    usecase "Partager / Envoyer rapport"     as UC_SharePDF
+    usecase "Gérer profil patient"           as UC_PatProfile
+    usecase "Configurer préférences\n(langue, thème, notifs)" as UC_PatSettings
+    usecase "Consulter contenu relaxation"   as UC_Relax
+  }
+
+  ' ── Cas Médecin ──────────────────────────
+  package "Espace Médecin" {
+    usecase "Consulter dashboard médecin"    as UC_DocDash
+    usecase "Ajouter patient"                as UC_AddPat
+    usecase "Gérer liste patients"           as UC_PatList
+    usecase "Consulter profil patient"       as UC_DocPatProfile
+    usecase "Analyser nuit patient\n(détails session + IA)" as UC_Analysis
+    usecase "Saisir note / diagnostic"       as UC_Note
+    usecase "Chatbot médecin\n(LLaMA 3.3-70B)" as UC_DocChat
+    usecase "Générer résumé IA d'une nuit"   as UC_AISummary
+    usecase "Centre d'alertes médecin"       as UC_DocAlerts
+    usecase "Messagerie médecin-patient"     as UC_Messaging
+    usecase "Générer rapport PDF médical"    as UC_DocPDF
+    usecase "Paramètres médecin"             as UC_DocSettings
+  }
+
+  ' ── Cas transversaux ─────────────────────
+  package "Contrôle d'accès & Données" {
+    usecase "Vérifier droits RBAC\n(GoRouter)"  as UC_RBAC
+    usecase "Persistance Firebase\n(Firestore)"  as UC_FBData
+    usecase "Recevoir données\ncapteurs temps réel" as UC_ESP32Data
+    usecase "Appel API chatbot\n(POST /chatbot/chat)" as UC_ChatAPI
+  }
+}
+
+' ═══════════════════════════════════════════
+' ASSOCIATIONS — Patient
+' ═══════════════════════════════════════════
+Patient --> UC_Login
+Patient --> UC_PatDash
+Patient --> UC_StartMon
+Patient --> UC_History
+Patient --> UC_PatAlerts
+Patient --> UC_PatChat
+Patient --> UC_ExportPDF
+Patient --> UC_PatProfile
+Patient --> UC_PatSettings
+Patient --> UC_Relax
+Patient --> UC_Logout
+
+' ═══════════════════════════════════════════
+' ASSOCIATIONS — Médecin
+' ═══════════════════════════════════════════
+Doctor --> UC_Login
+Doctor --> UC_DocDash
+Doctor --> UC_AddPat
+Doctor --> UC_PatList
+Doctor --> UC_DocPatProfile
+Doctor --> UC_Analysis
+Doctor --> UC_DocChat
+Doctor --> UC_DocAlerts
+Doctor --> UC_Messaging
+Doctor --> UC_DocPDF
+Doctor --> UC_DocSettings
+Doctor --> UC_Logout
+
+' ═══════════════════════════════════════════
+' ASSOCIATIONS — Acteurs externes
+' ═══════════════════════════════════════════
+ESP32   --> UC_ESP32Data
+FBAuth  --> UC_Login
+FBAuth  --> UC_Logout
+FSStore --> UC_FBData
+Groq    --> UC_PatChat
+Groq    --> UC_DocChat
+Backend --> UC_ESP32Data
+Backend --> UC_ChatAPI
+
+' ═══════════════════════════════════════════
+' RELATIONS include
+' ═══════════════════════════════════════════
+UC_Login      ..> UC_Creds    : <<include>>
+UC_Login      ..> UC_Role     : <<include>>
+UC_Login      ..> UC_Redirect : <<include>>
+
+UC_PatDash    ..> UC_RBAC     : <<include>>
+UC_DocDash    ..> UC_RBAC     : <<include>>
+UC_AddPat     ..> UC_RBAC     : <<include>>
+UC_Analysis   ..> UC_RBAC     : <<include>>
+UC_DocPDF     ..> UC_RBAC     : <<include>>
+UC_Messaging  ..> UC_RBAC     : <<include>>
+
+UC_StartMon   ..> UC_ESP32Data : <<include>>
+UC_Realtime   ..> UC_ESP32Data : <<include>>
+
+UC_PatProfile ..> UC_FBData   : <<include>>
+UC_DocPatProfile ..> UC_FBData : <<include>>
+UC_History    ..> UC_FBData   : <<include>>
+UC_Analysis   ..> UC_FBData   : <<include>>
+UC_DocPDF     ..> UC_FBData   : <<include>>
+UC_Messaging  ..> UC_FBData   : <<include>>
+
+UC_PatChat    ..> UC_ChatAPI  : <<include>>
+UC_DocChat    ..> UC_ChatAPI  : <<include>>
+UC_AISummary  ..> UC_ChatAPI  : <<include>>
+
+' ═══════════════════════════════════════════
+' RELATIONS extend
+' ═══════════════════════════════════════════
+UC_Login      ..> UC_Forgot     : <<extend>>
+UC_History    ..> UC_NightDetail : <<extend>>
+UC_ExportPDF  ..> UC_SharePDF   : <<extend>>
+UC_Analysis   ..> UC_Note       : <<extend>>
+UC_Analysis   ..> UC_AISummary  : <<extend>>
+UC_StartMon   ..> UC_Realtime   : <<extend>>
+UC_Realtime   ..> UC_StopMon    : <<extend>>
+
+@enduml

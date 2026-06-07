@@ -1,0 +1,35 @@
+@startuml
+skinparam shadowing false
+
+title Diagramme de séquence — Monitoring temps réel
+
+actor       "Patient"     as User
+participant "Flutter"     as UI
+participant "FastAPI"     as API
+participant "ESP32/MQTT"  as ESP
+participant "MoteurIA v4" as IA
+participant "SQLite"      as DB
+participant "Firebase"    as FB
+
+User -> UI  : Démarrer surveillance
+UI   -> API : WebSocket ws://IP:8000/ws/{uid}
+API --> UI  : Connexion acceptée
+
+loop Chaque 500ms
+  ESP -> API : MQTT {bpm, spo2, temp, ecg}
+  API -> IA  : predire(donnees)
+  IA --> API : {apnee, score, severite}
+  API -> DB  : sauvegarder mesure + résultat IA
+  API -> UI  : WebSocket JSON {donnees + ia}
+  UI --> UI  : Mise à jour interface
+end
+
+User -> UI  : Message chatbot
+UI   -> API : POST /chatbot/chat
+API --> UI  : Réponse LLaMA (70B/8B)
+
+User -> UI  : Arrêter surveillance
+UI   -> FB  : saveMonitoringSession()
+FB  --> UI  : Session sauvegardée ✓
+
+@enduml

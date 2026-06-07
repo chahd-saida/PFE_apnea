@@ -1,0 +1,89 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam actorStyle awesome
+
+title Diagramme de cas d'utilisation — SleepApnea Detect
+
+actor "Patient" as P
+actor "Médecin" as D
+
+rectangle "SleepApnea Detect" {
+
+  usecase "S'authentifier" as Auth
+
+  package "Espace Patient" {
+    usecase "Consulter dashboard"          as PD
+    usecase "Surveiller en temps réel"     as Mon
+    usecase "Consulter historique"         as Hist
+    usecase "Consulter alertes"            as PA
+    usecase "Utiliser chatbot"             as PC
+    usecase "Exporter rapport PDF"         as PDF
+    usecase "Gérer profil"                 as PP
+    usecase "Configurer préférences"       as PS
+    usecase "Consulter relaxation"         as Rel
+    usecase "Se déconnecter"               as POut
+  }
+
+  package "Espace Médecin" {
+    usecase "Consulter dashboard"          as DD
+    usecase "Ajouter un patient"           as AP
+    usecase "Gérer liste patients"         as GP
+    usecase "Analyser nuit patient"        as AN
+    usecase "Saisir note clinique"         as NC
+    usecase "Utiliser chatbot"             as DC
+    usecase "Consulter alertes"            as DA
+    usecase "Messagerie patient"           as Msg
+    usecase "Générer rapport PDF"          as RM
+    usecase "Se déconnecter"               as DOut
+  }
+}
+
+' ══ ASSOCIATIONS PATIENT ══
+P --> PD
+P --> Mon
+P --> Hist
+P --> PA
+P --> PC
+P --> PDF
+P --> PP
+P --> PS
+P --> Rel
+P --> POut
+
+' ══ ASSOCIATIONS MÉDECIN ══
+D --> DD
+D --> AP
+D --> GP
+D --> AN
+D --> NC
+D --> DC
+D --> DA
+D --> Msg
+D --> RM
+D --> DOut
+
+' ══ INCLUDE S'AUTHENTIFIER ══
+PD   ..> Auth : <<include>>
+Mon  ..> Auth : <<include>>
+Hist ..> Auth : <<include>>
+PA   ..> Auth : <<include>>
+PC   ..> Auth : <<include>>
+PDF  ..> Auth : <<include>>
+PP   ..> Auth : <<include>>
+PS   ..> Auth : <<include>>
+Rel  ..> Auth : <<include>>
+POut ..> Auth : <<include>>
+
+DD   ..> Auth : <<include>>
+AP   ..> Auth : <<include>>
+GP   ..> Auth : <<include>>
+AN   ..> Auth : <<include>>
+NC   ..> Auth : <<include>>
+DC   ..> Auth : <<include>>
+DA   ..> Auth : <<include>>
+Msg  ..> Auth : <<include>>
+RM   ..> Auth : <<include>>
+DOut ..> Auth : <<include>>
+
+@enduml

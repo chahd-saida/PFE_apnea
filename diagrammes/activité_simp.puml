@@ -1,0 +1,93 @@
+@startuml
+skinparam shadowing false
+skinparam activityBackgroundColor #FFFFFF
+skinparam activityBorderColor #888888
+skinparam activityArrowColor #444444
+skinparam activityDiamondBackgroundColor #FFF9E6
+skinparam activityDiamondBorderColor #C28B2C
+skinparam activityStartColor #2E8B57
+skinparam activityEndColor #B22222
+
+title Diagramme d'activité — SleepApnea Detect
+
+start
+
+:Lancer l'application;
+:Afficher SplashScreen;
+
+if (Utilisateur connecté ?) then (non)
+  :Afficher LoginScreen;
+  :Saisir email + mot de passe;
+  if (Identifiants valides ?) then (non)
+    :Afficher erreur;
+    stop
+  else (oui)
+    :Firebase Auth → signIn();
+    :Récupérer rôle (Firestore);
+  end if
+else (oui)
+  :Restaurer session;
+end if
+
+if (Rôle ?) then (patient)
+
+  :Dashboard patient;
+
+  fork
+    :Surveiller temps réel;
+    :ESP32 → MQTT → IA v4;
+    :WebSocket → Flutter;
+    :Afficher SpO2, BPM, ECG;
+    if (Apnée détectée ?) then (oui)
+      :Déclencher alarme;
+      :Sauvegarder alerte SQLite;
+    else (non)
+    end if
+    :Sauvegarder session Firebase;
+  fork again
+    :Consulter historique;
+    :Sélectionner une nuit;
+    :Afficher détails session;
+  fork again
+    :Chatbot patient (LLaMA 8B);
+    :Envoyer question;
+    :Recevoir réponse IA;
+  fork again
+    :Exporter rapport PDF;
+  end fork
+
+else (médecin)
+
+  :Dashboard médecin;
+
+  fork
+    :Gérer liste patients;
+    if (Ajouter patient ?) then (oui)
+      :Saisir informations;
+      :Créer compte Firebase;
+    else (non)
+    end if
+  fork again
+    :Analyser nuit patient;
+    :Consulter mesures + IA;
+    if (Ajouter note ?) then (oui)
+      :Sauvegarder note clinique;
+    else (non)
+    end if
+  fork again
+    :Chatbot médecin (LLaMA 70B);
+    :Analyse clinique IA;
+  fork again
+    :Générer rapport PDF médical;
+    :Sauvegarder / Partager;
+  end fork
+
+end if
+
+:Se déconnecter;
+:Effacer session (AuthProvider);
+:Retour LoginScreen;
+
+stop
+
+@enduml

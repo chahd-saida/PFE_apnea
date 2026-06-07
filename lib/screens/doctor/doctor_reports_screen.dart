@@ -26,44 +26,109 @@ class DoctorReportsScreen extends StatefulWidget {
 }
 
 class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
+  // Services pour acceder aux donnees du backend
   final StatsService _statsService = StatsService();
   final MeasurementService _measurementService = MeasurementService();
   final NoteService _noteService = NoteService();
   final UserService _userService = UserService();
   final PdfReportService _pdfReportService = PdfReportService();
 
+  // Donnees du patient selectionne
+  // Stocke l'UID unique, le nom et les donnees completes du patient
   String? _selectedPatientUid;
   String? _selectedPatientName;
   Map<String, dynamic>? _selectedPatientData;
-  DateTimeRange? _selectedDateRange;
-  bool _includeClinicalData = true;
-  bool _includeApneaEvents = true;
-  bool _includeDoctorDiagnosis = true;
-  bool _includeRecommendations = true;
-  bool _isGenerating = false;
-  Uint8List? _lastPdfBytes;
-  String? _lastSavedFilePath;
 
-  Future<void> _selectDateRange(BuildContext context) async {
+  // Filtrage temporel
+  // Permet au medecin de selectionner une plage de dates pour le rapport
+  DateTimeRange? _selectedDateRange;
+
+  // Sections du rapport a inclure (toutes activees par defaut)
+  // Chaque booleen controle l'inclusion d'une section specifique du PDF
+  bool _includeClinicalData = true; // SpO2, FC, sessions
+  bool _includeApneaEvents = true; // Evenements d'apnee detectes
+  bool _includeDoctorDiagnosis = true; // Notes et diagnostics du medecin
+  bool _includeRecommendations = true; // Recommandations de traitement
+
+  // Gestion de l'etat de generation et sauvegarde
+  // Suivi du processus de generation et stockage du PDF genere
+  bool _isGenerating = false; // Indique si la generation est en cours
+  bool _isPreviewLoading = false; // Indique si l'apercu se charge
+  Uint8List? _lastPdfBytes; // Les octets du dernier PDF genere
+  String? _lastSavedFilePath; // Chemin d'acces du fichier PDF sauvegarde
+
+  // Donnees statistiques du patient selectionne
+  // Donnees mises en cache lors de la selection d'un patient
+  Map<String, dynamic>?
+  _patientStats; // Stats compilees (SpO2 moy., FC, apnees, etc.)
+  int _noteCount = 0; // Nombre de notes medicales enregistrees
+  bool _loadingStats = false; // Indicateur de chargement des stats
+
+  // Getters utilitaires pour simplifier les conditions
+  // Verifie si un patient a ete selectionne
+  bool get _hasPatient => _selectedPatientUid != null;
+
+  // Verifie si un PDF a ete genere et contient des donnees
+  bool get _hasPdf => _lastPdfBytes != null && _lastPdfBytes!.isNotEmpty;
+
+  // Compte le nombre de sections activees pour affichage dans l'UI
+  int get _activeSectionsCount => [
+    _includeClinicalData,
+    _includeApneaEvents,
+    _includeDoctorDiagnosis,
+    _includeRecommendations,
+  ].where((b) => b).length;
+
+  // Dialogue de selection de la plage de dates
+  // Affiche un calendrier permettant au medecin de choisir le debut et la fin de periode
+  Future<void> _selectDateRange() async {
     final picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2023),
       lastDate: DateTime.now(),
       initialDateRange: _selectedDateRange,
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(primary: AppColors.primary),
+        ),
+        child: child!,
+      ),
     );
-    if (picked != null) {
-      setState(() => _selectedDateRange = picked);
+    if (picked != null) setState(() => _selectedDateRange = picked);
+  }
+
+  // Recuperation et mise en cache des statistiques du patient
+  // Appelle les services pour obtenir les donnees consolidees du patient
+  Future<void> _loadPatientStats(String patientUid) async {
+    setState(() => _loadingStats = true);
+    try {
+      final stats = await _statsService.getPatientStats(
+        patientUid,
+        getMeasurementRecords: _measurementService.getMeasurementRecords,
+      );
+      final notes = await _noteService.getPatientNotes(patientUid);
+      setState(() {
+        _patientStats = stats;
+        _noteCount = notes.length;
+        _loadingStats = false;
+      });
+    } catch (_) {
+      setState(() => _loadingStats = false);
     }
   }
 
-  String _formatDate(DateTime date) =>
-      '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
-
+  // Processus principal de generation du rapport PDF
+  // Valide les donnees, appelle le service PDF et sauvegarde localement
   Future<void> _generateReport() async {
-    if (_selectedPatientUid == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez sélectionner un patient.')),
-      );
+    if (!_hasPatient) {
+      _showSnack('Veuillez sélectionner un patient.', isError: true);
+      return;
+    }
+    if (!_includeClinicalData &&
+        !_includeApneaEvents &&
+        !_includeDoctorDiagnosis &&
+        !_includeRecommendations) {
+      _showSnack('Sélectionnez au moins une section à inclure.', isError: true);
       return;
     }
 
@@ -76,7 +141,8 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
         patient,
         reportData,
       );
-      final fileName = 'report_${patient.id}.pdf';
+      final fileName =
+          'rapport_${patient.fullName.replaceAll(' ', '_')}_${_fmtFileName(DateTime.now())}.pdf';
       final file = await _pdfReportService.savePdfToLocal(
         bytes: bytes,
         fileName: fileName,
@@ -87,40 +153,63 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
         _lastPdfBytes = bytes;
         _lastSavedFilePath = file.path;
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'PDF généré et sauvegardé: ${_extractFileName(file.path)}',
-          ),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      _showSnack('✅ Rapport généré avec succès !');
     } on FileSystemException {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Permission de stockage refusée ou dossier inaccessible.',
-          ),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showSnack('Permission de stockage refusée.', isError: true);
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Échec de génération du PDF: $e'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showSnack('Erreur : $e', isError: true);
     } finally {
-      if (mounted) {
-        setState(() => _isGenerating = false);
-      }
+      if (mounted) setState(() => _isGenerating = false);
     }
   }
 
+  // Affichage d'un apercu du PDF dans un dialogue modal
+  // Genere le rapport si necessaire avant d'afficher l'apercu
+  Future<void> _previewPdf() async {
+    // Genere le PDF s'il n'existe pas encore
+    if (!_hasPdf) {
+      setState(() => _isPreviewLoading = true);
+      await _generateReport();
+      setState(() => _isPreviewLoading = false);
+    }
+    if (!_hasPdf || !mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: SizedBox(
+          width: 900,
+          height: 700,
+          child: PdfPreview(
+            build: (_) => _lastPdfBytes!,
+            canChangeOrientation: false,
+            canChangePageFormat: false,
+            canDebug: false,
+            pdfFileName: 'rapport_${_selectedPatientName ?? 'patient'}.pdf',
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Partage du PDF via les options de partage du systeme
+  // Utilise les services natives pour envoyer le fichier
+  Future<void> _sharePdf() async {
+    // Genere le PDF s'il n'existe pas encore avant de le partager
+    if (!_hasPdf) await _generateReport();
+    if (!_hasPdf || !mounted) return;
+    try {
+      await _pdfReportService.sharePdf(
+        bytes: _lastPdfBytes!,
+        fileName: 'rapport_${_selectedPatientName ?? 'patient'}.pdf',
+      );
+    } catch (e) {
+      _showSnack('Erreur de partage : $e', isError: true);
+    }
+  }
+
+  // Assemblage des donnees du rapport a partir des services
+  // Consolide tous les elements (stats, notes, etc.) en un objet ReportData
   Future<ReportData> _buildReportData({required String doctorName}) async {
     final patientId = _selectedPatientUid!;
     final stats = await _statsService.getPatientStats(
@@ -128,32 +217,33 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
       getMeasurementRecords: _measurementService.getMeasurementRecords,
     );
     final allNotes = await _noteService.getPatientNotes(patientId);
-
     final notes = _filterByDateRange(
       allNotes,
       _selectedDateRange,
       key: 'createdAt',
     );
 
-    final avgSpo2 = double.tryParse((stats['avgSpo2'] ?? '').toString());
-    final avgHeartRate = double.tryParse(
-      (stats['avgHeartRate'] ?? '').toString(),
-    );
-    final totalApneas =
-        int.tryParse((stats['totalApneas'] ?? '').toString()) ?? 0;
-    final totalSessions =
-        int.tryParse((stats['totalSessions'] ?? '').toString()) ?? 0;
-
     return ReportData(
       doctorName: doctorName,
       generatedAt: DateTime.now(),
       startDate: _selectedDateRange?.start,
       endDate: _selectedDateRange?.end,
-      averageSpo2: avgSpo2,
-      averageHeartRate: avgHeartRate,
-      totalApneas: _includeApneaEvents ? totalApneas : 0,
-      totalSessions: totalSessions,
-      notes: notes,
+      // Données cliniques : incluses seulement si la case est cochée
+      averageSpo2: _includeClinicalData
+          ? double.tryParse((stats['avgSpo2'] ?? '').toString())
+          : null,
+      averageHeartRate: _includeClinicalData
+          ? double.tryParse((stats['avgHeartRate'] ?? '').toString())
+          : null,
+      // Apnées : incluses seulement si la case est cochée
+      totalApneas: _includeApneaEvents
+          ? (int.tryParse((stats['totalApneas'] ?? '').toString()) ?? 0)
+          : 0,
+      totalSessions:
+          int.tryParse((stats['totalSessions'] ?? '').toString()) ?? 0,
+      // Notes médecin : incluses seulement si la case est cochée
+      notes: _includeDoctorDiagnosis ? notes : [],
+      // Flags booléens transmis au service PDF
       includeClinicalData: _includeClinicalData,
       includeApneaEvents: _includeApneaEvents,
       includeDoctorDiagnosis: _includeDoctorDiagnosis,
@@ -161,13 +251,29 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
     );
   }
 
+  // Construction d'un objet Patient a partir des donnees selectionnees
+  // Extrait et nettoie les donnees du patient pour les passer au service PDF
+  Patient _buildPatient() {
+    final data = _selectedPatientData ?? {};
+    return Patient(
+      id: _selectedPatientUid ?? 'unknown',
+      fullName: (data['fullName'] as String?)?.trim().isNotEmpty == true
+          ? (data['fullName'] as String).trim()
+          : (_selectedPatientName ?? 'Patient'),
+      age: _computeAge(data['dateOfBirth']),
+      gender: (data['gender'] as String?)?.trim(),
+      medicalId: (data['medicalId'] as String?)?.trim(),
+    );
+  }
+
+  // Filtrage des elements selon la plage de dates selectionnee
+  // Retient uniquement les elements dont la date se situe dans la plage
   List<Map<String, dynamic>> _filterByDateRange(
     List<Map<String, dynamic>> input,
     DateTimeRange? range, {
     required String key,
   }) {
     if (range == null) return input;
-
     final start = DateTime(
       range.start.year,
       range.start.month,
@@ -181,141 +287,96 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
       59,
       59,
     );
-
     return input.where((item) {
-      final value = item[key];
-      final date = _extractDateTime(value);
-      if (date == null) return false;
-      return !date.isBefore(start) && !date.isAfter(end);
+      final dt = _extractDateTime(item[key]);
+      if (dt == null) return false;
+      return !dt.isBefore(start) && !dt.isAfter(end);
     }).toList();
   }
 
-  DateTime? _extractDateTime(dynamic value) {
-    if (value is DateTime) return value;
-    final hasToDate = value != null && value.toString().contains('Timestamp');
-    if (hasToDate) {
-      try {
-        final converted = value.toDate();
-        if (converted is DateTime) return converted;
-      } catch (_) {}
-    }
-    if (value is String) return DateTime.tryParse(value);
-    return null;
+  // Extraction securisee d'une DateTime depuis differents types
+  // Gere DateTime, Timestamp Firestore, et chaines de caracteres ISO
+  DateTime? _extractDateTime(dynamic v) {
+    if (v is DateTime) return v; // Deja une DateTime
+    try {
+      final d = v.toDate(); // Essai de convertir depuis Timestamp Firestore
+      if (d is DateTime) return d;
+    } catch (_) {}
+    if (v is String)
+      return DateTime.tryParse(v); // Essai de parser une chaine ISO
+    return null; // Impossible a convertir
   }
 
-  int? _computeAge(dynamic dateOfBirth) {
-    final dob =
-        _extractDateTime(dateOfBirth) ??
-        (dateOfBirth is String ? DateTime.tryParse(dateOfBirth) : null);
-    if (dob == null) return null;
-
+  // Calcul de l'age du patient en annees
+  // Extrait la date de naissance et calcule l'age courant
+  int? _computeAge(dynamic dob) {
+    final d =
+        _extractDateTime(dob) ??
+        (dob is String ? DateTime.tryParse(dob) : null);
+    if (d == null) return null; // Impossible a extraire
     final now = DateTime.now();
-    var age = now.year - dob.year;
-    final hasBirthdayPassed =
-        (now.month > dob.month) ||
-        (now.month == dob.month && now.day >= dob.day);
-    if (!hasBirthdayPassed) {
-      age -= 1;
-    }
-    return age < 0 ? null : age;
+    var age = now.year - d.year; // Difference d'annees
+    // Correction si l'anniversaire n'est pas encore passe cette annee
+    if (now.month < d.month || (now.month == d.month && now.day < d.day)) age--;
+    return age < 0 ? null : age; // Valide seulement si age positif
   }
 
-  Patient _buildPatient() {
-    final data = _selectedPatientData ?? <String, dynamic>{};
-    final id = _selectedPatientUid ?? 'unknown_patient';
-    final fullName = (data['fullName'] as String?)?.trim().isNotEmpty == true
-        ? (data['fullName'] as String).trim()
-        : (_selectedPatientName ?? 'Patient');
-    return Patient(
-      id: id,
-      fullName: fullName,
-      age: _computeAge(data['dateOfBirth']),
-      gender: (data['gender'] as String?)?.trim(),
-      medicalId: (data['medicalId'] as String?)?.trim(),
+  // ── Helpers UI ──────────────────────────────────────────────────
+  void _showSnack(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? AppColors.error : AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
     );
   }
 
+  // Formatage des dates pour affichage a l'utilisateur
+  // Format francais : JJ/MM/YYYY
+  String _fmtDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  // Formatage des dates pour les noms de fichiers
+  // Format compact : YYYYMMDD
+  String _fmtFileName(DateTime d) =>
+      '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
+
+  // Extraction du nom de fichier depuis un chemin complet
+  // Recupere la derniere composante du chemin (apres le dernier separateur)
   String _extractFileName(String path) {
-    if (path.isEmpty) return path;
     final parts = path.split(Platform.pathSeparator);
     return parts.isEmpty ? path : parts.last;
   }
 
-  Future<bool> _ensurePdfReady() async {
-    if (_lastPdfBytes != null && _lastPdfBytes!.isNotEmpty) {
-      return true;
-    }
-    await _generateReport();
-    return _lastPdfBytes != null && _lastPdfBytes!.isNotEmpty;
-  }
-
-  Future<void> _previewPdf() async {
-    final ready = await _ensurePdfReady();
-    if (!ready || !mounted) return;
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return Dialog(
-          child: SizedBox(
-            width: 900,
-            height: 700,
-            child: PdfPreview(
-              build: (_) => _lastPdfBytes!,
-              canChangeOrientation: false,
-              canChangePageFormat: false,
-              canDebug: false,
-              pdfFileName: 'report_${_selectedPatientUid ?? 'patient'}.pdf',
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _sharePdf() async {
-    final ready = await _ensurePdfReady();
-    if (!ready || !mounted) return;
-
-    try {
-      await _pdfReportService.sharePdf(
-        bytes: _lastPdfBytes!,
-        fileName: 'report_${_selectedPatientUid ?? 'patient'}.pdf',
-      );
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Partage du rapport lancé.'),
-          backgroundColor: AppColors.success,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Échec du partage: $e'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-    }
-  }
-
+  // Construction de l'interface principale de generation de rapports
   @override
   Widget build(BuildContext context) {
+    // Recupere l'utilisateur connecte et les preferences d'apparence
     final user = context.watch<AuthProvider>().user;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final doctorProfile = useDoctorProfile(context);
     final photoUrl = doctorProfile?.profileImageUrl;
 
     return Scaffold(
+      backgroundColor: isDark
+          ? AppColors.darkBackground
+          : const Color(0xFFF1F5F9),
       appBar: AppBar(
-        title: const Text('Génération Rapports'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
+          'Rapports Médicaux',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
-            child: InkWell(
+            child: GestureDetector(
               onTap: () => context.push(RouteNames.doctorProfile),
-              borderRadius: BorderRadius.circular(20),
               child: CircleAvatar(
                 radius: 18,
                 backgroundColor: Colors.white24,
@@ -330,237 +391,988 @@ class _DoctorReportsScreenState extends State<DoctorReportsScreen> {
           ),
         ],
       ),
+      floatingActionButton: const DoctorChatbotFAB(),
+      bottomNavigationBar: const DoctorBottomNavigationBar(currentIndex: 3),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionTitle('👤 Patient :'),
-            const SizedBox(height: 10),
-            _buildPatientSelector(user?.uid ?? ''),
-            const SizedBox(height: 20),
-            _buildSectionTitle('📅 Période :'),
-            const SizedBox(height: 10),
-            GestureDetector(
-              onTap: () => _selectDateRange(context),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.textMedium),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _selectedDateRange == null
-                          ? 'Sélectionner une période'
-                          : '${_formatDate(_selectedDateRange!.start)} → ${_formatDate(_selectedDateRange!.end)}',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    const Icon(Icons.calendar_today),
-                  ],
-                ),
+            // ── 1. Sélection patient ───────────────────────────────
+            _buildStep(
+              number: '1',
+              title: 'Patient',
+              isDark: isDark,
+              child: _PatientSelector(
+                userService: _userService,
+                doctorUid: user?.uid ?? '',
+                selectedUid: _selectedPatientUid,
+                isDark: isDark,
+                onSelected: (uid, name, data) {
+                  setState(() {
+                    _selectedPatientUid = uid;
+                    _selectedPatientName = name;
+                    _selectedPatientData = data;
+                    _lastPdfBytes = null;
+                    _lastSavedFilePath = null;
+                    _patientStats = null;
+                  });
+                  _loadPatientStats(uid);
+                },
               ),
             ),
-            const SizedBox(height: 20),
-            _buildSectionTitle('📊 Sections à inclure :'),
-            const SizedBox(height: 10),
-            Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  CheckboxListTile(
-                    title: const Text('Données cliniques'),
-                    subtitle: const Text('SpO₂, FC, température'),
-                    value: _includeClinicalData,
-                    onChanged: (v) =>
-                        setState(() => _includeClinicalData = v ?? false),
-                  ),
+            const SizedBox(height: 16),
 
-                  CheckboxListTile(
-                    title: const Text('Événements apnée'),
-                    subtitle: const Text('Liste et classification'),
-                    value: _includeApneaEvents,
-                    onChanged: (v) =>
-                        setState(() => _includeApneaEvents = v ?? false),
-                  ),
-                  CheckboxListTile(
-                    title: const Text('Diagnostic médecin'),
-                    subtitle: const Text('Notes et diagnostics saisis'),
-                    value: _includeDoctorDiagnosis,
-                    onChanged: (v) =>
-                        setState(() => _includeDoctorDiagnosis = v ?? false),
-                  ),
-                  CheckboxListTile(
-                    title: const Text('Recommandations'),
-                    subtitle: const Text('Plan de traitement'),
-                    value: _includeRecommendations,
-                    onChanged: (v) =>
-                        setState(() => _includeRecommendations = v ?? false),
-                  ),
-                ],
+            // ── Stats patient (si sélectionné) ─────────────────────
+            if (_hasPatient) ...[
+              _PatientStatsPreview(
+                stats: _patientStats,
+                loading: _loadingStats,
+                noteCount: _noteCount,
+                isDark: isDark,
               ),
-            ),
-            const SizedBox(height: 20),
-            _buildSectionTitle('📤 Format :'),
-            const SizedBox(height: 10),
-            Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                child: Row(
-                  children: [
-                    Icon(Icons.picture_as_pdf, color: Colors.red),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'PDF Médical',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Format standard pour dossier médical',
-                            style: TextStyle(fontSize: 14, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 30),
-            ElevatedButton.icon(
-              onPressed: _isGenerating ? null : _generateReport,
-              icon: _isGenerating
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.description),
-              label: Text(_isGenerating ? 'Génération...' : 'Générer rapport'),
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-              ),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: _isGenerating ? null : _sharePdf,
-              icon: const Icon(Icons.share),
-              label: const Text('Partager le PDF'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-              ),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: _isGenerating ? null : _previewPdf,
-              icon: const Icon(Icons.visibility),
-              label: const Text('Aperçu du PDF'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
-              ),
-            ),
-            if (_lastSavedFilePath != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Fichier local: ${_extractFileName(_lastSavedFilePath!)}',
-                style: const TextStyle(color: Colors.black54),
-              ),
+              const SizedBox(height: 16),
             ],
-            const SizedBox(height: 20),
+
+            // ── 2. Période ─────────────────────────────────────────
+            _buildStep(
+              number: '2',
+              title: 'Période (optionnelle)',
+              isDark: isDark,
+              child: _DateRangePicker(
+                range: _selectedDateRange,
+                isDark: isDark,
+                onTap: _selectDateRange,
+                onClear: () => setState(() => _selectedDateRange = null),
+                formatDate: _fmtDate,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // ── 3. Sections à inclure ──────────────────────────────
+            _buildStep(
+              number: '3',
+              title: 'Sections à inclure',
+              subtitle: '$_activeSectionsCount/4 sections sélectionnées',
+              isDark: isDark,
+              child: _SectionsSelector(
+                includeClinicalData: _includeClinicalData,
+                includeApneaEvents: _includeApneaEvents,
+                includeDoctorDiagnosis: _includeDoctorDiagnosis,
+                includeRecommendations: _includeRecommendations,
+                isDark: isDark,
+                stats: _patientStats,
+                noteCount: _noteCount,
+                onChanged: (field, value) {
+                  setState(() {
+                    switch (field) {
+                      case 'clinical':
+                        _includeClinicalData = value;
+                        break;
+                      case 'apnea':
+                        _includeApneaEvents = value;
+                        break;
+                      case 'diagnosis':
+                        _includeDoctorDiagnosis = value;
+                        break;
+                      case 'recommendations':
+                        _includeRecommendations = value;
+                        break;
+                    }
+                    // Reset PDF si les options changent
+                    _lastPdfBytes = null;
+                    _lastSavedFilePath = null;
+                  });
+                },
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // ── 4. Actions ─────────────────────────────────────────
+            _buildStep(
+              number: '4',
+              title: 'Générer',
+              isDark: isDark,
+              child: _ActionsSection(
+                isGenerating: _isGenerating,
+                isPreviewLoading: _isPreviewLoading,
+                hasPdf: _hasPdf,
+                hasPatient: _hasPatient,
+                savedFilePath: _lastSavedFilePath,
+                extractFileName: _extractFileName,
+                onGenerate: _generateReport,
+                onPreview: _previewPdf,
+                onShare: _sharePdf,
+              ),
+            ),
+
+            const SizedBox(height: 32),
           ],
         ),
       ),
-      floatingActionButton: const DoctorChatbotFAB(),
-      bottomNavigationBar: const DoctorBottomNavigationBar(currentIndex: 3),
     );
   }
 
-  Widget _buildSectionTitle(String text) {
-    return Text(
-      text,
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+  // Widget helper pour construire une etape numerotee
+  // Affiche un numero cercle, le titre, et le contenu de l'etape
+  Widget _buildStep({
+    required String number,
+    required String title,
+    required Widget child,
+    required bool isDark,
+    String? subtitle,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: const BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  number,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.textMedium,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        child,
+      ],
     );
   }
+}
 
-  Widget _buildPatientSelector(String doctorUid) {
-    if (doctorUid.isEmpty) {
-      return const Text('Session expirée.');
-    }
+// ─────────────────────────────────────────────────────────────
+// SÉLECTEUR PATIENT
+// ─────────────────────────────────────────────────────────────
+
+class _PatientSelector extends StatelessWidget {
+  const _PatientSelector({
+    required this.userService,
+    required this.doctorUid,
+    required this.selectedUid,
+    required this.isDark,
+    required this.onSelected,
+  });
+
+  final UserService userService;
+  final String doctorUid;
+  final String? selectedUid;
+  final bool isDark;
+  final void Function(String uid, String name, Map<String, dynamic> data)
+  onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (doctorUid.isEmpty) return const Text('Session expirée.');
 
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _userService.streamDoctorPatients(doctorUid),
-      builder: (context, snapshot) {
-        final patients = snapshot.data ?? [];
-
-        if (!snapshot.hasData) {
+      stream: userService.streamDoctorPatients(doctorUid),
+      builder: (context, snap) {
+        if (!snap.hasData)
           return const Center(child: CircularProgressIndicator());
-        }
 
+        final patients = snap.data!;
         if (patients.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.surfaceLight),
+              color: isDark ? AppColors.darkSurface : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.grey.shade200,
+              ),
             ),
             child: Row(
               children: [
-                Icon(Icons.person_off_outlined, color: AppColors.textLight),
+                Icon(Icons.person_off_outlined, color: AppColors.textMedium),
                 const SizedBox(width: 12),
-                Text(
-                  'Aucun patient assigné',
-                  style: TextStyle(color: AppColors.textMedium),
-                ),
+                const Text('Aucun patient assigné'),
               ],
             ),
           );
         }
 
-        return DropdownButtonFormField<String>(
-          initialValue: _selectedPatientUid,
-          hint: const Text('Sélectionner un patient'),
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.person),
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selectedUid != null
+                  ? AppColors.primary.withValues(alpha: 0.5)
+                  : (isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.grey.shade200),
+            ),
           ),
-          items: patients.map((patient) {
-            final uid = patient['uid'] as String? ?? '';
-            final name = (patient['fullName'] as String?)?.trim() ?? 'Patient';
-            return DropdownMenuItem<String>(value: uid, child: Text(name));
-          }).toList(),
-          onChanged: (uid) {
-            setState(() {
-              _selectedPatientUid = uid;
-              _selectedPatientData = patients.firstWhere(
-                (p) => p['uid'] == uid,
-                orElse: () => <String, dynamic>{'fullName': 'Patient'},
-              );
-              _selectedPatientName =
-                  (_selectedPatientData?['fullName'] as String?)?.trim() ??
-                  'Patient';
-              _lastPdfBytes = null;
-              _lastSavedFilePath = null;
-            });
-          },
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: selectedUid,
+              isExpanded: true,
+              hint: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Sélectionner un patient…',
+                  style: TextStyle(
+                    color: isDark
+                        ? AppColors.darkTextSecondary
+                        : AppColors.textMedium,
+                  ),
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              borderRadius: BorderRadius.circular(12),
+              dropdownColor: isDark ? AppColors.darkSurface : Colors.white,
+              items: patients.map((p) {
+                final uid = p['uid'] as String? ?? '';
+                final name = (p['fullName'] as String?)?.trim() ?? 'Patient';
+                final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
+                return DropdownMenuItem<String>(
+                  value: uid,
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: AppColors.primary.withValues(
+                          alpha: 0.1,
+                        ),
+                        child: Text(
+                          initial,
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        name,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : AppColors.textDark,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+              onChanged: (uid) {
+                if (uid == null) return;
+                final p = patients.firstWhere((x) => x['uid'] == uid);
+                onSelected(
+                  uid,
+                  (p['fullName'] as String?)?.trim() ?? 'Patient',
+                  p,
+                );
+              },
+            ),
+          ),
         );
       },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// STATS PREVIEW
+// ─────────────────────────────────────────────────────────────
+
+class _PatientStatsPreview extends StatelessWidget {
+  const _PatientStatsPreview({
+    required this.stats,
+    required this.loading,
+    required this.noteCount,
+    required this.isDark,
+  });
+  final Map<String, dynamic>? stats;
+  final bool loading;
+  final int noteCount;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    // Affiche un spinner pendant le chargement des stats
+    if (loading) {
+      return Container(
+        height: 80,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    // Cache le composant si pas de donnees disponibles
+    if (stats == null) return const SizedBox.shrink();
+
+    // Extrait les valeurs principales des statistiques
+    final sessions = stats!['totalSessions'] ?? 0;
+    final spo2 = stats!['avgSpo2']?.toString() ?? '—';
+    final hr = stats!['avgHeartRate']?.toString() ?? '—';
+    final apneas = stats!['totalApneas'] ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.insights_rounded, size: 14, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text(
+                'Aperçu des données',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _miniStat(
+                label: 'Sessions',
+                value: '$sessions',
+                icon: Icons.nights_stay_rounded,
+                isDark: isDark,
+              ),
+              _miniStat(
+                label: 'SpO₂ moy.',
+                value: '$spo2%',
+                icon: Icons.air_rounded,
+                isDark: isDark,
+              ),
+              _miniStat(
+                label: 'FC moy.',
+                value: '$hr bpm',
+                icon: Icons.favorite_rounded,
+                isDark: isDark,
+              ),
+              _miniStat(
+                label: 'Apnées',
+                value: '$apneas',
+                icon: Icons.warning_amber_rounded,
+                isDark: isDark,
+                highlight: apneas > 0,
+              ),
+              _miniStat(
+                label: 'Notes',
+                value: '$noteCount',
+                icon: Icons.note_alt_rounded,
+                isDark: isDark,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniStat({
+    required String label,
+    required String value,
+    required IconData icon,
+    required bool isDark,
+    bool highlight = false,
+  }) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            size: 16,
+            color: highlight ? AppColors.error : AppColors.primary,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: highlight
+                  ? AppColors.error
+                  : (isDark ? Colors.white : const Color(0xFF0F172A)),
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9,
+              color: isDark
+                  ? AppColors.darkTextSecondary
+                  : AppColors.textMedium,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// DATE RANGE PICKER
+// ─────────────────────────────────────────────────────────────
+
+class _DateRangePicker extends StatelessWidget {
+  const _DateRangePicker({
+    required this.range,
+    required this.isDark,
+    required this.onTap,
+    required this.onClear,
+    required this.formatDate,
+  });
+  final DateTimeRange? range;
+  final bool isDark;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
+  final String Function(DateTime) formatDate;
+
+  @override
+  Widget build(BuildContext context) {
+    // Verifie si une plage a ete definie
+    final hasRange = range != null;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkSurface : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: hasRange
+                ? AppColors.primary.withValues(alpha: 0.5)
+                : (isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : Colors.grey.shade200),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.date_range_rounded,
+              size: 20,
+              color: hasRange ? AppColors.primary : AppColors.textMedium,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                hasRange
+                    ? '${formatDate(range!.start)}  →  ${formatDate(range!.end)}'
+                    : 'Toute la période disponible',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: hasRange
+                      ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                      : (isDark
+                            ? AppColors.darkTextSecondary
+                            : AppColors.textMedium),
+                  fontWeight: hasRange ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ),
+            // Affiche un bouton de fermeture si une plage est selectionnee
+            if (hasRange)
+              GestureDetector(
+                onTap: onClear,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 14,
+                    color: isDark ? Colors.white54 : AppColors.textMedium,
+                  ),
+                ),
+              )
+            else
+              Icon(
+                Icons.chevron_right_rounded,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textMedium,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// SECTIONS SELECTOR — fonctionnel avec aperçu du contenu
+// ─────────────────────────────────────────────────────────────
+
+class _SectionsSelector extends StatelessWidget {
+  const _SectionsSelector({
+    required this.includeClinicalData,
+    required this.includeApneaEvents,
+    required this.includeDoctorDiagnosis,
+    required this.includeRecommendations,
+    required this.isDark,
+    required this.onChanged,
+    required this.stats,
+    required this.noteCount,
+  });
+
+  final bool includeClinicalData,
+      includeApneaEvents,
+      includeDoctorDiagnosis,
+      includeRecommendations;
+  final bool isDark;
+  final void Function(String field, bool value) onChanged;
+  final Map<String, dynamic>? stats;
+  final int noteCount;
+
+  @override
+  Widget build(BuildContext context) {
+    // Extrait les valeurs pour afficher des apercus dans les descriptions
+    final spo2 = stats?['avgSpo2']?.toString();
+    final hr = stats?['avgHeartRate']?.toString();
+    final apneas = stats?['totalApneas'] as int?;
+    final sessions = stats?['totalSessions'] as int?;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : Colors.grey.shade100,
+        ),
+      ),
+      child: Column(
+        // Affiche les 4 tuiles de selection en colonne
+        children: [
+          // Tuile 1: Donnees cliniques (SpO2, FC, sessions)
+          _SectionTile(
+            field: 'clinical',
+            icon: Icons.monitor_heart_rounded,
+            color: const Color(0xFF3B82F6),
+            title: 'Données cliniques',
+            subtitle: spo2 != null
+                ? 'SpO₂ moy. $spo2% · FC moy. $hr bpm · $sessions sessions'
+                : 'SpO₂, fréquence cardiaque, sessions',
+            isEnabled: includeClinicalData,
+            isDark: isDark,
+            onChanged: onChanged,
+            isLast: false,
+          ),
+          _SectionTile(
+            field: 'apnea',
+            icon: Icons.airline_seat_flat_rounded,
+            color: const Color(0xFFF59E0B),
+            title: 'Événements apnée',
+            subtitle: apneas != null
+                ? '$apneas événements détectés'
+                : 'Liste et classification des épisodes',
+            isEnabled: includeApneaEvents,
+            isDark: isDark,
+            onChanged: onChanged,
+            isLast: false,
+          ),
+          // Tuile 3: Notes du medecin et diagnostic
+          _SectionTile(
+            field: 'diagnosis',
+            icon: Icons.description_rounded,
+            color: const Color(0xFF10B981),
+            title: 'Notes & Diagnostic',
+            subtitle: stats != null
+                ? '$noteCount note${noteCount > 1 ? 's' : ''} médecin enregistrée${noteCount > 1 ? 's' : ''}'
+                : 'Diagnostics et observations saisies',
+            isEnabled: includeDoctorDiagnosis,
+            isDark: isDark,
+            onChanged: onChanged,
+            isLast: false,
+          ),
+          // Tuile 4: Recommandations cliniques
+          _SectionTile(
+            field: 'recommendations',
+            icon: Icons.lightbulb_rounded,
+            color: const Color(0xFF8B5CF6),
+            title: 'Recommandations',
+            subtitle: 'Plan de traitement et conseils cliniques',
+            isEnabled: includeRecommendations,
+            isDark: isDark,
+            onChanged: onChanged,
+            isLast: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTile extends StatelessWidget {
+  const _SectionTile({
+    required this.field,
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.isEnabled,
+    required this.isDark,
+    required this.onChanged,
+    required this.isLast,
+  });
+
+  final String field, title, subtitle;
+  final IconData icon;
+  final Color color;
+  final bool isEnabled, isDark, isLast;
+  final void Function(String, bool) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => onChanged(field, !isEnabled),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isEnabled ? color.withValues(alpha: 0.04) : Colors.transparent,
+          borderRadius: isLast
+              ? const BorderRadius.only(
+                  bottomLeft: Radius.circular(14),
+                  bottomRight: Radius.circular(14),
+                )
+              : BorderRadius.zero,
+          border: !isLast
+              ? Border(
+                  bottom: BorderSide(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.05)
+                        : Colors.grey.shade100,
+                  ),
+                )
+              : null,
+        ),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isEnabled
+                    ? color.withValues(alpha: 0.12)
+                    : (isDark
+                          ? Colors.white.withValues(alpha: 0.04)
+                          : Colors.grey.shade100),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: isEnabled
+                    ? color
+                    : (isDark ? Colors.white30 : Colors.grey.shade400),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: isEnabled
+                          ? (isDark ? Colors.white : const Color(0xFF0F172A))
+                          : (isDark ? Colors.white38 : Colors.grey.shade400),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isEnabled
+                          ? (isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textMedium)
+                          : (isDark ? Colors.white24 : Colors.grey.shade300),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: isEnabled
+                    ? color
+                    : (isDark
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : Colors.grey.shade200),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isEnabled ? Icons.check_rounded : Icons.remove,
+                size: 14,
+                color: isEnabled
+                    ? Colors.white
+                    : (isDark ? Colors.white38 : Colors.grey.shade400),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// ACTIONS SECTION
+// ─────────────────────────────────────────────────────────────
+
+class _ActionsSection extends StatelessWidget {
+  const _ActionsSection({
+    required this.isGenerating,
+    required this.isPreviewLoading,
+    required this.hasPdf,
+    required this.hasPatient,
+    required this.savedFilePath,
+    required this.extractFileName,
+    required this.onGenerate,
+    required this.onPreview,
+    required this.onShare,
+  });
+
+  final bool isGenerating, isPreviewLoading, hasPdf, hasPatient;
+  final String? savedFilePath;
+  final String Function(String) extractFileName;
+  final VoidCallback onGenerate, onPreview, onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Bouton principal — Générer
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: (isGenerating || !hasPatient) ? null : onGenerate,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: Colors.grey.shade300,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              elevation: 0,
+            ),
+            child: isGenerating
+                ? const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        'Génération en cours…',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.picture_as_pdf_rounded, size: 20),
+                      const SizedBox(width: 10),
+                      Text(
+                        hasPdf
+                            ? 'Regénérer le rapport'
+                            : 'Générer le rapport PDF',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+
+        // BOUTONS SECONDAIRES : Apercu et Partage (visibles si PDF genere)
+        if (hasPdf) ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              // Aperçu
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: isPreviewLoading ? null : onPreview,
+                  icon: isPreviewLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.visibility_rounded, size: 18),
+                  label: const Text(
+                    'Aperçu',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Bouton Partager (envoie via les options systeme)
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onShare,
+                  icon: const Icon(Icons.share_rounded, size: 18),
+                  label: const Text(
+                    'Partager',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.success,
+                    side: const BorderSide(color: AppColors.success),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Fichier sauvegardé
+          if (savedFilePath != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.success.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    size: 16,
+                    color: AppColors.success,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      extractFileName(savedFilePath!),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+
+        // Message si pas de patient sélectionné
+        if (!hasPatient) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(
+                Icons.info_outline_rounded,
+                size: 14,
+                color: AppColors.textMedium,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Sélectionnez d\'abord un patient',
+                style: TextStyle(fontSize: 12, color: AppColors.textMedium),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }

@@ -1,0 +1,86 @@
+@startuml
+title Diagramme de séquence — Monitoring temps réel
+
+actor Patient
+participant "Flutter\n(RealtimeMonitoringScreen)" as Flutter
+participant "FastAPI\n(main.py)" as FastAPI
+participant "ESP32\n(MQTT)" as ESP32
+participant "MoteurIA v4\n(ia_engine.py)" as IA
+participant "SQLite\n(database.py)" as SQLite
+participant "Firebase\n(Firestore)" as Firebase
+participant "AlertService\n(Flutter)" as AlertSvc
+
+== Démarrage ==
+
+Patient -> Flutter : Démarrer surveillance
+Flutter -> FastAPI : WebSocket ws://IP:8000/ws/{uid}
+FastAPI --> Flutter : Connexion acceptée
+
+note over Flutter
+  Si WebSocket non disponible :
+  MonitoringService (simulation locale)
+  génère données fictives toutes les 500ms
+end note
+
+== Boucle de monitoring ==
+
+loop Chaque message MQTT reçu
+  note over ESP32
+    ECG : toutes les 4ms (250Hz)
+    MPU6050 : toutes les 100ms
+    Vitaux (BPM/SpO2/Temp) : toutes les 2s
+  end note
+
+  ESP32 -> FastAPI : MQTT {bpm, spo2, temp, ecg, position, alarme}
+  FastAPI -> IA : predire(donnees)
+  IA --> FastAPI : {apnee, score, confiance, severite}
+
+  FastAPI -> SQLite : sauvegarder_mesure(donnees)
+  FastAPI -> SQLite : sauvegarder_resultat_ia(resultat)
+
+  alt Apnée modérée ou sévère
+    FastAPI -> SQLite : sauvegarder_alarme(patient_id, severite)
+  end
+
+  FastAPI -> Flutter : WebSocket JSON {donnees + ia + timestamp}
+  Flutter -> Flutter : _onData(EspData) → mise à jour UI
+
+  alt Seuil critique dépassé (SpO2 < 90%, BPM anormal, Temp > 38°C)
+    Flutter -> AlertSvc : checkAndCreateAlerts()
+    AlertSvc -> Firebase : Créer alerte dans collection alerts/
+  end
+end
+
+== Chatbot ==
+
+Patient -> Flutter : Message chatbot
+Flutter -> FastAPI : POST /chatbot/chat\n{message, role, historique, patient_id}
+FastAPI -> FastAPI : contexte_medical.construire_prompt_systeme(role)
+alt role == 'doctor'
+  FastAPI -> FastAPI : Groq LLaMA 3.3-70B
+else role == 'patient'
+  FastAPI -> FastAPI : Groq LLaMA 3.1-8B
+end
+alt Quota 70B épuisé (HTTP 429)
+  FastAPI -> FastAPI : Fallback → LLaMA 3.1-8B
+end
+FastAPI -> SQLite : sauvegarder_message_chat()
+FastAPI --> Flutter : {reponse, role}
+Flutter --> Patient : Afficher réponse chatbot
+
+== Résumé de nuit ==
+
+Patient -> Flutter : Demander résumé de nuit
+Flutter -> FastAPI : POST /chatbot/resume_nuit\n{score, apneas, avg_spo2, durationMinutes}
+FastAPI -> FastAPI : Générer prompt avec données + score IA v4
+FastAPI --> Flutter : {resume, severite_ia, score_ia}
+
+== Arrêt ==
+
+Patient -> Flutter : Arrêter surveillance
+Flutter -> Flutter : stopMonitoring()
+Flutter -> Firebase : saveMonitoringSession()\n{uid, startTime, endTime, avgSpO2, avgHR}
+Firebase --> Flutter : Session sauvegardée ✓
+Flutter --> Patient : Snackbar "Surveillance arrêtée"
+
+@enduml

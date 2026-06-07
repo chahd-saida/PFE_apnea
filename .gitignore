@@ -2,3 +2,9 @@
 .env 
 .env 
 .env 
+build/  
+.dart_tool/  
+.flutter-plugins-dependencies  
+.vscode/  
+"android/hs_err_pid*.log"  
+"android/replay_pid*.log" 

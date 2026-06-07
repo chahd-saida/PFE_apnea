@@ -14,8 +14,10 @@ class AddPatientScreen extends StatefulWidget {
   State<AddPatientScreen> createState() => _AddPatientScreenState();
 }
 
+// 6 contrôleurs pour les champs de saisie
 class _AddPatientScreenState extends State<AddPatientScreen> {
-  final _formKey = GlobalKey<FormState>();
+  final _formKey =
+      GlobalKey<FormState>(); // Clé globale du formulaire (validation)
   final _nomController = TextEditingController();
   final _prenomController = TextEditingController();
   final _telephoneController = TextEditingController();
@@ -23,12 +25,13 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
   final _passwordController = TextEditingController();
   final _notesController = TextEditingController();
 
-  DateTime? _dateNaissance;
+  DateTime? _dateNaissance; // Sélectionnée via DatePicker
   String? _sexe;
-  bool _isPasswordVisible = false;
-  bool _isSaving = false;
-  bool _isFormValid = false;
+  bool _isPasswordVisible = false; // Toggle visibilité mot de passe
+  bool _isSaving = false; // Bloque la double-soumission
+  bool _isFormValid = false; // Active/désactive le bouton "Créer"
 
+  //Nettoyage des contrôleurs pour éviter les fuites de mémoire
   @override
   void dispose() {
     _nomController.dispose();
@@ -44,7 +47,9 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
 
   int _computeAge(DateTime dob) {
     final now = DateTime.now();
-    var age = now.year - dob.year;
+    var age =
+        now.year -
+        dob.year; // Ajustement si l'anniversaire n'est pas encore passé cette année
     if (now.month < dob.month || (now.month == dob.month && now.day < dob.day))
       age--;
     return age;
@@ -52,7 +57,9 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
 
   void _onFormChanged() {
     final formValid = _formKey.currentState?.validate() ?? false;
+    // Validation complète = formulaire valide + date + sexe présents
     final finalValid = formValid && _dateNaissance != null && _sexe != null;
+    // setState seulement si le booléen change (évite des rebuilds inutiles)
     if (finalValid != _isFormValid) setState(() => _isFormValid = finalValid);
   }
 
@@ -60,13 +67,15 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime(now.year - 30),
-      firstDate: DateTime(1900),
-      lastDate: now,
+      initialDate: DateTime(
+        now.year - 30,
+      ), // Proposition par défaut : adulte de 30 ans
+      firstDate: DateTime(1900), // Limite basse
+      lastDate: now, // Pas de date future
     );
     if (picked != null) {
       setState(() => _dateNaissance = picked);
-      _onFormChanged();
+      _onFormChanged(); // Mettre à jour la validité du formulaire
     }
   }
 
@@ -94,8 +103,8 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
   // ── Save ──────────────────────────────────────────────────────────────────
 
   Future<void> _savePatient() async {
-    FocusScope.of(context).unfocus();
-    _onFormChanged();
+    FocusScope.of(context).unfocus(); // Ferme le clavier
+    _onFormChanged(); // Force la dernière validation
 
     if (!_isFormValid || _dateNaissance == null || _sexe == null) {
       _showSnack('Veuillez corriger les champs invalides.');
@@ -103,7 +112,8 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
     }
 
     // ✅ Lire doctorUid MAINTENANT de façon synchrone
-    // avant tout appel async pour éviter de perdre le contexte
+    // Lire doctorUid AVANT tout await (de façon synchrone)
+    // pour éviter de perdre le contexte Flutter après un appel asynchrone
     final doctorUid = context.read<AuthProvider>().user?.uid;
     if (doctorUid == null) {
       _showSnack('Session expirée. Reconnectez-vous.');
@@ -115,20 +125,20 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
       final patientProvider = context.read<PatientProvider>();
 
       final patient = Patient(
-        id: 'temp', // sera remplacé par l'uid Auth réel
+        id: 'temp', // Sera remplacé par l'UID Firebase Auth réel
         nom: _nomController.text.trim(),
         prenom: _prenomController.text.trim(),
         age: _computeAge(_dateNaissance!),
         sexe: _sexe!,
         dateNaissance: _dateNaissance,
         telephone: _telephoneController.text.trim().isEmpty
-            ? null
+            ? null // null si vide
             : _telephoneController.text.trim(),
         email: _emailController.text.trim(),
         notesMedicales: _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
-        doctorUid: doctorUid, // ✅ déjà dans le modèle
+        doctorUid: doctorUid, // Rattachement au médecin créateur
       );
 
       // ✅ doctorUid passé EXPLICITEMENT en plus du patient
@@ -149,8 +159,10 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
           'Communiquez ces identifiants au patient.',
           error: false,
         );
-        await Future.delayed(const Duration(seconds: 3));
-        if (mounted) Navigator.of(context).pop();
+        await Future.delayed(
+          const Duration(seconds: 3),
+        ); // Laisse le temps de lire
+        if (mounted) Navigator.of(context).pop(); // Retour à la liste
       } else {
         _showSnack(patientProvider.error ?? 'Échec de création du compte.');
       }
@@ -178,8 +190,10 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
         padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
+          // Valide automatiquement à chaque interaction utilisateur
           autovalidateMode: AutovalidateMode.onUserInteraction,
           onChanged: _onFormChanged,
+          // Déclenche la mise à jour de _isFormValid à chaque frappe
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -224,7 +238,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                         ? 'Sélectionner une date'
                         : '${_dateNaissance!.day.toString().padLeft(2, '0')}/'
                               '${_dateNaissance!.month.toString().padLeft(2, '0')}/'
-                              '${_dateNaissance!.year}',
+                              '${_dateNaissance!.year}', // JJ/MM/AAAA — padLeft(2, '0') → "3" devient "03"
                     style: TextStyle(
                       fontSize: 14,
                       color: _dateNaissance == null
@@ -244,6 +258,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
               TextFormField(
                 readOnly: true,
                 controller: TextEditingController(text: ageText),
+                // ageText = '—' si date non sélectionnée, sinon '34 ans'
                 style: TextStyle(
                   fontSize: 14,
                   color: isDark
@@ -290,7 +305,8 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                 isDark: isDark,
                 keyboard: TextInputType.phone,
                 validator: (v) {
-                  if (v == null || v.trim().isEmpty) return null;
+                  if (v == null || v.trim().isEmpty)
+                    return null; // Optionnel → pas d'erreur si vide
                   if (!RegExp(r'^[0-9+\s()-]{8,20}$').hasMatch(v.trim()))
                     return 'Numéro invalide.';
                   return null;
@@ -305,7 +321,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                 isDark,
               ),
               const SizedBox(height: 4),
-              _buildInfoBanner(isDark),
+              _buildInfoBanner(isDark), // Bandeau d'information identifiants
               const SizedBox(height: 12),
 
               _buildField(
@@ -327,7 +343,8 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
               // Mot de passe avec toggle visibilité
               TextFormField(
                 controller: _passwordController,
-                obscureText: !_isPasswordVisible,
+                obscureText:
+                    !_isPasswordVisible, // true = masqué, false = visible
                 style: TextStyle(
                   fontSize: 14,
                   color: isDark
@@ -341,8 +358,9 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                   suffix: IconButton(
                     icon: Icon(
                       _isPasswordVisible
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
+                          ? Icons
+                                .visibility_off_outlined // Œil barré = "masquer"
+                          : Icons.visibility_outlined, // Œil ouvert = "voir"
                       size: 18,
                       color: AppColors.textMedium,
                     ),
@@ -378,10 +396,11 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
                 height: 52,
                 child: ElevatedButton.icon(
                   onPressed: (_isSaving || !_isFormValid) ? null : _savePatient,
+                  // null = désactivé : si en cours de sauvegarde OU formulaire invalide
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     disabledBackgroundColor: AppColors.primary.withValues(
-                      alpha: 0.5,
+                      alpha: 0.5, // Semi-transparent quand désactivé
                     ),
                     foregroundColor: Colors.white,
                     elevation: 0,
@@ -418,7 +437,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
     );
   }
 
-  // ── Widgets helpers ───────────────────────────────────────────────────────
+  //  Widgets helpers
 
   Widget _buildInfoBanner(bool isDark) {
     return Container(
@@ -476,6 +495,7 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
         const SizedBox(width: 10),
         Expanded(
           child: Divider(
+            // Ligne extensible jusqu'au bor
             color: isDark
                 ? Colors.white.withValues(alpha: 0.08)
                 : AppColors.surfaceLight,
@@ -490,9 +510,9 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
     required String label,
     required IconData icon,
     required bool isDark,
-    int maxLines = 1,
-    TextInputType? keyboard,
-    String? Function(String?)? validator,
+    int maxLines = 1, // 1 = ligne simple, 4 = textarea (notes)
+    TextInputType? keyboard, // null = texte par défaut
+    String? Function(String?)? validator, // null = pas de validation
   }) {
     return TextFormField(
       controller: controller,
@@ -543,22 +563,27 @@ class _AddPatientScreenState extends State<AddPatientScreen> {
         color: isDark ? AppColors.darkTextSecondary : AppColors.textMedium,
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      // État par défaut
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: borderColor),
       ),
+      // Activé non focalisé
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(color: borderColor),
       ),
+      // En édition
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
       ),
+      // Erreur non focalisé
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.error),
       ),
+      // Erreur focalisé
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.error, width: 1.5),

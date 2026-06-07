@@ -14,7 +14,6 @@ import 'package:apnea_project/widgets/chatbot_fab.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
-
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
@@ -23,24 +22,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
   final MeasurementService _measurementService = MeasurementService();
   final StatsService _statsService = StatsService();
   late Future<List<Map<String, dynamic>>> _historyFuture;
-  String _searchQuery = '';
-  String? _selectedFilter;
+  String _searchQuery = ''; // texte saisi dans la barre de recherche
+  String? _selectedFilter; // filtre sélectionné (Bon / Moyen / Mauvais)
 
   @override
   void initState() {
     super.initState();
-    _historyFuture = _loadHistory();
+    _historyFuture = _loadHistory(); // Lance le chargement dès l'ouverture
   }
 
   Future<List<Map<String, dynamic>>> _loadHistory() async {
     final user = context.read<AuthProvider>().user;
-    if (user == null) return [];
+    if (user == null) return []; // Sécurité si session expirée
     return _measurementService.getMeasurementRecords(uid: user.uid, limit: 50);
   }
 
   Future<void> _refreshHistory() async {
     final updated = _loadHistory();
-    if (!mounted) return;
+    if (!mounted) return; // Évite une exception si le widget est détruit
     setState(() => _historyFuture = updated);
     await updated;
   }
@@ -54,7 +53,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return DefaultTabController(
       key: ValueKey<int>(initialIndex),
       length: 2,
-      initialIndex: initialIndex,
+      initialIndex: initialIndex, // Peut venir du paramètre de navigation
       child: Scaffold(
         appBar: AppBar(
           title: Text(l10n.historyTitle),
@@ -68,7 +67,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         body: TabBarView(
           children: [_buildHistoryTab(l10n), _buildStatsTab(context)],
         ),
-        floatingActionButton: const PatientChatbotFAB(),
+        floatingActionButton: const PatientChatbotFAB(), // Bouton chatbot IA
         bottomNavigationBar: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
           items: [
@@ -133,40 +132,37 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     borderRadius: BorderRadius.circular(8.0),
                   ),
                 ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value.toLowerCase();
-                  });
-                },
+                onChanged: (v) =>
+                    setState(() => _searchQuery = v.toLowerCase()),
               ),
               const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,
+                //La recherche filtre en temps réel sur la date, le score et le nombre d'apnées.
                 child: DropdownButton<String>(
                   value: _selectedFilter ?? l10n.filterAll,
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedFilter = newValue;
-                    });
-                  },
+                  onChanged: (v) => setState(() => _selectedFilter = v),
                   items:
                       <String>[
-                        l10n.filterAll,
-                        l10n.filterGood,
-                        l10n.filterFair,
-                        l10n.filterBad,
-                      ].map<DropdownMenuItem<String>>((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text('Filtre: $value'),
-                        );
-                      }).toList(),
+                            l10n.filterAll,
+                            l10n.filterGood,
+                            l10n.filterFair,
+                            l10n.filterBad,
+                          ]
+                          .map(
+                            (v) => DropdownMenuItem<String>(
+                              value: v,
+                              child: Text('Filtre: $v'),
+                            ),
+                          )
+                          .toList(),
                 ),
               ),
             ],
           ),
         ),
         Expanded(
+          //FutureBuilder est le pattern Flutter standard pour afficher un contenu asynchrone.
           child: FutureBuilder<List<Map<String, dynamic>>>(
             future: _historyFuture,
             builder: (context, snapshot) {
@@ -178,15 +174,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ),
                 );
               }
-
-              if (!snapshot.hasData) {
+              if (!snapshot.hasData)
                 return const Center(child: CircularProgressIndicator());
-              }
 
               final entries = snapshot.data ?? <Map<String, dynamic>>[];
-
-              // Filtrer les entrées en fonction de la recherche et du filtre
               final filteredEntries = _filterEntries(entries, l10n);
+              final uid = context.read<AuthProvider>().user?.uid ?? '';
+              for (final e in entries.take(3)) {
+                debugPrint('🔑 Clés disponibles : ${e.keys.toList()}');
+                debugPrint('📦 Entrée complète : $e');
+              }
 
               if (entries.isEmpty) {
                 return RefreshIndicator(
@@ -214,10 +211,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   child: ListView(
                     children: [
                       const SizedBox(height: 120),
-                      Center(
+                      const Center(
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                          child: const Text(
+                          padding: EdgeInsets.symmetric(horizontal: 24.0),
+                          child: Text(
                             'Aucune entrée ne correspond à votre recherche ou filtre.',
                             textAlign: TextAlign.center,
                           ),
@@ -235,8 +232,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   itemCount: filteredEntries.length,
                   itemBuilder: (context, index) {
                     final entry = filteredEntries[index];
-
-                    // ── ID Firestore du document ─────────────────────
                     final id = entry['id'] as String? ?? '';
                     final date = _formatDate(
                       entry['timestamp'],
@@ -245,13 +240,24 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     final score =
                         _extractInt(entry, ['score', 'sleepScore']) ?? 0;
                     final apneas =
-                        _extractInt(entry, [
-                          'apneas',
-                          'apneaCount',
-                        ])?.toString() ??
-                        '0';
-
-                    return _buildNightEntry(context, id, date, score, apneas);
+                        //_extractInt(entry, ['apneas', 'apneaCount']) ?? 0;
+                        // Remplace par les vraies clés trouvées dans le debug
+                        _extractInt(entry, ['apneas', 'apneaCount', 'apneaEvents', 'numberOfApneas']) ?? 0;
+                    // timestamp pour filtrer les alertes de cette nuit
+                    final ts = _extractDateTime(entry['timestamp']);
+                    //Construction de chaque carte
+                    return _NightEntryCard(
+                      id: id,
+                      date: date,
+                      score: score,
+                      apneas: apneas,
+                      patientUid: uid,
+                      timestamp: ts, //// Pour charger les alertes de cette nuit
+                      onTap: () {
+                        if (id.isEmpty) return;
+                        context.push(RouteNames.nightDetail(id));
+                      },
+                    );
                   },
                 ),
               );
@@ -262,12 +268,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  // ── Onglet statistiques (inchangé) ────────────────────────────────────────
   Widget _buildStatsTab(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
-
-    if (user == null) {
-      return const Center(child: Text('Session expirée.'));
-    }
+    if (user == null) return const Center(child: Text('Session expirée.'));
 
     return FutureBuilder<Map<String, dynamic>>(
       future: _statsService.getPatientStats(
@@ -275,9 +279,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
         getMeasurementRecords: _measurementService.getMeasurementRecords,
       ),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (!snapshot.hasData)
           return const Center(child: CircularProgressIndicator());
-        }
         final stats = snapshot.data!;
         final totalSessions = stats['totalSessions'] as int;
         final avgScore = stats['avgScore'] as int;
@@ -376,10 +379,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
                 builder: (context, measSnapshot) {
                   final records = measSnapshot.data ?? [];
-                  if (records.isEmpty) {
+                  if (records.isEmpty)
                     return const Text('Aucune mesure récente.');
-                  }
-
                   return Column(
                     children: records.map((r) {
                       final score = (r['score'] as num?)?.toInt() ?? 0;
@@ -387,12 +388,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       final duration =
                           (r['durationMinutes'] as num?)?.toInt() ?? 0;
                       final apneas = (r['apneas'] as num?)?.toInt() ?? 0;
-                      final scoreColor = score >= 80
+                      final sc = score >= 80
                           ? Colors.green
                           : score >= 50
                           ? Colors.orange
                           : Colors.red;
-
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         shape: RoundedRectangleBorder(
@@ -403,7 +403,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             width: 48,
                             height: 48,
                             decoration: BoxDecoration(
-                              color: scoreColor.withValues(alpha: 0.1),
+                              color: sc.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Center(
@@ -412,7 +412,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: scoreColor,
+                                  color: sc,
                                 ),
                               ),
                             ),
@@ -427,7 +427,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: scoreColor.withValues(alpha: 0.1),
+                              color: sc.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -437,7 +437,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   ? 'Moyen'
                                   : 'Mauvais',
                               style: TextStyle(
-                                color: scoreColor,
+                                color: sc,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -475,11 +475,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         builder: (context, measSnapshot) {
                           final records = (measSnapshot.data ?? []).reversed
                               .toList();
-                          if (records.isEmpty) {
+                          if (records.isEmpty)
                             return const Text('Aucune donnée.');
-                          }
-
-                          final maxScore = 100.0;
                           return SizedBox(
                             height: 120,
                             child: Row(
@@ -488,13 +485,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               children: records.take(10).map((r) {
                                 final score =
                                     (r['score'] as num?)?.toDouble() ?? 0;
-                                final height = (score / maxScore) * 100;
+                                final height = (score / 100) * 100;
                                 final color = score >= 80
                                     ? Colors.green
                                     : score >= 50
                                     ? Colors.orange
                                     : Colors.red;
-
                                 return Tooltip(
                                   message:
                                       '${score.toInt()}/100\n${_formatDateStats(r['timestamp'])}',
@@ -539,87 +535,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  static Widget _buildNightEntry(
-    BuildContext context,
-    String id,
-    String date,
-    int score,
-    String apneas,
-  ) {
-    final scoreColor = score >= 80
-        ? Colors.green
-        : score >= 50
-        ? Colors.orange
-        : Colors.red;
-
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: scoreColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(Icons.nightlight_round, color: scoreColor, size: 24),
-        ),
-        title: Text(date, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(Icons.star, size: 13, color: scoreColor),
-                const SizedBox(width: 4),
-                Text(
-                  'Score : $score/100',
-                  style: TextStyle(color: scoreColor, fontSize: 12),
-                ),
-                const SizedBox(width: 12),
-                const Icon(Icons.air, size: 13, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(
-                  'Apnées : $apneas',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
-            ),
-          ],
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () {
-          // ── Passe l'ID Firestore, PAS la date ─────────────────────
-          debugPrint('>>> nightDetail id=$id date=$date');
-          if (id.isEmpty) {
-            debugPrint('⚠️ id vide — document sans id ?');
-            return;
-          }
-          context.push(RouteNames.nightDetail(id));
-        },
-      ),
-    );
-  }
-
-  static String _formatDate(dynamic value, String unknownLabel) {
-    if (value == null) return unknownLabel;
-    DateTime? date;
-    if (value is DateTime)
-      date = value;
-    else if (value is String)
-      date = DateTime.tryParse(value);
-    else if (value is Timestamp)
-      date = value.toDate();
-    if (date == null) return unknownLabel;
-    return '${date.day.toString().padLeft(2, '0')}/'
-        '${date.month.toString().padLeft(2, '0')}/'
-        '${date.year}';
-  }
-
   Widget _buildStatCard(
     String label,
     String value,
@@ -655,69 +570,268 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  static String _formatDate(dynamic value, String unknownLabel) {
+    if (value == null) return unknownLabel;
+    DateTime? date;
+    if (value is DateTime)
+      date = value;
+    else if (value is String)
+      date = DateTime.tryParse(value);
+    else if (value is Timestamp)
+      date = value.toDate();
+    if (date == null) return unknownLabel;
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
+
   static String _formatDateStats(dynamic value) {
     if (value == null) return '--';
     DateTime? date;
-    if (value is DateTime) {
+    if (value is DateTime)
       date = value;
-    } else if (value is String) {
+    else if (value is String)
       date = DateTime.tryParse(value);
-    } else if (value is Timestamp) {
+    else if (value is Timestamp)
       date = value.toDate();
-    }
     if (date == null) return '--';
-    return '${date.day.toString().padLeft(2, '0')}/'
-        '${date.month.toString().padLeft(2, '0')}/'
-        '${date.year}';
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 
   static String _formatDuration(int minutes) {
     if (minutes == 0) return '--';
     final h = minutes ~/ 60;
     final m = minutes % 60;
-    if (h == 0) return '${m}min';
-    return '${h}h${m.toString().padLeft(2, '0')}min';
+    return h == 0 ? '${m}min' : '${h}h${m.toString().padLeft(2, '0')}min';
   }
 
   static int? _extractInt(Map<String, dynamic> data, List<String> keys) {
     for (final key in keys) {
-      final value = data[key];
-      if (value is num) return value.toInt();
+      final v = data[key];
+      if (v is num) return v.toInt();
     }
     return null;
   }
 
-  /// Filtre les entrées d'historique en fonction de la recherche et du filtre sélectionné
+  static DateTime? _extractDateTime(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
+  }
+
   List<Map<String, dynamic>> _filterEntries(
     List<Map<String, dynamic>> entries,
     AppLocalizations l10n,
   ) {
     return entries.where((entry) {
-      // Récupérer les données de l'entrée
+      // Vérifie si la recherche correspond à la date, au score ou aux apnées
       final date = _formatDate(entry['timestamp'], '').toLowerCase();
       final score = _extractInt(entry, ['score', 'sleepScore']) ?? 0;
       final apneas = _extractInt(entry, ['apneas', 'apneaCount']) ?? 0;
-
-      // Appliquer le filtre de recherche (date, score, apnées)
       final matchesSearch =
           date.contains(_searchQuery) ||
           score.toString().contains(_searchQuery) ||
           apneas.toString().contains(_searchQuery);
-
       if (!matchesSearch) return false;
-
-      // Appliquer le filtre de catégorie (Tous, Bon, Moyen, Mauvais)
-      bool matchesFilter = true;
-      if (_selectedFilter == l10n.filterGood) {
-        matchesFilter = score >= 80;
-      } else if (_selectedFilter == l10n.filterFair) {
-        matchesFilter = score >= 50 && score < 80;
-      } else if (_selectedFilter == l10n.filterBad) {
-        matchesFilter = score < 50;
-      }
-      // l10n.filterAll accepte tout
-
-      return matchesFilter;
+      // Applique le filtre de qualité
+      if (_selectedFilter == l10n.filterGood) return score >= 80;
+      if (_selectedFilter == l10n.filterFair) return score >= 50 && score < 80;
+      if (_selectedFilter == l10n.filterBad) return score < 50;
+      return true;
     }).toList();
   }
+}
+
+// ── NIGHT ENTRY CARD — CORRECTION : badge alertes Firestore ──────────────────
+class _NightEntryCard extends StatelessWidget {
+  final String id, date, patientUid;
+  final int score, apneas;
+  final DateTime? timestamp;
+  final VoidCallback onTap;
+
+  const _NightEntryCard({
+    required this.id,
+    required this.date,
+    required this.patientUid,
+    required this.score,
+    required this.apneas,
+    required this.timestamp,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scoreColor = score >= 80
+        ? Colors.green
+        : score >= 50
+        ? Colors.orange
+        : Colors.red;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              // Icône score
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: scoreColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.nightlight_round,
+                  color: scoreColor,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Infos
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      date,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.star, size: 13, color: scoreColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Score : $score/100',
+                          style: TextStyle(color: scoreColor, fontSize: 12),
+                        ),
+                        const SizedBox(width: 12),
+                        const Icon(Icons.air, size: 13, color: Colors.grey),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Apnées : $apneas',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                    //  badge alertes Firestore pour cette nuit
+                    if (timestamp != null)
+                      _AlertBadge(
+                        patientUid: patientUid,
+                        timestamp: timestamp!,
+                      ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios, size: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Badge asynchrone qui charge les alertes de la nuit depuis Firestore
+class _AlertBadge extends StatefulWidget {
+  final String patientUid;
+  final DateTime timestamp;
+  const _AlertBadge({required this.patientUid, required this.timestamp});
+  @override
+  State<_AlertBadge> createState() => _AlertBadgeState();
+}
+
+class _AlertBadgeState extends State<_AlertBadge> {
+  int _critical = 0;
+  int _warning = 0;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAlerts();
+  }
+
+  Future<void> _loadAlerts() async {
+    // Fenêtre de ±12h autour du timestamp de la session
+    final start = widget.timestamp.subtract(const Duration(hours: 1));
+    final end = widget.timestamp.add(const Duration(hours: 12));
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('alerts')
+          .where('patientId', isEqualTo: widget.patientUid)
+          .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
+          .get();
+      // Compte les alertes 'critical' et 'warning'
+      int c = 0, w = 0;
+      for (final doc in snap.docs) {
+        final sev = doc.data()['severity'] as String? ?? '';
+        if (sev == 'critical')
+          c++;
+        else if (sev == 'warning')
+          w++;
+      }
+      if (mounted)
+        setState(() {
+          _critical = c;
+          _warning = w;
+          _loaded = true;
+        });
+    } catch (_) {
+      if (mounted) setState(() => _loaded = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded || (_critical == 0 && _warning == 0))
+      return const SizedBox.shrink(); // Rien à afficher → widget invisible
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          if (_critical > 0)
+            _pill(
+              '$_critical critique${_critical > 1 ? 's' : ''}',
+              AppColors.error,
+            ),
+          if (_critical > 0 && _warning > 0) const SizedBox(width: 6),
+          if (_warning > 0) _pill('$_warning avertiss.', AppColors.warning),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill(String label, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.1),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: color.withValues(alpha: 0.3)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.notifications_active_rounded, size: 10, color: color),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ],
+    ),
+  );
 }

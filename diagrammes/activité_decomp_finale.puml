@@ -1,0 +1,82 @@
+@startuml
+skinparam shadowing false
+
+title Diagramme d'activité — SleepApnea Detect
+
+|Patient|
+start
+:Lancer l'application;
+
+|Systeme|
+:Afficher SplashScreen;
+:Vérifier session Firebase;
+
+if (Connecté ?) then (non)
+  |Patient|
+  :Saisir email et mot de passe;
+  |Systeme|
+  :Authentification Firebase;
+  if (Valide ?) then (non)
+    |Patient|
+    :Afficher erreur;
+    stop
+  endif
+endif
+
+|Systeme|
+:Récupérer rôle utilisateur;
+
+if (Rôle ?) then (patient)
+
+  |Patient|
+  :Accéder au dashboard;
+  :Démarrer surveillance;
+
+  |Backend|
+  :ESP32 envoie données via MQTT;
+  :MoteurIA v4 prédit apnée;
+  :Sauvegarder dans SQLite;
+
+  |Systeme|
+  :Diffuser résultats via WebSocket;
+
+  |Patient|
+  :Visualiser SpO2, BPM, ECG;
+  :Arrêter surveillance;
+
+  |Systeme|
+  :Sauvegarder session Firebase;
+
+  |Patient|
+  :Consulter historique;
+  :Utiliser chatbot patient;
+
+else (medecin)
+
+  |Medecin|
+  :Accéder au dashboard;
+  :Consulter liste patients;
+  :Ajouter un patient;
+
+  |Systeme|
+  :Enregistrer dans Firebase;
+
+  |Medecin|
+  :Analyser nuit patient;
+  :Saisir note clinique;
+  :Utiliser chatbot médecin;
+  :Messagerie patient;
+  :Générer rapport PDF;
+
+endif
+
+|Patient|
+:Se déconnecter;
+
+|Systeme|
+:Effacer session;
+:Retour LoginScreen;
+
+stop
+
+@enduml

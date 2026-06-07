@@ -1,0 +1,162 @@
+@startuml
+skinparam shadowing false
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+title Diagramme de classes — SleepApnea Detect
+
+' ══ MODEL ══
+class Patient {
+  + id : String
+  + fullName : String
+  + age : int
+  + gender : String
+  + doctorUid : String
+  + toFirestore()
+  + fromFirestore()
+}
+
+class Doctor {
+  + uid : String
+  + fullName : String
+  + email : String
+  + speciality : String
+  + toFirestore()
+  + fromFirestore()
+}
+
+class SleepSession {
+  + patientId : String
+  + startTime : DateTime
+  + endTime : DateTime
+  + apneaEvents : int
+  + averageSpo2 : double
+  + averageHeartRate : double
+  + score : int
+}
+
+class Alert {
+  + patientId : String
+  + type : String
+  + severity : String
+  + message : String
+  + isRead : bool
+  + createdAt : DateTime
+}
+
+class Measurement {
+  + patientId : String
+  + spo2 : double
+  + heartRate : double
+  + temperature : double
+  + timestamp : DateTime
+  + apneaDetected : bool
+}
+
+' ══ VIEWMODEL ══
+class AuthProvider {
+  + user : User
+  + role : String
+  + isDoctor : bool
+  + fetchRole()
+  + clearSession()
+}
+
+class MonitoringProvider {
+  + isConnected : bool
+  + liveData : Map
+  + iaResult : Map
+  + startMonitoring()
+  + stopMonitoring()
+}
+
+class UserProfileProvider {
+  + fullName : String
+  + doctorUid : String
+  + bindAuth()
+  + updateProfile()
+}
+
+class ThemeProvider {
+  + isDarkMode : bool
+  + setDarkMode()
+}
+
+class LocaleProvider {
+  + locale : Locale
+  + setLocale()
+}
+
+' ══ SERVICE ══
+class FirebaseService {
+  + signIn()
+  + signOut()
+  + addPatient()
+  + saveMonitoringSession()
+  + streamDoctorPatients()
+  + saveDoctorNote()
+}
+
+class WebSocketService {
+  + ipServeur : String
+  + connecter()
+  + deconnecter()
+}
+
+class GroqService {
+  + sendMessage()
+}
+
+class PdfReportService {
+  + generatePdfReport()
+  + savePdfToLocal()
+}
+
+class AlertService {
+  + checkAndCreateAlerts()
+  + streamPatientAlerts()
+}
+
+' ══ VIEW ══
+class LoginScreen
+class DashboardPatientScreen
+class RealtimeMonitoringScreen
+class DashboardDoctorScreen
+class DoctorAnalysisScreen
+
+' ══ ROUTER ══
+class AppRouter {
+  + createAppRouter()
+}
+
+' ══ RELATIONS MODEL ══
+Doctor         "1" -- "N" Patient       : suit >
+Patient        "1" -- "N" SleepSession  : possède >
+Patient        "1" -- "N" Alert         : reçoit >
+Patient        "1" -- "N" Measurement   : génère >
+
+' ══ RELATIONS VIEWMODEL → SERVICE ══
+AuthProvider        *-- FirebaseService
+UserProfileProvider *-- FirebaseService
+MonitoringProvider  *-- WebSocketService
+AlertService        *-- FirebaseService
+
+' ══ RELATIONS VIEW → VIEWMODEL/SERVICE ══
+LoginScreen              ..> AuthProvider
+LoginScreen              ..> FirebaseService
+DashboardPatientScreen   ..> AuthProvider
+DashboardPatientScreen   ..> FirebaseService
+RealtimeMonitoringScreen ..> MonitoringProvider
+DashboardDoctorScreen    ..> AuthProvider
+DashboardDoctorScreen    ..> FirebaseService
+DoctorAnalysisScreen     ..> FirebaseService
+
+' ══ RELATIONS ROUTER ══
+AppRouter ..> AuthProvider
+
+' ══ RELATIONS SERVICE → MODEL ══
+FirebaseService ..> Patient : persiste >
+FirebaseService ..> Doctor  : persiste >
+
+@enduml

@@ -1,0 +1,57 @@
+@startuml
+skinparam shadowing false
+skinparam sequenceArrowThickness 1.2
+
+title Diagramme de séquence — Monitoring temps réel
+
+actor       "Patient"         as User
+participant "Flutter UI"      as UI
+participant "MonitoringProvider" as Prov
+participant "WebSocketService"   as WS
+participant "ESP32"           as ESP
+participant "mqtt_handler"    as MQTT
+participant "MoteurIA v4"     as IA
+participant "SQLite"          as DB
+participant "FastAPI /ws"     as API
+participant "Firebase"        as FB
+
+== Démarrage surveillance ==
+User -> UI   : Appuie "Démarrer"
+UI   -> Prov : startMonitoring(uid)
+Prov -> WS   : connecter(uid)
+WS   -> API  : WebSocket ws://IP:8000/ws/{uid}
+API --> WS   : Connexion acceptée
+WS  --> UI   : isConnected = true
+
+== Réception données capteurs ==
+loop Toutes les 500ms
+  ESP  -> MQTT : publish(bpm, spo2, temp, ecg, position)
+  MQTT -> IA   : predire(donnees)
+  IA  --> MQTT : {apnee, score, severite}
+  MQTT -> DB   : sauvegarder_mesure()
+  MQTT -> DB   : sauvegarder_resultat_ia()
+  alt Apnée modérée ou sévère
+    MQTT -> DB : sauvegarder_alarme()
+  end
+  MQTT -> API  : diffuser_vers_clients()
+  API  -> WS   : send JSON {donnees + ia}
+  WS  --> Prov : onDonnees(data)
+  Prov --> UI  : notifyListeners() → UI mise à jour
+end
+
+== Chatbot IA ==
+User -> UI   : Envoie message
+UI   -> API  : POST /chatbot/chat {message, role}
+API  -> API  : construire_prompt_systeme(role)
+note right : Doctor → LLaMA 3.3-70B\nPatient → LLaMA 3.1-8B
+API  -> DB   : sauvegarder_message_chat()
+API --> UI   : {reponse: "..."}
+
+== Arrêt surveillance ==
+User -> UI   : Appuie "Arrêter"
+UI   -> Prov : stopMonitoring()
+Prov -> WS   : deconnecter()
+UI   -> FB   : saveMonitoringSession(avgBPM, avgSpO2)
+FB  --> UI   : Session sauvegardée ✓
+
+@enduml

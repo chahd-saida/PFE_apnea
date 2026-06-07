@@ -9,8 +9,14 @@ import 'package:apnea_project/services/measurement_service.dart';
 import 'package:apnea_project/services/user_service.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 
+/// Ecran d'analyse detaillee des donnees d'une nuit pour un patient
+/// Permet au docteur de voir les resumés de mesure, ajouter des annotations
+/// et enregistrer un diagnostic ou des notes cliniques
 class DoctorAnalysisScreen extends StatefulWidget {
+  /// ID du patient (URL-encode)
   final String patientId;
+
+  /// Date de la nuit a analyser (format: YYYY-MM-DD, URL-encodee)
   final String nightDate;
 
   const DoctorAnalysisScreen({
@@ -23,19 +29,35 @@ class DoctorAnalysisScreen extends StatefulWidget {
   State<DoctorAnalysisScreen> createState() => _DoctorAnalysisScreenState();
 }
 
+/// Etat du widget DoctorAnalysisScreen
+/// Gere l'affichage des donnees de mesure, les champs de diagnostic
+/// et les selections de signaux a afficher
 class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
+  /// Service pour acceder aux notes stockees en Firestore
   final NoteService _noteService = NoteService();
+
+  /// Service pour recuperer les enregistrements de mesure
   final MeasurementService _measurementService = MeasurementService();
+
+  /// Service pour acceder aux profils utilisateurs
   final UserService _userService = UserService();
+
+  /// Controleur pour le champ Diagnostic
   final TextEditingController _diagnosisController = TextEditingController();
+
+  /// Controleur pour le champ Notes cliniques
   final TextEditingController _noteController = TextEditingController();
 
+  /// Flag pour indiquer que l'enregistrement est en cours
   bool _isSaving = false;
-  bool _ecgSelected = true;
-  bool _spo2Selected = true;
-  bool _hrSelected = false;
-  bool _movementSelected = false;
 
+  /// Selections des signaux a afficher (4 types de signaux)
+  bool _ecgSelected = true; // ECG (electrocardiogramme)
+  bool _spo2Selected = true; // SpO2 (saturation oxygene)
+  bool _hrSelected = false; // HR (frequence cardiaque)
+  bool _movementSelected = false; // Mouvement du patient
+
+  /// Libere les ressources des controleurs au moment du dispose
   @override
   void dispose() {
     _diagnosisController.dispose();
@@ -43,6 +65,8 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     super.dispose();
   }
 
+  /// Sauvegarde le diagnostic et les notes cliniques en Firestore
+  /// Affiche un snackbar de confirmation ou d'erreur
   Future<void> _saveDiagnosis() async {
     final diagnosis = _diagnosisController.text.trim();
     final note = _noteController.text.trim();
@@ -90,8 +114,17 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     }
   }
 
+  /// Construit l'interface avec sections principales:
+  /// - En-tete avec info patient
+  /// - Resume des mesures
+  /// - Selecteur de signaux
+  /// - Zone pour graphes
+  /// - Evenements annotes
+  /// - Notes precedentes
+  /// - Section diagnostic avec sauvegarde
   @override
   Widget build(BuildContext context) {
+    /// Decode les parametres URL-encodes
     final decodedPatientId = Uri.decodeComponent(widget.patientId);
     final decodedDate = Uri.decodeComponent(widget.nightDate);
 
@@ -152,6 +185,8 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     );
   }
 
+  /// Charge les donnees de mesure du patient pour une nuit donnee
+  /// Retourne null si aucune donnee n'existe
   Future<Map<String, dynamic>?> _loadMeasurementData(
     String patientId,
     String date,
@@ -168,10 +203,14 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     }
   }
 
+  /// En-tete avec infos du patient et date de la nuit
+  /// Affiche: Avatar avec initiale + Nom + Date
   Widget _buildPatientHeader(String patientId, String date) {
     return FutureBuilder<Map<String, dynamic>?>(
+      /// Charge le profil du patient en background
       future: _userService.getUserProfile(patientId),
       builder: (context, snap) {
+        /// Recupere le nom complet du profil patient
         final name = (snap.data?['fullName'] as String?)?.trim() ?? 'Patient';
         return Container(
           padding: const EdgeInsets.all(16),
@@ -223,12 +262,19 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     );
   }
 
+  /// Affiche un resume des mesures principales en 4 chips colorees
+  /// Score (0-100) | SpO2 (%) | FC moyenne (bpm) | Apnees (nombre)
   Widget _buildMeasurementSummary(Map<String, dynamic> data) {
-    final score = (data['score'] as num?)?.toInt() ?? 0;
-    final spo2 = (data['avgSpo2'] ?? data['spo2'] as num?)?.toDouble() ?? 0;
+    /// Extraction des donnees de mesure avec valeurs par defaut
+    final score = (data['score'] as num?)?.toInt() ?? 0; // Score apnea 0-100
+    final spo2 =
+        (data['avgSpo2'] ?? data['spo2'] as num?)?.toDouble() ??
+        0; // Saturation O2
     final hr =
-        (data['avgHeartRate'] ?? data['heartRate'] as num?)?.toDouble() ?? 0;
-    final apneas = (data['apneas'] as num?)?.toInt() ?? 0;
+        (data['avgHeartRate'] ?? data['heartRate'] as num?)?.toDouble() ??
+        0; // FC moyenne
+    final apneas =
+        (data['apneas'] as num?)?.toInt() ?? 0; // Nombre d'apnees detectees
 
     return Card(
       elevation: 1,
@@ -265,9 +311,12 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     );
   }
 
+  /// Cree un chip pour afficher une metrique (valeur + etiquette + couleur)
+  /// Utilise pour Score, SpO2, FC, Apnees dans le resume
   Widget _buildSummaryItem(String label, String value, Color color) {
     return Expanded(
       child: Column(
+        /// Colonne: valeur en grand + label en petit
         children: [
           Text(
             value,
@@ -283,6 +332,9 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     );
   }
 
+  /// Barre de selection pour choisir les signaux a afficher sur le graphe
+  /// 4 options: ECG, SpO2, Frequence cardiaque, Mouvement
+  /// Utilise FilterChip pour une selection/deselection facile
   Widget _buildSignalSelector() {
     return Card(
       elevation: 1,
@@ -292,6 +344,7 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            /// Titre avec icone graphe
             const Text(
               '📈 Signaux à afficher :',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
@@ -332,6 +385,9 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     );
   }
 
+  /// Zone de graphe multi-signaux
+  /// Affiche un placeholder indiquant que les donnees BLE sont requises
+  /// Hauteur: 200px, fond gris clair
   Widget _buildGraphArea() {
     return Container(
       height: 200,
@@ -340,6 +396,8 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade300),
       ),
+
+      /// Placeholder: icone + texte informatif
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -364,6 +422,9 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     );
   }
 
+  /// Section affichant les evenements detectes pendant la nuit
+  /// Exemples: Apnee obstructive, apnee centrale, desaturation
+  /// Permet au docteur d'ajouter des annotations supplementaires
   Widget _buildEventsSection() {
     return Card(
       elevation: 1,
@@ -373,6 +434,7 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            /// Titre avec icone alerte
             const Text(
               '⚠️ Événements annotés',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
@@ -396,6 +458,10 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     );
   }
 
+  /// Affiche une ligne d'evenement avec:
+  /// - Point colore (indicateur de severite)
+  /// - Heure de l'evenement
+  /// - Description de l'evenement
   Widget _buildEventRow(String time, String label, Color color) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -415,12 +481,18 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     );
   }
 
+  /// Affiche les notes precedentes du patient (max 3 dernieres)
+  /// Utilise un Stream pour mise a jour en temps reel
+  /// Affiche diagnostic + notes cliniques pour chaque entree
   Widget _buildPreviousNotes(String patientId) {
     return StreamBuilder<List<Map<String, dynamic>>>(
+      /// Stream Firestore des notes du patient
       stream: _noteService.streamPatientNotes(patientId),
       builder: (context, snapshot) {
+        /// Recupere la liste des notes ou liste vide
         final notes = snapshot.data ?? [];
-        if (notes.isEmpty) return const SizedBox.shrink();
+        if (notes.isEmpty)
+          return const SizedBox.shrink(); // Rien si aucune note
 
         return Card(
           elevation: 1,
@@ -437,7 +509,10 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
+
+                /// Affiche max 3 dernieres notes
                 ...notes.take(3).map((note) {
+                  /// Extraction des donnees: date, texte de note, diagnostic
                   final date = _formatTimestamp(note['createdAt']);
                   final text = note['note'] as String? ?? '';
                   final diagnosis = note['diagnosis'] as String?;
@@ -481,6 +556,9 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     );
   }
 
+  /// Formulaire pour saisir le diagnostic et les notes cliniques
+  /// Contient 2 champs texte (diagnostic + notes) et un bouton de sauvegarde
+  /// En attente de mise a jour Firestore, affiche un spinner
   Widget _buildDiagnosisSection() {
     return Card(
       elevation: 1,
@@ -490,11 +568,14 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            /// Titre avec icone formulaire
             const Text(
               '📋 Diagnostic médecin',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
+
+            /// Champ pour entrer le diagnostic (ex: SAS leger, modere, severe)
             TextField(
               controller: _diagnosisController,
               decoration: InputDecoration(
@@ -506,6 +587,8 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
               ),
             ),
             const SizedBox(height: 12),
+
+            /// Champ multi-ligne pour observations et recommandations
             TextField(
               controller: _noteController,
               maxLines: 4,
@@ -541,24 +624,37 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     );
   }
 
+  /// Retourne la couleur basee sur le score (0-100)
+  /// Vert: >= 80 | Orange: 50-79 | Rouge: < 50
   Color _scoreColor(int score) => score >= 80
       ? Colors.green
       : score >= 50
       ? Colors.orange
       : Colors.red;
+
+  /// Retourne la couleur basee sur la SpO2
+  /// Rouge: < 90% (dangereux) | Orange: 90-94% (precaire) | Bleu: >= 95% (OK)
   Color _spo2Color(double spo2) => spo2 < 90
       ? Colors.red
       : spo2 < 95
       ? Colors.orange
       : Colors.blue;
+
+  /// Retourne la couleur basee sur le nombre d'apnees
+  /// Vert: 0-2 (OK) | Orange: 3-4 (modere) | Rouge: >= 5 (severe)
   Color _apneaColor(int apneas) => apneas >= 5
       ? Colors.red
       : apneas >= 3
       ? Colors.orange
       : Colors.green;
 
+  /// Utilitaire: Formate un timestamp en chaine lisible (JJ/MM/YYYY)
+  /// Gere: DateTime natif, String ISO 8601, Timestamp Firestore
+  /// Retourne une chaine vide si la valeur est null ou invalide
   static String _formatTimestamp(dynamic value) {
     if (value == null) return '';
+
+    /// Convertit differents formats en DateTime
     DateTime? date;
     if (value is DateTime) {
       date = value;
@@ -567,7 +663,10 @@ class _DoctorAnalysisScreenState extends State<DoctorAnalysisScreen> {
     } else if (value is Timestamp) {
       date = value.toDate();
     }
+
     if (date == null) return '';
+
+    /// Retourne format JJ/MM/YYYY
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 }

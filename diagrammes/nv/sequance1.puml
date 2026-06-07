@@ -1,0 +1,52 @@
+
+@startuml
+title Diagramme de séquence — Monitoring temps réel
+
+actor Patient
+participant "Flutter" as Flutter
+participant "FastAPI" as FastAPI
+participant "ESP32" as ESP32
+participant "MoteurIA" as IA
+participant "SQLite" as SQLite
+participant "Firebase" as Firebase
+
+== Démarrage ==
+
+Patient -> Flutter : Démarrer surveillance
+Flutter -> FastAPI : WebSocket connexion
+FastAPI --> Flutter : Connexion acceptée
+
+== Boucle de monitoring ==
+
+loop Chaque donnée reçue
+    ESP32 -> FastAPI : MQTT {bpm, spo2, temp, ecg, position}
+    FastAPI -> IA : predire(donnees)
+    IA --> FastAPI : {apnee, score, severite}
+    FastAPI -> SQLite : Sauvegarder mesure + résultat IA
+    FastAPI --> Flutter : WebSocket {donnees + ia}
+    Flutter -> Flutter : Mise à jour UI
+
+    alt Seuil critique dépassé
+        Flutter -> Firebase : Créer alerte
+    end
+
+    alt Apnée modérée ou sévère
+        FastAPI -> SQLite : Sauvegarder alarme
+    end
+end
+
+== Chatbot ==
+
+Patient -> Flutter : Envoyer message
+Flutter -> FastAPI : POST /chatbot/chat
+FastAPI --> Flutter : Réponse LLaMA
+Flutter --> Patient : Afficher réponse
+
+== Arrêt ==
+
+Patient -> Flutter : Arrêter surveillance
+Flutter -> Firebase : Sauvegarder session
+Firebase --> Flutter : Confirmé
+Flutter --> Patient : Surveillance arrêtée
+
+@enduml

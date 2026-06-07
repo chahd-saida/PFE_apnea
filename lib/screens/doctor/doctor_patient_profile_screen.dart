@@ -5,13 +5,18 @@ import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/widgets/chatbot_fab.dart';
 
+/// Ecran affichant le profil complet d'un patient
+/// Affiche: infos personnelles, medicales, statistiques, historique des nuits
 class DoctorPatientProfileScreen extends StatelessWidget {
   const DoctorPatientProfileScreen({super.key, required this.patientId});
 
+  /// ID du patient (URL-encode) dont on affiche le profil
   final String patientId;
 
+  /// Recupere le nom du medecin assigne
+  /// Cherche dans differents champs possibles de Firestore
   String _resolveDoctorName(Map<String, dynamic> data) {
-    // Chercher dans tous les champs possibles
+    /// Cherche dans tous les champs possibles
     for (final key in ['doctorName', 'assignedDoctorName', 'doctorFullName']) {
       final v = data[key];
       if (v is String && v.trim().isNotEmpty) return v.trim();
@@ -24,6 +29,8 @@ class DoctorPatientProfileScreen extends StatelessWidget {
     return 'Non assigné';
   }
 
+  /// Formate un timestamp en JJ/MM/YYYY
+  /// Gere: Firestore Timestamp, DateTime natif, String ISO 8601
   String _formatDate(dynamic value) {
     DateTime? date;
     if (value is Timestamp) {
@@ -42,6 +49,8 @@ class DoctorPatientProfileScreen extends StatelessWidget {
     return '$day/$month/${date.year}';
   }
 
+  /// Formate un timestamp en JJ/MM/YYYY HH:MM
+  /// Gere: Firestore Timestamp, DateTime natif, String ISO 8601
   String _formatDateTime(dynamic value) {
     DateTime? date;
     if (value is Timestamp) {
@@ -62,6 +71,8 @@ class DoctorPatientProfileScreen extends StatelessWidget {
     return '$day/$month/${date.year} à $hour:$minute';
   }
 
+  /// Calcule l'age du patient a partir de sa date de naissance
+  /// Retourne null si la date est invalide
   int? _computeAge(dynamic rawDob) {
     DateTime? dob;
     if (rawDob is Timestamp) {
@@ -85,6 +96,8 @@ class DoctorPatientProfileScreen extends StatelessWidget {
     return age;
   }
 
+  /// Determine le statut du patient (Actif/Inactif) selon la derniere mesure
+  /// Retourne textes comme "Actif (Aujourd'hui)" | "Actif (Hier)" | "Inactif"
   String _getStatusBadge(dynamic lastMeasurement) {
     if (lastMeasurement == null) {
       return 'Pas de données';
@@ -115,8 +128,11 @@ class DoctorPatientProfileScreen extends StatelessWidget {
     }
   }
 
+  /// Construit l'interface du profil patient
+  /// Affiche: header + infos contact/personnelles + stats + historique
   @override
   Widget build(BuildContext context) {
+    /// Streams Firestore pour charger les donnees en temps reel
     final userDoc = FirebaseFirestore.instance
         .collection('users')
         .doc(patientId)
@@ -125,8 +141,7 @@ class DoctorPatientProfileScreen extends StatelessWidget {
     final nightsQuery = FirebaseFirestore.instance
         .collection('measurements')
         .where('uid', isEqualTo: patientId)
-        .orderBy('timestamp', descending: true)
-        .limit(5)
+        .limit(10)
         .snapshots();
 
     final statsQuery = FirebaseFirestore.instance
@@ -154,6 +169,7 @@ class DoctorPatientProfileScreen extends StatelessWidget {
           );
         }
 
+        /// Extraction des donnees du patient avec valeurs par defaut
         final data = userSnapshot.data?.data() ?? <String, dynamic>{};
         final fullName =
             (data['fullName'] as String?)?.trim().isNotEmpty == true
@@ -162,7 +178,6 @@ class DoctorPatientProfileScreen extends StatelessWidget {
         final gender = (data['gender'] as String?) ?? 'Non renseigné';
         final email = (data['email'] as String?) ?? 'Non renseigné';
         final phone = (data['phone'] as String?) ?? 'Non renseigné';
-        final diagnosis = (data['diagnosis'] as String?) ?? 'Non renseigné';
         final medicalNotes = (data['medicalNotes'] as String?) ?? '';
         final assignedDoctor = _resolveDoctorName(data);
         final age = _computeAge(data['dateOfBirth']);
@@ -180,7 +195,8 @@ class DoctorPatientProfileScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // En-tête du patient
+                /// ===== SECTION: EN-TETE PATIENT =====
+                /// Avatar avec initiale + nom + age + statut
                 Center(
                   child: Column(
                     children: [
@@ -225,70 +241,55 @@ class DoctorPatientProfileScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 12),
+
+                      /// Badge de statut (Actif/Inactif) base sur dernier enregistrement
                       StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                         stream: nightsQuery,
                         builder: (context, nightsSnapshot) {
-                          if (!nightsSnapshot.hasData ||
-                              nightsSnapshot.data!.docs.isEmpty) {
-                            return Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.warning.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: AppColors.warning,
-                                  width: 1,
-                                ),
-                              ),
-                              child: const Text(
-                                'Pas de données',
-                                style: TextStyle(
-                                  color: AppColors.warning,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                ),
-                              ),
+                          if (!nightsSnapshot.hasData) {
+                            return _buildBadge(
+                              'Chargement…',
+                              AppColors.textMedium,
                             );
                           }
-                          final lastMeasurement = nightsSnapshot
-                              .data!
-                              .docs
-                              .first
+
+                          final docs = nightsSnapshot.data!.docs;
+
+                          if (docs.isEmpty) {
+                            return _buildBadge(
+                              'Pas de données',
+                              AppColors.warning,
+                            );
+                          }
+
+                          // Trier côté client par timestamp décroissant
+                          final sorted = [...docs]
+                            ..sort((a, b) {
+                              final aRaw = a.data()['timestamp'];
+                              final bRaw = b.data()['timestamp'];
+                              DateTime? aTime, bTime;
+                              if (aRaw is Timestamp)
+                                aTime = aRaw.toDate();
+                              else if (aRaw is String)
+                                aTime = DateTime.tryParse(aRaw);
+                              if (bRaw is Timestamp)
+                                bTime = bRaw.toDate();
+                              else if (bRaw is String)
+                                bTime = DateTime.tryParse(bRaw);
+                              if (aTime == null && bTime == null) return 0;
+                              if (aTime == null) return 1;
+                              if (bTime == null) return -1;
+                              return bTime.compareTo(aTime);
+                            });
+
+                          final lastMeasurement = sorted.first
                               .data()['timestamp'];
                           final statusText = _getStatusBadge(lastMeasurement);
-                          final isActive = !statusText.contains('Inactif');
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color:
-                                  (isActive
-                                          ? AppColors.success
-                                          : AppColors.warning)
-                                      .withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: isActive
-                                    ? AppColors.success
-                                    : AppColors.warning,
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              statusText,
-                              style: TextStyle(
-                                color: isActive
-                                    ? AppColors.success
-                                    : AppColors.warning,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
+                          final isActive = statusText.startsWith('Actif');
+
+                          return _buildBadge(
+                            statusText,
+                            isActive ? AppColors.success : AppColors.warning,
                           );
                         },
                       ),
@@ -297,7 +298,7 @@ class DoctorPatientProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // Informations de contact
+                /// ===== SECTION: INFORMATIONS CONTACT =====
                 _buildSectionTitle('Informations de contact'),
                 const SizedBox(height: 8),
                 _buildInfoCard(
@@ -312,7 +313,7 @@ class DoctorPatientProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // Informations personnelles
+                /// ===== SECTION: INFORMATIONS PERSONNELLES =====
                 _buildSectionTitle('Informations personnelles'),
                 const SizedBox(height: 8),
                 Row(
@@ -336,7 +337,7 @@ class DoctorPatientProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // Informations médicales
+                /// ===== SECTION: INFORMATIONS MEDICALES =====
                 _buildSectionTitle('Informations médicales'),
                 const SizedBox(height: 8),
 
@@ -380,7 +381,7 @@ class DoctorPatientProfileScreen extends StatelessWidget {
                 ],
                 const SizedBox(height: 16),
 
-                // Médecin assigné
+                /// ===== SECTION: MEDECIN ASSIGNE =====
                 Card(
                   elevation: 2,
                   color: AppColors.primary.withOpacity(0.05),
@@ -422,16 +423,21 @@ class DoctorPatientProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // Statistiques
+                /// ===== SECTION: STATISTIQUES =====
+                /// Affiche: nombre total de nuits, score moyen, total des apnees
                 _buildSectionTitle('Statistiques'),
                 const SizedBox(height: 8),
+
+                /// Stream pour calculer les statistiques globales
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: statsQuery,
                   builder: (context, statsSnapshot) {
+                    /// Initialise les variables de calcul
                     int totalNights = 0;
                     double avgScore = 0;
                     int totalApneas = 0;
 
+                    /// Calcul des statistiques a partir de tous les documents
                     if (statsSnapshot.hasData) {
                       final docs = statsSnapshot.data!.docs;
                       totalNights = docs.length;
@@ -475,7 +481,8 @@ class DoctorPatientProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // 5 dernières nuits
+                /// ===== SECTION: HISTORIQUE NUITS =====
+                /// Affiche les 10 dernieres nuits avec acces a l'analyse detaillee
                 _buildSectionTitle('5 dernières nuits'),
                 const SizedBox(height: 8),
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -514,7 +521,28 @@ class DoctorPatientProfileScreen extends StatelessWidget {
                     }
 
                     final docs = nightsSnapshot.data!.docs;
-                    if (docs.isEmpty) {
+
+                    // Trier côté client par timestamp décroissant
+                    final sorted = [...docs]
+                      ..sort((a, b) {
+                        final aRaw = a.data()['timestamp'];
+                        final bRaw = b.data()['timestamp'];
+                        DateTime? aTime, bTime;
+                        if (aRaw is Timestamp)
+                          aTime = aRaw.toDate();
+                        else if (aRaw is String)
+                          aTime = DateTime.tryParse(aRaw);
+                        if (bRaw is Timestamp)
+                          bTime = bRaw.toDate();
+                        else if (bRaw is String)
+                          bTime = DateTime.tryParse(bRaw);
+                        if (aTime == null && bTime == null) return 0;
+                        if (aTime == null) return 1;
+                        if (bTime == null) return -1;
+                        return bTime.compareTo(aTime);
+                      });
+
+                    if (sorted.isEmpty) {
                       return Card(
                         color: AppColors.warning.withOpacity(0.1),
                         shape: RoundedRectangleBorder(
@@ -542,7 +570,7 @@ class DoctorPatientProfileScreen extends StatelessWidget {
                     }
 
                     return Column(
-                      children: docs.map((doc) {
+                      children: sorted.map((doc) {
                         final night = doc.data();
                         final score =
                             (night['score'] as num?)?.toStringAsFixed(1) ??
@@ -670,6 +698,7 @@ class DoctorPatientProfileScreen extends StatelessWidget {
     );
   }
 
+  /// Helper: Affiche un titre de section avec styling
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
@@ -681,6 +710,8 @@ class DoctorPatientProfileScreen extends StatelessWidget {
     );
   }
 
+  /// Helper: Carte pour afficher une info personnelle/contact
+  /// Affiche: icone + label + valeur
   Widget _buildInfoCard({
     required IconData icon,
     required String label,
@@ -721,6 +752,8 @@ class DoctorPatientProfileScreen extends StatelessWidget {
     );
   }
 
+  /// Helper: Carte pour afficher une statistique
+  /// Affiche: grande valeur + petit label
   Widget _buildStatCard(String label, String value) {
     return Card(
       elevation: 2,
@@ -749,6 +782,8 @@ class DoctorPatientProfileScreen extends StatelessWidget {
     );
   }
 
+  /// Helper: Badge pour afficher une metrique d'une nuit
+  /// Affiche: valeur + label (ex: "5 Apnees")
   Widget _buildMetricBadge(String label, String value) {
     return Column(
       children: [
@@ -766,6 +801,27 @@ class DoctorPatientProfileScreen extends StatelessWidget {
           style: const TextStyle(fontSize: 10, color: AppColors.textMedium),
         ),
       ],
+    );
+  }
+
+  /// Helper: Badge colore pour afficher le statut du patient
+  /// Affiche: "Actif" | "Inactif" | "Pas de donnees"
+  Widget _buildBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color, width: 1),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+      ),
     );
   }
 }

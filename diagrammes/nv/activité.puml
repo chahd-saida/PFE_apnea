@@ -1,0 +1,87 @@
+@startuml
+title Diagramme d'activité — SleepApnea Detect
+
+|Patient|
+|Système|
+|Backend|
+|Médecin|
+
+|Patient|
+start
+:Lancer l'application;
+
+|Système|
+:Afficher SplashScreen;
+:Vérifier session Firebase;
+
+if (Connecté ?) then (non)
+    |Patient|
+    :Saisir email et mot de passe;
+    |Système|
+    :Authentification Firebase;
+    if (Valide ?) then (non)
+        :Afficher erreur;
+        stop
+    endif
+endif
+
+|Système|
+:Récupérer rôle utilisateur (Firestore);
+
+if (Rôle ?) then (inconnu)
+    :Afficher FixProfileScreen;
+    stop
+else (patient)
+    |Patient|
+    :Accéder au dashboard patient;
+    :Démarrer surveillance;
+
+    |Backend|
+    :ESP32 envoie données via MQTT;
+    :MoteurIA v4 prédit apnée;
+    :Sauvegarder dans SQLite;
+    :Sauvegarder session dans Firestore;
+
+    |Système|
+    :Diffuser résultats via WebSocket;
+    :AlertService génère alertes si seuil dépassé;
+
+    |Patient|
+    :Visualiser SpO2, BPM, ECG;
+    note right
+        Si ESP32 absent :
+        MonitoringService
+        génère données simulées
+    end note
+    :Arrêter surveillance;
+
+    |Système|
+    :saveMonitoringSession() vers Firestore;
+
+    |Patient|
+    :Consulter historique;
+    :Utiliser chatbot ApneaBot;
+    :Gérer capteurs DevicesScreen;
+    :Exporter rapport PDF;
+
+else (médecin)
+    |Médecin|
+    :Accéder au dashboard médecin;
+    :Consulter liste patients;
+    :Ajouter un patient;
+    :Analyser nuit patient;
+    :Saisir note clinique;
+    :Utiliser chatbot DoctorBot;
+    :Consulter alertes;
+    :Messagerie patient;
+    :Générer rapport PDF;
+
+endif
+
+|Système|
+:Se déconnecter;
+:Effacer session;
+:Retour LoginScreen;
+stop
+
+@enduml

@@ -1,0 +1,149 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype ortho
+hide empty members
+
+title Diagramme de classes — SleepApnea Detect
+
+package "Model" #E1F5EE {
+  class Patient {
+    + id: String
+    + fullName: String
+    + doctorUid: String?
+    + toFirestore()
+    + fromFirestore()
+  }
+  class Doctor {
+    + uid: String
+    + fullName: String
+    + speciality: String?
+  }
+  class Measurement {
+    + spo2: double
+    + heartRate: double
+    + timestamp: DateTime
+    + apneaDetected: bool
+  }
+  class SleepSession {
+    + startTime: DateTime
+    + averageSpo2: double
+    + apneaEvents: int
+    + score: int?
+  }
+  class Alert {
+    + type: String
+    + severity: String
+    + isRead: bool
+  }
+  class ReportData {
+    + totalApneas: int?
+    + averageSpo2: double?
+    + totalSessions: int?
+  }
+}
+
+package "ViewModel" #EEEDFE {
+  abstract class ChangeNotifier
+
+  class AuthProvider {
+    + user: User?
+    + role: String?
+    + isDoctor: bool
+    + fetchRole(uid): Future<void>
+    + clearSession(): void
+  }
+  class UserProfileProvider {
+    + fullName: String
+    + doctorUid: String?
+    + bindAuth(auth): void
+    + updateProfile(): Future<void>
+  }
+  class MonitoringProvider {
+    + isConnected: bool
+    + liveData: Map
+    + iaResult: Map
+    + startMonitoring(id): void
+    + stopMonitoring(): void
+  }
+  class ThemeProvider {
+    + isDarkMode: bool
+    + setDarkMode(value): void
+  }
+  class LocaleProvider {
+    + locale: Locale
+    + setLocale(code): void
+  }
+
+  AuthProvider       --|> ChangeNotifier
+  UserProfileProvider --|> ChangeNotifier
+  MonitoringProvider  --|> ChangeNotifier
+  ThemeProvider      --|> ChangeNotifier
+  LocaleProvider     --|> ChangeNotifier
+}
+
+package "Service" #FAEEDA {
+  class FirebaseService {
+    + signIn(email, password)
+    + signUp(email, password, role)
+    + getUserProfile(uid)
+    + addPatient(patient)
+    + saveMonitoringSession()
+    + streamDoctorPatients(uid)
+    + saveDoctorNote()
+  }
+  class WebSocketService {
+    + ipServeur: String
+    + connecter(patientId): void
+    + deconnecter(): void
+    + onDonnees: Function?
+    + onConnectionChanged: Function?
+  }
+  class GroqService {
+    + sendMessage(messages, role): Future<String>
+  }
+  class PdfReportService {
+    + generatePdfReport(patient, data)
+    + savePdfToLocal(bytes, fileName)
+  }
+  class AlertService {
+    + checkAndCreateAlerts()
+    + streamPatientAlerts(patientId)
+  }
+}
+
+package "View" #E6F1FB {
+  class RealtimeMonitoringScreen
+  class DashboardPatientScreen
+  class DashboardDoctorScreen
+  class DoctorAnalysisScreen
+  class LoginScreen
+}
+
+package "Router" #F1EFE8 {
+  class AppRouter {
+    + createAppRouter(authProvider)
+  }
+  class RouteNames {
+    {static} + patientDashboard
+    {static} + doctorDashboard
+    {static} + realtimeMonitoring
+  }
+}
+
+' Relations
+AuthProvider        *-- FirebaseService
+UserProfileProvider *-- FirebaseService
+MonitoringProvider  *-- WebSocketService
+AlertService        *-- FirebaseService
+
+RealtimeMonitoringScreen ..> MonitoringProvider
+DashboardPatientScreen   ..> AuthProvider
+DashboardDoctorScreen    ..> AuthProvider
+LoginScreen              ..> FirebaseService
+DoctorAnalysisScreen     ..> FirebaseService
+
+AppRouter ..> AuthProvider
+FirebaseService ..> Patient
+
+@enduml

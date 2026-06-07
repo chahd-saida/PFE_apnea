@@ -1,0 +1,124 @@
+@startuml
+title Diagramme de classes — SleepApnea Detect
+
+skinparam classAttributeIconSize 0
+skinparam classFontSize 12
+skinparam packageFontSize 13
+skinparam ArrowColor #555555
+skinparam ClassBorderColor #888888
+
+package "View (Screens)" #EEF {
+  class LoginScreen
+  class DashboardPatientScreen
+  class DashboardDoctorScreen
+  class RealtimeMonitoringScreen
+  class ChatbotScreen
+  class HistoryScreen
+  class NightDetailScreen
+  class DoctorReportsScreen
+}
+
+package "ViewModel (Providers)" #EFE {
+  class AuthProvider {
+    +user : User
+    +role : String
+    +login() : Future
+    +register() : Future
+    +fetchRole() : Future
+  }
+  class UserProfileProvider {
+    +fullName : String
+    +role : String
+    +updateProfile() : Future
+  }
+  class MonitoringProvider {
+    +isConnected : bool
+    +liveData : Map
+    +iaResult : Map
+    +startMonitoring() : void
+    +stopMonitoring() : void
+  }
+  class PatientProvider {
+    +createPatientAccount() : Future
+    +saveDiagnosis() : Future
+  }
+  class ThemeProvider {
+    +isDarkMode : bool
+    +setDarkMode() : Future
+  }
+}
+
+package "Model (Services)" #FEE {
+  class AuthService {
+    +signIn() : Future
+    +signOut() : Future
+    +registerUser() : Future
+  }
+  class UserService {
+    +getUserRole() : Future
+    +updateUserProfile() : Future
+    +streamDoctorPatients() : Stream
+  }
+  class MeasurementService {
+    +getMeasurementRecords() : Future
+    +saveMonitoringSession() : Future
+  }
+  class AlertService {
+    +streamPatientAlerts() : Stream
+    +streamDoctorAlerts() : Stream
+    +markAlertAsRead() : Future
+  }
+  class WebSocketService {
+    +connecter() : void
+    +deconnecter() : void
+  }
+  class PdfReportService {
+    +generatePdfReport() : Future
+    +sharePdf() : Future
+  }
+}
+
+package "Model (Entités)" #FFE {
+  class Doctor {
+    +id : String
+    +fullName : String
+    +specialization : String
+  }
+  class Patient {
+    +id : String
+    +nom : String
+    +age : int
+    +doctorUid : String
+  }
+  class Measurement {
+    +spo2 : double
+    +heartRate : int
+    +temperature : double
+  }
+  class Alert {
+    +severity : String
+    +isRead : bool
+  }
+}
+
+' Relations Providers → Services
+AuthProvider --> AuthService
+AuthProvider --> UserService
+UserProfileProvider --> UserService
+MonitoringProvider --> WebSocketService
+PatientProvider --> UserService
+ThemeProvider --> AuthProvider
+
+' Relations Screens → Providers
+DashboardPatientScreen --> AuthProvider
+DashboardPatientScreen --> UserProfileProvider
+RealtimeMonitoringScreen --> MonitoringProvider
+DashboardDoctorScreen --> UserProfileProvider
+DoctorReportsScreen --> PdfReportService
+
+' Relations Entités
+Doctor "1" --> "N" Patient : suit
+Patient "1" --> "N" Measurement : possède
+Patient "1" --> "N" Alert : reçoit
+
+@enduml

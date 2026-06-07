@@ -1,0 +1,256 @@
+@startuml
+title Diagramme de classes — SleepApnea Detect
+
+' ── COUCHE VIEW (Screens) ─────────────────────────────
+package "View (Screens)" {
+  class LoginScreen
+  class DashboardPatientScreen
+  class DashboardDoctorScreen
+  class RealtimeMonitoringScreen
+  class ChatbotScreen {
+    +role : String
+  }
+  class DoctorAnalysisScreen
+  class DoctorReportsScreen
+  class DevicesScreen
+  class HistoryScreen
+  class NightDetailScreen
+}
+
+' ── COUCHE VIEWMODEL (Providers) ──────────────────────
+package "ViewModel (Providers)" {
+  class AuthProvider {
+    +user : User
+    +role : String
+    +isLoadingRole : bool
+    +login() : Future<String?>
+    +register() : Future<String?>
+    +fetchRole() : Future<void>
+    +clearSession() : void
+  }
+
+  class UserProfileProvider {
+    +fullName : String
+    +email : String
+    +role : String
+    +phone : String
+    +doctorUid : String
+    +profileImageUrl : String
+    +bindAuth() : void
+    +updateProfile() : Future<void>
+    +refreshProfile() : Future<void>
+  }
+
+  class MonitoringProvider {
+    +isConnected : bool
+    +isMonitoring : bool
+    +liveData : Map
+    +iaResult : Map
+    +startMonitoring() : void
+    +stopMonitoring() : void
+    +resetCallbacks() : void
+  }
+
+  class ThemeProvider {
+    +themeMode : ThemeMode
+    +isDarkMode : bool
+    +loadTheme() : Future<void>
+    +setDarkMode() : Future<void>
+  }
+
+  class LocaleProvider {
+    +locale : Locale
+    +languageCode : String
+    +loadLocale() : Future<void>
+    +setLocaleCode() : Future<void>
+  }
+
+  class PatientProvider {
+    +isSaving : bool
+    +error : String
+    +addPatient() : Future<bool>
+    +createPatientAccount() : Future<String?>
+    +saveDiagnosis() : Future<bool>
+  }
+
+  class ReportProvider {
+    +isProcessing : bool
+    +cachedPdfBytes : Uint8List
+    +generateReport() : Future<bool>
+  }
+}
+
+' ── COUCHE MODEL (Services) ───────────────────────────
+package "Model (Services)" {
+  class AuthService {
+    +signIn() : Future<UserCredential>
+    +signUp() : Future<UserCredential>
+    +signOut() : Future<void>
+    +registerUser() : Future<UserCredential>
+    +changePassword() : Future<void>
+  }
+
+  class UserService {
+    +getUserRole() : Future<String?>
+    +getUserProfile() : Future<Map?>
+    +updateUserProfile() : Future<void>
+    +addPatient() : Future<void>
+    +createPatientAccount() : Future<String>
+    +streamDoctorPatients() : Stream
+    +streamUserProfile() : Stream
+  }
+
+  class MeasurementService {
+    +getMeasurementRecords() : Future<List>
+    +streamMeasurementRecords() : Stream
+    +saveMonitoringSession() : Future<String>
+    +getMeasurementById() : Future<Map?>
+  }
+
+  class AlertService {
+    +checkAndCreateAlerts() : Future<void>
+    +streamPatientAlerts() : Stream
+    +streamDoctorAlerts() : Stream
+    +markAlertAsRead() : Future<void>
+    +deleteAlert() : Future<void>
+  }
+
+  class NoteService {
+    +saveDoctorNote() : Future<void>
+    +streamPatientNotes() : Stream
+    +getPatientNotes() : Future<List>
+  }
+
+  class PdfReportService {
+    +generatePdfReport() : Future<Uint8List>
+    +savePdfToLocal() : Future<File>
+    +sharePdf() : Future<void>
+  }
+
+  class WebSocketService {
+    +ipServeur : String
+    +onDonnees : Function
+    +onConnectionChanged : Function
+    +connecter() : void
+    +deconnecter() : void
+  }
+
+  class MonitoringService {
+    +stream : Stream
+    +startMonitoring() : void
+    +stopMonitoring() : void
+  }
+
+  class ApiService {
+    +checkHealth() : Future<bool>
+    +getHistoriqueMesures() : Future<List>
+    +sendChatMessage() : Future<String?>
+  }
+
+  class SettingsService {
+    +getDarkMode() : Future<bool>
+    +setDarkMode() : Future<void>
+    +getLanguage() : Future<String>
+    +setLanguage() : Future<void>
+  }
+}
+
+' ── COUCHE MODEL (Entités) ────────────────────────────
+package "Model (Entités)" {
+  class Doctor {
+    +id : String
+    +fullName : String
+    +email : String
+    +specialization : String
+    +medicalLicenseNumber : String
+    +toFirestore() : Map
+    +fromFirestore() : Doctor
+  }
+
+  class Patient {
+    +id : String
+    +nom : String
+    +prenom : String
+    +age : int
+    +sexe : String
+    +doctorUid : String
+    +toFirestore() : Map
+  }
+
+  class Alert {
+    +id : String
+    +patientUid : String
+    +alertType : String
+    +severity : String
+    +isRead : bool
+    +toFirestore() : Map
+    +fromFirestore() : Alert
+  }
+
+  class Measurement {
+    +id : String
+    +patientUid : String
+    +timestamp : DateTime
+    +spo2 : double
+    +heartRate : int
+    +temperature : double
+    +toFirestore() : Map
+    +fromFirestore() : Measurement
+  }
+
+  class SleepSession {
+    +id : String
+    +patientUid : String
+    +startTime : DateTime
+    +endTime : DateTime
+    +totalApneaEvents : int
+    +averageSpo2 : double
+    +sleepQuality : String
+    +toFirestore() : Map
+    +fromFirestore() : SleepSession
+  }
+
+  class ReportData {
+    +doctorName : String
+    +generatedAt : DateTime
+    +averageSpo2 : double
+    +totalApneas : int
+    +measurements : List
+    +notes : List
+  }
+}
+
+' ── RELATIONS ─────────────────────────────────────────
+AuthProvider --> AuthService : utilise
+AuthProvider --> UserService : utilise
+UserProfileProvider --> UserService : utilise
+MonitoringProvider --> WebSocketService : utilise
+MonitoringProvider --> MonitoringService : utilise
+PatientProvider --> UserService : utilise
+PatientProvider --> NoteService : utilise
+ReportProvider --> MeasurementService : utilise
+ReportProvider --> PdfReportService : utilise
+ReportProvider --> NoteService : utilise
+ThemeProvider --> SettingsService : utilise
+LocaleProvider --> SettingsService : utilise
+
+DashboardPatientScreen --> AuthProvider : observe
+DashboardPatientScreen --> UserProfileProvider : observe
+DashboardPatientScreen --> AlertService : utilise
+RealtimeMonitoringScreen --> MonitoringProvider : observe
+RealtimeMonitoringScreen --> MeasurementService : utilise
+DashboardDoctorScreen --> UserService : utilise
+DashboardDoctorScreen --> AlertService : utilise
+DoctorReportsScreen --> PdfReportService : utilise
+DoctorReportsScreen --> MeasurementService : utilise
+ChatbotScreen --> ApiService : utilise
+
+UserProfileProvider --> AuthProvider : observe (bindAuth)
+
+Doctor "1" --> "N" Patient : suit
+Patient "1" --> "N" Measurement : possède
+Patient "1" --> "N" Alert : reçoit
+Patient "1" --> "N" SleepSession : génère
+Doctor "1" --> "N" ReportData : génère
+
+@enduml

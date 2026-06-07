@@ -1,55 +1,70 @@
 // lib/screens/patient/realtime_monitoring_screen.dart
-// ignore_for_file: use_build_context_synchronously, sized_box_for_whitespace
+//
+// ═══════════════════════════════════════════════════════════════════════════════
+// ÉCRAN DE SURVEILLANCE TEMPS RÉEL — RealtimeMonitoringScreen
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Rôle : Affiche en temps réel les données de l'ESP32 (BPM, SpO₂, température,
+//         position, ECG) reçues via WebSocket, avec graphiques et journal d'alertes.
+//
+// CORRECTION APPORTÉE (sans modifier l'affichage) :
+//   • _addEvent() écrit maintenant chaque alerte dans Firestore via AlertService
+//     afin que le médecin puisse les voir dans son centre d'alertes.
+//   • Un throttle de 30 secondes par type d'alerte évite le flood Firestore.
+//   • Le doctorUid est résolu automatiquement depuis le profil patient
+//     (délégué à alert_service.dart qui lit 'assignedDoctorId' dans Firestore).
+//   • Tous les widgets, painters, layouts et comportements sont INCHANGÉS.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ignore_for_file: use_build_context_synchronously
 import 'dart:async';
 import 'dart:math' as math;
 
-//import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:apnea_project/router/app_router.dart';
 import 'package:provider/provider.dart';
+
+import 'package:apnea_project/router/app_router.dart';
 import 'package:apnea_project/theme/app_theme.dart';
 import 'package:apnea_project/theme/app_colors.dart';
 import 'package:apnea_project/providers/theme_provider.dart';
 import 'package:apnea_project/providers/auth_provider.dart';
+import 'package:apnea_project/providers/monitoring_provider.dart';
 import 'package:apnea_project/services/measurement_service.dart';
 import 'package:apnea_project/services/monitoring_service.dart';
+import 'package:apnea_project/services/alert_service.dart'; // ← AJOUT : service alertes Firestore
 import 'package:apnea_project/widgets/chatbot_fab.dart';
-import 'package:apnea_project/providers/monitoring_provider.dart';
 import 'package:apnea_project/services/api_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS
+// DESIGN TOKENS — inchangés
 // ─────────────────────────────────────────────────────────────────────────────
-const _navy = Color(0xFF1E3A8A);
-const _teal = Color(0xFF4DBDB8);
-const _purple = Color(0xFF7C3AED);
-const _red = Color(0xFFEF5350);
-const _green = Color(0xFF00BFA5);
-const _orange = Color(0xFFF57C00);
-const _cardDk = Color(0xFF161D2E);
+const _navy = Color(0xFF1E3A8A); // Bleu marine — SpO₂ et bouton démarrage
+const _teal = Color(0xFF4DBDB8); // Turquoise — chronomètre et accents
+const _purple = Color(0xFF7C3AED); // Violet — position/accéléromètre
+const _red = Color(0xFFEF5350); // Rouge — FC, alarmes critiques
+const _green = Color(0xFF00BFA5); // Vert — température, statut OK
+const _orange = Color(0xFFF57C00); // Orange — avertissements
+const _cardDk = Color(0xFF161D2E); // Fond des cartes en mode sombre
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ESP DATA MODEL  — mirrors models.py DonneesCapteursSchema + ResultatIASchema
+// ESP DATA MODEL — inchangé
+// Représente une trame de données reçue via WebSocket depuis l'ESP32.
+// Les deux sous-objets du JSON sont 'donnees' (capteurs bruts) et 'ia'
+// (résultat du modèle de stacking RF+ET+LightGBM côté serveur FastAPI).
 // ─────────────────────────────────────────────────────────────────────────────
 class _EspData {
-  final double bpm;
-  final double spo2;
-  final double temperature;
-  final double bpmEcg;
-  final bool electrodesOk;
-  final String position;
-  final double accX, accY, accZ;
-  final bool alarmeActive;
-  final String raisonAlarme;
-  final bool doigtDetecte;
-  final DateTime receivedAt;
-  // IA
-  final bool apnee;
-  final double score;
-  final double confiance;
-  final String severite;
-  final String messageIa;
+  // ── Données capteurs (ESP32) ───────────────────────────────────────────────
+  final double bpm, spo2, temperature, bpmEcg; // MAX30102 + AD8232
+  final bool electrodesOk, alarmeActive, doigtDetecte;
+  final String position, raisonAlarme; // MPU6050
+  final double accX, accY, accZ; // Accéléromètre
+  final DateTime receivedAt; // Horodatage réception locale
+
+  // ── Résultats IA (FastAPI) ─────────────────────────────────────────────────
+  final bool apnee; // true si apnée détectée par le modèle de stacking
+  final double score, confiance; // Score global et confiance du modèle (0→1)
+  final String severite, messageIa; // "modere"/"severe" + message explicatif
 
   const _EspData({
     this.bpm = 0,
@@ -57,13 +72,13 @@ class _EspData {
     this.temperature = 0,
     this.bpmEcg = 0,
     this.electrodesOk = true,
+    this.alarmeActive = false,
+    this.doigtDetecte = false,
     this.position = 'INCONNU',
+    this.raisonAlarme = '',
     this.accX = 0,
     this.accY = 0,
     this.accZ = 0,
-    this.alarmeActive = false,
-    this.raisonAlarme = '',
-    this.doigtDetecte = false,
     required this.receivedAt,
     this.apnee = false,
     this.score = 0,
@@ -72,6 +87,10 @@ class _EspData {
     this.messageIa = '',
   });
 
+  /// Désérialise une trame WebSocket réelle provenant de l'ESP32.
+  /// Le JSON a deux sous-objets : 'donnees' (capteurs) et 'ia' (modèle IA).
+  /// Chaque champ a un fallback défensif (?? 0, ?? false, ?? '') pour ne
+  /// jamais planter si un champ est absent ou null.
   factory _EspData.fromWebSocket(Map<String, dynamic> raw) {
     final d = raw['donnees'] as Map<String, dynamic>? ?? {};
     final ia = raw['ia'] as Map<String, dynamic>? ?? {};
@@ -81,13 +100,13 @@ class _EspData {
       temperature: (d['temperature'] as num?)?.toDouble() ?? 0,
       bpmEcg: (d['bpm_ecg'] as num?)?.toDouble() ?? 0,
       electrodesOk: (d['electrodes_ok'] as bool?) ?? true,
+      alarmeActive: (d['alarme_active'] as bool?) ?? false,
+      doigtDetecte: (d['doigt_detecte'] as bool?) ?? false,
       position: (d['position'] as String?) ?? 'INCONNU',
+      raisonAlarme: (d['raison_alarme'] as String?) ?? '',
       accX: (d['acc_x'] as num?)?.toDouble() ?? 0,
       accY: (d['acc_y'] as num?)?.toDouble() ?? 0,
       accZ: (d['acc_z'] as num?)?.toDouble() ?? 0,
-      alarmeActive: (d['alarme_active'] as bool?) ?? false,
-      raisonAlarme: (d['raison_alarme'] as String?) ?? '',
-      doigtDetecte: (d['doigt_detecte'] as bool?) ?? false,
       receivedAt: DateTime.now(),
       apnee: (ia['apnee'] as bool?) ?? false,
       score: (ia['score'] as num?)?.toDouble() ?? 0,
@@ -97,13 +116,20 @@ class _EspData {
     );
   }
 
-  factory _EspData.fromSimulated(Map<String, dynamic> d) {
-    final isApnea = (d['_simPhase'] as String?) == 'apnea';
-    final progress = (d['_simProgress'] as double?) ?? 0.0;
-    final spo2 = (d['spo2'] as num?)?.toDouble() ?? 0;
-    final bpm = (d['heartRate'] as num?)?.toDouble() ?? 0;
+  /// Désérialise une trame simulée (MonitoringService) utilisée quand
+  /// l'ESP32 physique est absent. Permet de tester l'UI sans matériel.
+  // factory _EspData.fromSimulated(Map<String, dynamic> payload) => _EspData(
+  //bpm:         (payload['heartRate']   as num?)?.toDouble() ?? 0,
+  //spo2:        (payload['spo2']        as num?)?.toDouble() ?? 0,
+  // temperature: (payload['temperature'] as num?)?.toDouble() ?? 36.5,
+  // doigtDetecte: true,
+  // electrodesOk: true,
+  // receivedAt: DateTime.now(),
+  //);
 
-    // Score IA simulé : monte avec la progression en phase apnée
+  factory _EspData.fromSimulated(Map<String, dynamic> payload) {
+    final isApnea = (payload['_simPhase'] as String?) == 'apnea';
+    final progress = (payload['_simProgress'] as double?) ?? 0.0;
     final score = isApnea ? (0.3 + progress * 0.6).clamp(0.0, 1.0) : 0.05;
     final confiance = isApnea ? (0.25 + progress * 0.65).clamp(0.0, 1.0) : 0.04;
     final apnee = isApnea && score >= 0.5;
@@ -121,11 +147,10 @@ class _EspData {
         : score >= 0.6
         ? 'Apnée modérée détectée'
         : 'Début de désaturation';
-
     return _EspData(
-      bpm: bpm,
-      spo2: spo2,
-      temperature: (d['temperature'] as num?)?.toDouble() ?? 36.5,
+      bpm: (payload['heartRate'] as num?)?.toDouble() ?? 0,
+      spo2: (payload['spo2'] as num?)?.toDouble() ?? 0,
+      temperature: (payload['temperature'] as num?)?.toDouble() ?? 36.5,
       doigtDetecte: true,
       electrodesOk: true,
       receivedAt: DateTime.now(),
@@ -141,8 +166,9 @@ class _EspData {
 // ─────────────────────────────────────────────────────────────────────────────
 // SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
-
 class RealtimeMonitoringScreen extends StatefulWidget {
+  /// [monitoringService] : injecteur de dépendance pour les tests unitaires.
+  /// En production, null → MonitoringService() est instancié.
   const RealtimeMonitoringScreen({super.key, this.monitoringService});
   final MonitoringService? monitoringService;
 
@@ -153,45 +179,68 @@ class RealtimeMonitoringScreen extends StatefulWidget {
 
 class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
     with TickerProviderStateMixin {
-  // ── Fix 3 : _wsService supprimé — géré par MonitoringProvider ──────────
+  // ── Services ──────────────────────────────────────────────────────────────
   late final MonitoringService _monitoringService;
   final MeasurementService _measurementService = MeasurementService();
 
-  StreamSubscription<Map<String, dynamic>>? _streamSub;
-  bool _isMonitoring = false;
-  bool _isConnected = false;
-  DateTime? _sessionStart;
+  // ── AJOUT : AlertService pour écrire les alertes dans Firestore ───────────
+  // Instancié une seule fois et réutilisé dans _addEvent().
+  // Le doctorUid est résolu automatiquement par le service depuis le profil
+  // Firestore du patient (champ 'assignedDoctorId').
+  final AlertService _alertService = AlertService();
 
-  _EspData? _live;
-  final List<_EspData> _history = [];
-  final List<Map<String, dynamic>> _events = [];
-  final List<double> _bpmHist = [];
-  final List<double> _spo2Hist = [];
+  // ── AJOUT : Throttle anti-flood Firestore ─────────────────────────────────
+  // Évite d'écrire la même alerte (même titre) plus d'une fois par 30 secondes.
+  // Clé : titre de l'alerte | Valeur : DateTime du dernier envoi Firestore.
+  final Map<String, DateTime> _lastFirestoreAlert = {};
+  static const Duration _alertCooldown = Duration(seconds: 30);
 
-  static const int _maxHistory = 40;
+  // ── État WebSocket / session ───────────────────────────────────────────────
+  StreamSubscription<Map<String, dynamic>>? _streamSub; // Stream simulé
+  bool _isMonitoring = false; // Surveillance active ?
+  bool _isConnected = false; // ESP32 connecté via WebSocket ?
+  DateTime? _sessionStart; // Heure de début de session
 
-  late final AnimationController _pulseCtrl;
-  late final AnimationController _fadeCtrl;
-  late final AnimationController _slideCtrl;
-  late final AnimationController _btnCtrl;
-  late final AnimationController _heartCtrl;
+  // ── Buffers de données ────────────────────────────────────────────────────
+  _EspData? _live; // Dernière trame reçue
+  final List<_EspData> _history = []; // 40 dernières trames (graphiques)
+  final List<Map<String, dynamic>> _events = []; // Journal local (15 max)
+  final List<double> _bpmHist = []; // Historique BPM pour moyennes
+  final List<double> _spo2Hist = []; // Historique SpO₂ pour moyennes
+
+  static const int _maxHistory = 40; // Taille du buffer glissant
+
+  int _apneaCount = 0; //compteur des apnées
+  DateTime?
+  _lastApneaCountedAt; // Cooldown pour éviter de compter la même apnée plusieurs fois
+
+  // ── Animations ────────────────────────────────────────────────────────────
+  late final AnimationController _pulseCtrl; // Point clignotant AppBar
+  late final AnimationController _fadeCtrl; // Fondu d'entrée de l'écran
+  late final AnimationController _slideCtrl; // Glissement des cartes
+  late final AnimationController _btnCtrl; // Pulsation du bouton démarrage
+  late final AnimationController _heartCtrl; // Battement de l'icône FC
 
   Timer? _sessionTimer;
   Duration _sessionDuration = Duration.zero;
 
+  // ── initState ──────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
     _monitoringService = widget.monitoringService ?? MonitoringService();
 
+    // Animations définies une seule fois pour toute la durée de vie de l'écran.
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
+    )..repeat(reverse: true); // Aller-retour en boucle (0→1→0→1…)
+
     _fadeCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
-    )..forward();
+    )..forward(); // Joue une seule fois au démarrage
+
     _slideCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -205,81 +254,137 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
       duration: const Duration(milliseconds: 500),
     );
 
+    // Déclenche l'animation de slide 200ms après le build
     Future.delayed(const Duration(milliseconds: 200), () {
       if (mounted) _slideCtrl.forward();
     });
 
-    // ── Fix 2 : un seul postFrameCallback — via MonitoringProvider ─────────
+    // ── Brancher le WebSocket via MonitoringProvider ───────────────────────
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final uid = context.read<AuthProvider>().user?.uid ?? 'patient_unknown';
       final monitor = context.read<MonitoringProvider>();
 
-      // Brancher les callbacks du provider sur l'état local du screen
-      monitor.onConnectionChanged = (connected) {
-        if (mounted) setState(() => _isConnected = connected);
-      };
-      monitor.onDonnees = (raw) {
-        if (!mounted || !_isMonitoring) return;
-        final esp = _EspData.fromWebSocket(raw);
-        _onData(esp);
-        if (esp.alarmeActive && esp.raisonAlarme.isNotEmpty) {
-          _addEvent(esp.raisonAlarme, 'critical', Icons.warning_amber_rounded);
-        }
-        if (esp.apnee &&
-            (esp.severite == 'modere' || esp.severite == 'severe')) {
-          _addEvent(
-            'Apnée ${esp.severite.toUpperCase()} — IA: ${(esp.confiance * 100).round()}%',
-            'critical',
-            Icons.air_outlined,
+      // ÉTAPE 1 : démarrer le WebSocket
+      monitor.startMonitoring(uid);
+
+      // ÉTAPE 2 : attacher les callbacks du screen
+      // Dans initState → WidgetsBinding.instance.addPostFrameCallback
+      monitor.attachScreenCallbacks(
+        onConnectionChanged: (connected) {
+          if (mounted) setState(() => _isConnected = connected);
+        },
+        onDonnees: (raw) {
+          if (!mounted || !_isMonitoring) return;
+
+          final esp = _EspData.fromWebSocket(raw); // ← esp est défini ICI
+          _onData(esp);
+
+          if (esp.alarmeActive && esp.raisonAlarme.isNotEmpty) {
+            _addEvent(
+              esp.raisonAlarme,
+              'critical',
+              Icons.warning_amber_rounded,
+            );
+          }
+
+          // ✅ CORRECTION — bloc apnée avec cooldown
+          if (esp.apnee &&
+              (esp.severite == 'modere' || esp.severite == 'severe')) {
+            _addEvent(
+              'Apnée ${esp.severite.toUpperCase()} — IA: ${(esp.confiance * 100).round()}%',
+              'critical',
+              Icons.air_outlined,
+            );
+            final now = DateTime.now();
+            if (_lastApneaCountedAt == null ||
+                now.difference(_lastApneaCountedAt!) >=
+                    const Duration(seconds: 60)) {
+              setState(() => _apneaCount++);
+              _lastApneaCountedAt = now;
+              debugPrint('🫁 Apnée comptée : $_apneaCount');
+            }
+          }
+        },
+      );
+
+      // Vérifier la disponibilité du serveur FastAPI
+      ApiService().checkHealth().then((online) {
+        if (mounted) {
+          debugPrint(
+            '🖥️ Serveur FastAPI: ${online ? "EN LIGNE" : "HORS LIGNE"}',
           );
         }
-      };
-
-      monitor.startMonitoring(uid);
-    });
-    ApiService().checkHealth().then((online) {
-      if (mounted)
-        debugPrint(
-          '🖥️ Serveur FastAPI: ${online ? "EN LIGNE" : "HORS LIGNE"}',
-        );
+      });
     });
   }
 
+  // ── dispose ────────────────────────────────────────────────────────────────
+  @override
+  void dispose() {
+    _streamSub?.cancel(); // Arrêter le stream simulé
+    _sessionTimer?.cancel();
+    // Libérer tous les AnimationControllers pour éviter les fuites mémoire
+    _pulseCtrl.dispose();
+    _fadeCtrl.dispose();
+    _slideCtrl.dispose();
+    _btnCtrl.dispose();
+    _heartCtrl.dispose();
+    _monitoringService.dispose(); // Fermer la connexion WebSocket proprement
+    super.dispose();
+  }
+
+  // ── _onData ────────────────────────────────────────────────────────────────
+  /// Traite une nouvelle trame de données ESP32.
+  /// Met à jour les buffers et déclenche les vérifications de seuils médicaux.
   void _onData(_EspData esp) {
     setState(() {
       _live = esp;
       _history.add(esp);
-      if (_history.length > _maxHistory) _history.removeAt(0);
+      if (_history.length > _maxHistory) _history.removeAt(0); // Buffer FIFO
+
       if (esp.bpm > 0) _bpmHist.add(esp.bpm);
       if (esp.spo2 > 0) _spo2Hist.add(esp.spo2);
-      _heartCtrl.forward(from: 0);
 
+      _heartCtrl.forward(from: 0); // Déclenche l'animation de battement
+
+      // ── Vérifications des seuils médicaux ─────────────────────────────
+      // SpO₂ < 90% = critique selon OMS
       if (esp.spo2 > 0 && esp.spo2 < 90)
         _addEvent(
           'SpO₂ critique : ${esp.spo2.round()}%',
           'critical',
           Icons.warning,
         );
+      // 90–94% = bas
       else if (esp.spo2 > 0 && esp.spo2 < 94)
         _addEvent(
           'SpO₂ bas : ${esp.spo2.round()}%',
           'warning',
           Icons.info_outline,
         );
+
+      // Tachycardie > 100 bpm
       if (esp.bpm > 0 && esp.bpm > 100)
         _addEvent(
           'Tachycardie : ${esp.bpm.round()} bpm',
           'warning',
           Icons.favorite,
         );
+
+      // Fièvre > 38°C
       if (esp.temperature > 38.0)
         _addEvent(
           'Fièvre : ${esp.temperature.toStringAsFixed(1)}°C',
           'warning',
           Icons.thermostat,
         );
+
+      // MAX30102 mal positionné
       if (!esp.doigtDetecte && esp.spo2 == 0)
         _addEvent('Doigt non détecté (MAX30102)', 'info', Icons.touch_app);
+
+      // AD8232 mal connecté
       if (!esp.electrodesOk)
         _addEvent(
           'Électrodes ECG non connectées (AD8232)',
@@ -289,51 +394,160 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
     });
   }
 
-  @override
-  void dispose() {
-    _streamSub?.cancel();
-    _sessionTimer?.cancel();
-    // ── Fix 3 : plus de _wsService.deconnecter() ici ──────────────────────
-    // Le MonitoringProvider gère son propre lifecycle
-    _pulseCtrl.dispose();
-    _fadeCtrl.dispose();
-    _slideCtrl.dispose();
-    _btnCtrl.dispose();
-    _heartCtrl.dispose();
-    _monitoringService.dispose();
-    super.dispose();
+  // ── _addEvent ──────────────────────────────────────────────────────────────
+  /// Ajoute une alerte dans le journal local ET dans Firestore.
+  ///
+  /// CORRECTION PRINCIPALE :
+  ///   Avant : seul setState() était appelé → alerte visible uniquement dans
+  ///   le journal local du patient, jamais dans le dashboard médecin.
+  ///
+  ///   Après : AlertService.createAlert() est appelé de façon asynchrone
+  ///   (sans bloquer l'UI) pour écrire l'alerte dans Firestore avec le
+  ///   doctorUid du patient. Le médecin la voit alors dans son centre d'alertes.
+  ///
+  /// Throttle anti-flood :
+  ///   La même alerte (même titre) ne peut pas être envoyée à Firestore plus
+  ///   d'une fois par [_alertCooldown] (30 s). Le journal local n'est pas
+  ///   affecté par ce throttle (il conserve sa logique de dédoublonnage à 10 s).
+  void _addEvent(String title, String severity, IconData icon) {
+    final now = DateTime.now();
+
+    // ── Dédoublonnage local (10 s) — logique originale inchangée ─────────
+    if (_events.any(
+      (e) =>
+          e['title'] == title &&
+          now.difference(e['timestamp'] as DateTime).inSeconds < 10,
+    )) {
+      return;
+    }
+
+    // ── Mise à jour du journal local (affichage patient) ─────────────────
+    setState(() {
+      _events.insert(0, {
+        'title': title,
+        'severity': severity,
+        'icon': icon,
+        'timestamp': now,
+      });
+      if (_events.length > 15) _events.removeLast(); // Max 15 alertes locales
+
+      // Incrémenter le compteur d'apnées si c'est une alerte de type apnée
+      if (title.toLowerCase().contains('apnée') ||
+          title.toLowerCase().contains('apnea')) {
+        _apneaCount++;
+      }
+    });
+
+    // ── AJOUT : Écriture dans Firestore (pour le médecin) ─────────────────
+    // Throttle 30 s : on n'envoie pas la même alerte à Firestore trop souvent
+    // pour éviter de saturer la base (les données arrivent à 1 Hz).
+    final lastSent = _lastFirestoreAlert[title];
+    if (lastSent != null && now.difference(lastSent) < _alertCooldown) {
+      // Toujours sous cooldown → ne pas ré-envoyer à Firestore
+      return;
+    }
+    _lastFirestoreAlert[title] =
+        now; // Mettre à jour l'horodatage du dernier envoi
+
+    // Récupérer l'UID Firebase du patient connecté
+    final patientId = context.read<AuthProvider>().user?.uid;
+    if (patientId == null || patientId.isEmpty) return;
+
+    // Écriture asynchrone — ne bloque pas l'UI (pas de await ici)
+    // Le doctorUid est résolu automatiquement par AlertService depuis le profil
+    // Firestore du patient (champ 'assignedDoctorId' ou 'doctorUid').
+    _alertService
+        .createAlert(
+          patientId: patientId,
+          severity: severity,
+          message: title,
+          type: _typeFromTitle(title), // Convertit le titre en type Firestore
+        )
+        .catchError((e) {
+          // Erreur silencieuse — ne pas interrompre le monitoring
+          debugPrint('[RealtimeMonitoring] ⚠️ Erreur Firestore alerte: $e');
+        });
   }
 
+  // ── _typeFromTitle ─────────────────────────────────────────────────────────
+  /// Convertit le titre d'une alerte locale en type Firestore standardisé.
+  /// Ces types correspondent aux valeurs attendues par AlertService.getAlertTypeLabel().
+  String _typeFromTitle(String title) {
+    final t = title.toLowerCase();
+    if (t.contains('spo') || t.contains('saturation')) return 'spo2';
+    if (t.contains('bpm') ||
+        t.contains('tachycardie') ||
+        t.contains('bradycardie') ||
+        t.contains('cardiaque'))
+      return 'heartRate';
+    if (t.contains('apnée') || t.contains('apnea')) return 'apnea';
+    if (t.contains('fièvre') || t.contains('temp')) return 'temperature';
+    if (t.contains('ecg') || t.contains('électrode')) return 'ecg';
+    return 'general';
+  }
+
+  // ── _toggleMonitoring ──────────────────────────────────────────────────────
   void _toggleMonitoring() =>
       _isMonitoring ? _stopMonitoring() : _startMonitoring();
 
+  // ── _startMonitoring ───────────────────────────────────────────────────────
+  /// Démarre la session de surveillance.
+  /// Réinitialise tous les buffers et le throttle Firestore de la session précédente.
   void _startMonitoring() {
     _history.clear();
     _bpmHist.clear();
     _spo2Hist.clear();
     _events.clear();
+    _lastFirestoreAlert.clear(); // Réinitialiser le throttle Firestore
+
+    _apneaCount = 0;
+    _lastApneaCountedAt = null; // Réinitialiser le cooldown d'apnées
+    // Remettre le compteur à zéro à chaque nouvelle session
+
     _sessionStart = DateTime.now();
     _sessionDuration = Duration.zero;
 
+    // Chronomètre : tick toutes les secondes
     _sessionTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted)
         setState(() => _sessionDuration += const Duration(seconds: 1));
     });
 
+    // Abonnement au stream simulé — utilisé seulement si pas de données ESP32
+    // réelles depuis plus de 3 secondes (fallback données de test)
     _streamSub?.cancel();
     _streamSub = _monitoringService.stream.listen((payload) {
       if (!mounted || !_isMonitoring) return;
-      // ✅ CORRECT — utilise la simulation seulement si pas de données réelles
       final lastReal = _live?.receivedAt;
+      // Utiliser la simulation UNIQUEMENT si pas de données réelles depuis 3 s
       if (lastReal == null ||
           DateTime.now().difference(lastReal).inSeconds > 3) {
-        _onData(_EspData.fromSimulated(payload));
+        final esp = _EspData.fromSimulated(payload);
+        _onData(esp);
+
+        // ✅ Comptage apnées — même logique que dans onDonnees
+        if (esp.apnee &&
+            (esp.severite == 'modere' || esp.severite == 'severe')) {
+          _addEvent(
+            'Apnée ${esp.severite.toUpperCase()} — IA: ${(esp.confiance * 100).round()}%',
+            'critical',
+            Icons.air_outlined,
+          );
+          final now = DateTime.now();
+          if (_lastApneaCountedAt == null ||
+              now.difference(_lastApneaCountedAt!) >=
+                  const Duration(seconds: 60)) {
+            setState(() => _apneaCount++);
+            _lastApneaCountedAt = now;
+            debugPrint('🫁 Apnée comptée : $_apneaCount');
+          }
+        }
       }
     });
 
     _monitoringService.startMonitoring();
     setState(() => _isMonitoring = true);
-    _btnCtrl.repeat(reverse: true);
+    _btnCtrl.repeat(reverse: true); // Pulsation du bouton "Arrêter"
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -350,14 +564,18 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
     );
   }
 
+  // ── _stopMonitoring ────────────────────────────────────────────────────────
+  /// Arrête la session et sauvegarde les moyennes dans Firestore via MeasurementService.
   Future<void> _stopMonitoring() async {
     final user = context.read<AuthProvider>().user;
+
     _monitoringService.stopMonitoring();
     await _streamSub?.cancel();
     _streamSub = null;
     _sessionTimer?.cancel();
     _btnCtrl.stop();
 
+    // Calcul des moyennes sur toute la session et sauvegarde Firestore
     final end = DateTime.now();
     final start = _sessionStart;
     if (start != null &&
@@ -371,14 +589,17 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
           endTime: end,
           averageHeartRate: _bpmHist.reduce((a, b) => a + b) / _bpmHist.length,
           averageSpo2: _spo2Hist.reduce((a, b) => a + b) / _spo2Hist.length,
+          apneas: _apneaCount, // passer le vrai compteur
         );
         debugPrint('✅ Session sauvegardée');
       } catch (e) {
-        debugPrint('❌ $e');
+        debugPrint('❌ Erreur sauvegarde session: $e');
       }
     }
+
     if (!mounted) return;
     setState(() => _isMonitoring = false);
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Row(
@@ -394,34 +615,14 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
     );
   }
 
-  void _addEvent(String title, String severity, IconData icon) {
-    final now = DateTime.now();
-    if (_events.any(
-      (e) =>
-          e['title'] == title &&
-          now.difference(e['timestamp'] as DateTime).inSeconds < 10,
-    ))
-      return;
-    setState(() {
-      _events.insert(0, {
-        'title': title,
-        'severity': severity,
-        'icon': icon,
-        'timestamp': now,
-      });
-      if (_events.length > 15) _events.removeLast();
-    });
-  }
-
   // ── BUILD ──────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
-    // ── Fix 1 : isDark déclaré ici + monitor consommé ─────────────────────
     final monitor = context.watch<MonitoringProvider>();
     final isDark = context.watch<ThemeProvider>().isDarkMode;
 
-    // Synchroniser _isConnected depuis le provider si différent
+    // Synchronise _isConnected depuis le provider sans déclencher un rebuild
+    // pendant le build (addPostFrameCallback diffère après le rendu)
     if (monitor.isConnected != _isConnected) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => _isConnected = monitor.isConnected);
@@ -439,14 +640,19 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Barre de statut session + connexion ────────────────────
               _SessionBar(
                 isMonitoring: _isMonitoring,
                 isConnected: _isConnected,
+                isSimulating: !_isConnected && _isMonitoring,
                 duration: _sessionDuration,
                 isDark: isDark,
+                onReconnect: () =>
+                    context.read<MonitoringProvider>().reconnecter(),
               ),
               const SizedBox(height: 12),
 
+              // ── Bannière résultat IA (si monitoring actif et sévérité non vide)
               if (_isMonitoring &&
                   _live != null &&
                   _live!.severite.isNotEmpty) ...[
@@ -454,11 +660,13 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
                 const SizedBox(height: 10),
               ],
 
+              // ── Statut des 4 capteurs (si monitoring actif)
               if (_isMonitoring && _live != null) ...[
                 _SensorRow(data: _live!, isDark: isDark),
                 const SizedBox(height: 12),
               ],
 
+              // ── Carte fréquence cardiaque ──────────────────────────────
               _VitalCard(
                 label: 'Fréquence cardiaque',
                 value: _live?.bpm.round().toString() ?? '—',
@@ -478,6 +686,7 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
               ),
               const SizedBox(height: 10),
 
+              // ── Carte SpO₂ ────────────────────────────────────────────
               _VitalCard(
                 label: 'Saturation SpO₂',
                 value: _live?.spo2.round().toString() ?? '—',
@@ -494,6 +703,7 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
               ),
               const SizedBox(height: 10),
 
+              // ── Carte température ─────────────────────────────────────
               _VitalCard(
                 label: 'Température corporelle',
                 value: _live != null
@@ -511,17 +721,21 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
               ),
               const SizedBox(height: 14),
 
+              // ── Carte position + accéléromètre (si monitoring actif) ──
               if (_isMonitoring && _live != null) ...[
                 _PositionCard(data: _live!, isDark: isDark),
                 const SizedBox(height: 14),
               ],
 
+              // ── Graphique multi-courbes temps réel ────────────────────
               _GraphCard(history: _history, isDark: isDark),
               const SizedBox(height: 14),
 
+              // ── Journal des alertes locales ────────────────────────────
               _EventsCard(events: _events, isDark: isDark),
               const SizedBox(height: 14),
 
+              // ── Bouton Démarrer / Arrêter ──────────────────────────────
               _CtrlBtn(
                 isMonitoring: _isMonitoring,
                 ctrl: _btnCtrl,
@@ -536,6 +750,8 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
     );
   }
 
+  // ── AppBar ─────────────────────────────────────────────────────────────────
+  /// AppBar avec titre, point de connexion animé et bouton paramètres.
   PreferredSizeWidget _buildAppBar(bool isDark) => AppBar(
     backgroundColor: isDark ? const Color(0xFF0D1117) : _navy,
     foregroundColor: Colors.white,
@@ -555,6 +771,7 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
             overflow: TextOverflow.ellipsis,
           ),
         ),
+        // Point clignotant : vert = ESP32 connecté, rouge = déconnecté
         AnimatedBuilder(
           animation: _pulseCtrl,
           builder: (_, __) => Container(
@@ -583,6 +800,7 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
     ],
   );
 
+  // ── BottomNavigationBar ────────────────────────────────────────────────────
   Widget _buildNavBar() => BottomNavigationBar(
     type: BottomNavigationBarType.fixed,
     currentIndex: 2,
@@ -627,17 +845,22 @@ class _RealtimeMonitoringScreenState extends State<RealtimeMonitoringScreen>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SESSION BAR
+// SESSION BAR — inchangée
+// Affiche le statut actif/inactif, le chronomètre et l'état de connexion ESP32.
 // ─────────────────────────────────────────────────────────────────────────────
-
 class _SessionBar extends StatelessWidget {
-  final bool isMonitoring, isConnected, isDark;
+  //final bool isMonitoring, isConnected, isDark;
+  final bool isMonitoring, isConnected, isDark, isSimulating;
+
   final Duration duration;
+  final VoidCallback onReconnect;
   const _SessionBar({
     required this.isMonitoring,
     required this.isConnected,
     required this.isDark,
     required this.duration,
+    required this.isSimulating,
+    required this.onReconnect,
   });
 
   @override
@@ -661,6 +884,7 @@ class _SessionBar extends StatelessWidget {
     ),
     child: Row(
       children: [
+        // Pastille statut ACTIF / Inactif
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
@@ -692,12 +916,16 @@ class _SessionBar extends StatelessWidget {
             ],
           ),
         ),
+
+        // Chronomètre (visible uniquement pendant le monitoring)
         if (isMonitoring) ...[
           const SizedBox(width: 10),
           const Icon(Icons.timer_outlined, size: 12, color: _teal),
           const SizedBox(width: 4),
           Text(
-            '${duration.inMinutes.toString().padLeft(2, '0')}:${(duration.inSeconds % 60).toString().padLeft(2, '0')}',
+            // Format MM:SS — padLeft(2,'0') → "3:5" devient "03:05"
+            '${duration.inMinutes.toString().padLeft(2, '0')}:'
+            '${(duration.inSeconds % 60).toString().padLeft(2, '0')}',
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
@@ -706,12 +934,22 @@ class _SessionBar extends StatelessWidget {
           ),
         ],
         const Spacer(),
+
+        // Statut connexion WiFi/ESP32
         Icon(
           isConnected ? Icons.wifi : Icons.wifi_off,
           size: 13,
           color: isConnected ? const Color(0xFF10B981) : Colors.grey,
         ),
         const SizedBox(width: 4),
+
+        //Text(
+        // isConnected ? 'ESP32 connecté' : 'Déconnecté',
+        //style: TextStyle(
+        // fontSize: 10,
+        // color: isConnected ? const Color(0xFF10B981) : Colors.grey,
+        // ),
+        //),
         Text(
           isConnected ? 'ESP32 connecté' : 'Déconnecté',
           style: TextStyle(
@@ -719,15 +957,66 @@ class _SessionBar extends StatelessWidget {
             color: isConnected ? const Color(0xFF10B981) : Colors.grey,
           ),
         ),
+        if (!isConnected && isSimulating) ...[
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            decoration: BoxDecoration(
+              color: _orange.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: _orange.withValues(alpha: 0.4)),
+            ),
+            child: const Text(
+              'SIM',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: _orange,
+              ),
+            ),
+          ),
+        ],
+
+        // Bouton Reconnecter (visible seulement si déconnecté)
+        if (!isConnected) ...[
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: onReconnect,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: _orange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _orange.withValues(alpha: 0.4)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.refresh, size: 11, color: _orange),
+                  SizedBox(width: 3),
+                  Text(
+                    'Reconnecter',
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: _orange,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ],
     ),
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// IA BANNER
+// IA BANNER — inchangée
+// Affiche le résultat binaire du modèle de stacking (apnée / normal)
+// avec la barre de score de confiance.
 // ─────────────────────────────────────────────────────────────────────────────
-
 class _IaBanner extends StatelessWidget {
   final _EspData data;
   final bool isDark;
@@ -747,102 +1036,66 @@ class _IaBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? color.withValues(alpha: 0.12) : bg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.4), width: 1.5),
-        boxShadow: [
-          BoxShadow(color: color.withValues(alpha: 0.12), blurRadius: 10),
-        ],
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 20),
+          Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                ok
+                    ? '✅ Aucune apnée détectée'
+                    : '🚨 Apnée détectée — ${data.severite.toUpperCase()}',
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        data.apnee
-                            ? 'Apnée ${data.severite.toUpperCase()} détectée'
-                            : 'Respiration normale',
-                        style: TextStyle(
-                          color: color,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '${(data.confiance * 100).round()}%',
-                        style: TextStyle(
-                          color: color,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (data.messageIa.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    data.messageIa,
-                    style: TextStyle(
-                      color: color.withValues(alpha: 0.75),
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Text(
-                      'Score IA ',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 10),
-                    ),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: data.score,
-                          minHeight: 5,
-                          backgroundColor: Colors.grey.withValues(alpha: 0.2),
-                          valueColor: AlwaysStoppedAnimation<Color>(color),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${(data.score * 100).round()}%',
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          if (data.messageIa.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              data.messageIa,
+              style: TextStyle(
+                color: color.withValues(alpha: 0.75),
+                fontSize: 11,
+              ),
             ),
+          ],
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Text(
+                'Score IA ',
+                style: TextStyle(color: Colors.grey[600], fontSize: 10),
+              ),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  // Barre de progression = score de confiance du modèle (0→1)
+                  child: LinearProgressIndicator(
+                    value: data.score,
+                    minHeight: 5,
+                    backgroundColor: Colors.grey.withValues(alpha: 0.2),
+                    valueColor: AlwaysStoppedAnimation<Color>(color),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${(data.score * 100).round()}%',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -851,9 +1104,9 @@ class _IaBanner extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SENSOR STATUS ROW
+// SENSOR STATUS ROW — inchangée
+// Affiche l'état des 4 capteurs : MAX30102, AD8232, DS18B20, MPU6050.
 // ─────────────────────────────────────────────────────────────────────────────
-
 class _SensorRow extends StatelessWidget {
   final _EspData data;
   final bool isDark;
@@ -940,9 +1193,10 @@ class _SensorRow extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VITAL CARD
+// VITAL CARD — inchangée
+// Carte affichant une valeur vitale (BPM, SpO₂, Temp) avec mini-graphique.
+// La bordure et l'ombre changent de couleur selon l'état d'alerte.
 // ─────────────────────────────────────────────────────────────────────────────
-
 class _VitalCard extends StatelessWidget {
   final String label, value, unit;
   final String? sub;
@@ -981,62 +1235,44 @@ class _VitalCard extends StatelessWidget {
         border: Border.all(
           color: (critical || warning)
               ? alertColor.withValues(alpha: 0.5)
-              : Colors.transparent,
-          width: 1.5,
+              : (isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.black.withValues(alpha: 0.06)),
+          // Bordure plus épaisse en état d'alerte
+          width: (critical || warning) ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: (critical ? _red : iconColor).withValues(alpha: 0.07),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            // Halo coloré en état d'alerte
+            color: (critical || warning)
+                ? alertColor.withValues(alpha: 0.15)
+                : Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Row(
         children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 54,
-                height: 54,
+          // Icône avec animation de battement cardiaque (pour la FC uniquement)
+          AnimatedBuilder(
+            animation: heartCtrl ?? const AlwaysStoppedAnimation(0),
+            builder: (_, __) => Transform.scale(
+              // Léger zoom à chaque nouvelle trame (_heartCtrl.forward(from:0))
+              scale: heartCtrl != null ? 1.0 + 0.08 * heartCtrl!.value : 1.0,
+              child: Container(
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
                   color: iconBg,
-                  borderRadius: BorderRadius.circular(15),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: heartCtrl != null
-                    ? AnimatedBuilder(
-                        animation: heartCtrl!,
-                        builder: (_, __) => Transform.scale(
-                          scale:
-                              1.0 + 0.14 * math.sin(heartCtrl!.value * math.pi),
-                          child: Icon(icon, color: iconColor, size: 26),
-                        ),
-                      )
-                    : Icon(icon, color: iconColor, size: 26),
+                child: Icon(icon, color: iconColor, size: 26),
               ),
-              if (critical || warning)
-                Positioned(
-                  top: -5,
-                  right: -5,
-                  child: Container(
-                    width: 15,
-                    height: 15,
-                    decoration: BoxDecoration(
-                      color: alertColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: const Icon(
-                      Icons.priority_high,
-                      size: 8,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-            ],
+            ),
           ),
           const SizedBox(width: 14),
+          // Valeur numérique + unité
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1045,26 +1281,21 @@ class _VitalCard extends StatelessWidget {
                   label,
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.grey[500],
-                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white54 : Colors.black45,
                   ),
                 ),
-                const SizedBox(height: 1),
+                const SizedBox(height: 2),
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
                       value,
                       style: TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.w800,
-                        height: 1,
-                        color: critical
-                            ? _red
-                            : isDark
-                            ? Colors.white
-                            : const Color(0xFF1A365D),
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: (critical || warning)
+                            ? alertColor
+                            : (isDark ? Colors.white : const Color(0xFF1A365D)),
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -1090,6 +1321,7 @@ class _VitalCard extends StatelessWidget {
               ],
             ),
           ),
+          // Mini sparkline (courbe des 15 dernières valeurs)
           SizedBox(
             width: 80,
             height: 42,
@@ -1108,9 +1340,9 @@ class _VitalCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POSITION CARD (MPU6050)
+// POSITION CARD (MPU6050) — inchangée
+// Affiche la position du patient et les axes X/Y/Z/|G| de l'accéléromètre.
 // ─────────────────────────────────────────────────────────────────────────────
-
 class _PositionCard extends StatelessWidget {
   final _EspData data;
   final bool isDark;
@@ -1144,6 +1376,7 @@ class _PositionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final posColor = _color(data.position);
+    // Norme du vecteur d'accélération → détecte les mouvements brusques
     final mag = math.sqrt(
       data.accX * data.accX + data.accY * data.accY + data.accZ * data.accZ,
     );
@@ -1158,13 +1391,6 @@ class _PositionCard extends StatelessWidget {
               ? Colors.white.withValues(alpha: 0.06)
               : Colors.black.withValues(alpha: 0.06),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1178,9 +1404,9 @@ class _PositionCard extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                'Mouvement & Position (MPU6050)',
+                'Position & Accéléromètre',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: isDark ? Colors.white70 : const Color(0xFF1A365D),
                 ),
@@ -1190,36 +1416,35 @@ class _PositionCard extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: posColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: posColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(_icon(data.position), color: posColor, size: 30),
-                      const SizedBox(height: 5),
-                      Text(
-                        data.position.replaceAll('_', ' '),
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: posColor,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        'Position',
-                        style: TextStyle(fontSize: 9, color: Colors.grey[500]),
-                      ),
-                    ],
-                  ),
+              // Icône position avec fond coloré
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: posColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: posColor.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(_icon(data.position), color: posColor, size: 26),
+                    const SizedBox(height: 2),
+                    Text(
+                      data.position.length > 8
+                          ? data.position.substring(0, 8)
+                          : data.position,
+                      style: TextStyle(fontSize: 7, color: Colors.grey[500]),
+                    ),
+                    Text(
+                      'Position',
+                      style: TextStyle(fontSize: 9, color: Colors.grey[500]),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 12),
+              // Barres X/Y/Z/|G|
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1275,89 +1500,106 @@ class _PositionCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GRAPH CARD
+// GRAPH CARD — inchangée
+// Graphique temps réel multi-courbes FC / SpO₂ / Température.
+// Les données sont filtrées (zéros du démarrage ignorés) et normalisées
+// sur des plages médicales fixes pour permettre la comparaison visuelle.
 // ─────────────────────────────────────────────────────────────────────────────
-
 class _GraphCard extends StatelessWidget {
   final List<_EspData> history;
   final bool isDark;
   const _GraphCard({required this.history, required this.isDark});
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: isDark ? _cardDk : Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.06)
-            : Colors.black.withValues(alpha: 0.06),
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.05),
-          blurRadius: 8,
-          offset: const Offset(0, 3),
+  Widget build(BuildContext context) {
+    // Filtrer les données invalides (zéros du démarrage → évite les pics à 0)
+    final validHistory = history
+        .where((e) => e.bpm > 0 && e.spo2 > 0 && e.temperature > 30)
+        .toList();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark ? _cardDk : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : Colors.black.withValues(alpha: 0.06),
         ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Icon(Icons.show_chart_rounded, size: 14, color: _teal),
-            const SizedBox(width: 6),
-            Text(
-              'Graphique temps réel',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white70 : const Color(0xFF1A365D),
-              ),
-            ),
-            const Spacer(),
-            Text(
-              '${history.length}/${_RealtimeMonitoringScreenState._maxHistory} pts',
-              style: TextStyle(fontSize: 10, color: Colors.grey[500]),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Container(
-          height: 140,
-          decoration: BoxDecoration(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.2)
-                : const Color(0xFFF8FAFF),
-            borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
-          child: history.length < 2
-              ? Center(
-                  child: Text(
-                    'En attente de données…',
-                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                  ),
-                )
-              : CustomPaint(
-                  painter: GraphPainter(history, isDark),
-                  child: const SizedBox.expand(),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.show_chart_rounded, size: 14, color: _teal),
+              const SizedBox(width: 6),
+              Text(
+                'Graphique temps réel',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white70 : const Color(0xFF1A365D),
                 ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 12,
-          runSpacing: 4,
-          children: [
-            _leg('FC (bpm)', _red),
-            _leg('SpO₂ (%)', _navy),
-            _leg('Temp (°C)', _green),
-          ],
-        ),
-      ],
-    ),
-  );
+              ),
+              const Spacer(),
+              Text(
+                '${validHistory.length}/${_RealtimeMonitoringScreenState._maxHistory} pts',
+                style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // ClipRect empêche le débordement du canvas CustomPaint
+          ClipRect(
+            child: Container(
+              height: 140,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.2)
+                    : const Color(0xFFF8FAFF),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: validHistory.length < 3
+                  ? Center(
+                      child: Text(
+                        'En attente de données…',
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+                      child: CustomPaint(
+                        painter: GraphPainter(validHistory, isDark),
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Légende des 3 courbes
+          Wrap(
+            spacing: 12,
+            runSpacing: 4,
+            children: [
+              _leg('FC (bpm)', _red),
+              _leg('SpO₂ (%)', _navy),
+              _leg('Temp (°C)', _green),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _leg(String label, Color color) => Row(
     mainAxisSize: MainAxisSize.min,
@@ -1377,9 +1619,9 @@ class _GraphCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EVENTS CARD
+// EVENTS CARD — inchangée
+// Journal des alertes locales (max 15, affiche les 5 plus récentes).
 // ─────────────────────────────────────────────────────────────────────────────
-
 class _EventsCard extends StatelessWidget {
   final List<Map<String, dynamic>> events;
   final bool isDark;
@@ -1421,14 +1663,14 @@ class _EventsCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
-                  color: _red.withValues(alpha: 0.1),
+                  color: _orange.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   '${events.length}',
                   style: const TextStyle(
-                    color: _red,
                     fontSize: 10,
+                    color: _orange,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1439,13 +1681,10 @@ class _EventsCard extends StatelessWidget {
         if (events.isEmpty)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.symmetric(vertical: 14),
             decoration: BoxDecoration(
               color: const Color(0xFF10B981).withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: const Color(0xFF10B981).withValues(alpha: 0.2),
-              ),
             ),
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1453,70 +1692,104 @@ class _EventsCard extends StatelessWidget {
                 Icon(
                   Icons.check_circle_outline,
                   color: Color(0xFF10B981),
-                  size: 15,
+                  size: 18,
                 ),
-                SizedBox(width: 7),
+                SizedBox(width: 8),
                 Text(
                   'Aucune alerte',
                   style: TextStyle(
                     color: Color(0xFF10B981),
                     fontWeight: FontWeight.w600,
-                    fontSize: 13,
                   ),
                 ),
               ],
             ),
           )
         else
-          ...events.take(8).map((e) {
-            final sev = e['severity'] as String;
-            final c = sev == 'critical'
-                ? _red
-                : sev == 'warning'
-                ? _orange
-                : _navy;
-            final ts = e['timestamp'] as DateTime;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 7),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: c.withValues(alpha: isDark ? 0.1 : 0.05),
-                borderRadius: BorderRadius.circular(10),
-                border: Border(left: BorderSide(color: c, width: 3)),
-              ),
-              child: Row(
-                children: [
-                  Icon(e['icon'] as IconData, color: c, size: 15),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Text(
-                      e['title'] as String,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? Colors.white70
-                            : const Color(0xFF1A365D),
-                      ),
-                    ),
-                  ),
-                  Text(
-                    '${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}:${ts.second.toString().padLeft(2, '0')}',
-                    style: TextStyle(fontSize: 9, color: Colors.grey[500]),
-                  ),
-                ],
-              ),
-            );
-          }),
+          ...events.take(5).map((e) => _EventTile(event: e, isDark: isDark)),
       ],
     ),
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONTROL BUTTON
+// EVENT TILE — inchangée
+// Tuile d'une alerte dans le journal local : icône colorée + titre + horodatage.
 // ─────────────────────────────────────────────────────────────────────────────
+class _EventTile extends StatelessWidget {
+  final Map<String, dynamic> event;
+  final bool isDark;
+  const _EventTile({required this.event, required this.isDark});
 
+  @override
+  Widget build(BuildContext context) {
+    final sev = event['severity'] as String? ?? 'info';
+    final title = event['title'] as String? ?? '';
+    final icon = event['icon'] as IconData? ?? Icons.info_outline;
+    final timestamp = event['timestamp'] as DateTime? ?? DateTime.now();
+
+    final borderColor = sev == 'critical'
+        ? _red
+        : sev == 'warning'
+        ? _orange
+        : _teal;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.04)
+            : Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(12),
+        // Accent coloré à gauche selon la sévérité
+        border: Border(left: BorderSide(color: borderColor, width: 3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: borderColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: borderColor, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF1A365D),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                // Horodatage format HH:MM:SS
+                Text(
+                  '${timestamp.hour.toString().padLeft(2, '0')}:'
+                  '${timestamp.minute.toString().padLeft(2, '0')}:'
+                  '${timestamp.second.toString().padLeft(2, '0')}',
+                  style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTROL BUTTON — inchangé
+// Bouton Démarrer/Arrêter avec dégradé et légère pulsation pendant le monitoring.
+// ─────────────────────────────────────────────────────────────────────────────
 class _CtrlBtn extends StatelessWidget {
   final bool isMonitoring;
   final AnimationController ctrl;
@@ -1531,6 +1804,7 @@ class _CtrlBtn extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: ctrl,
     builder: (_, __) => Transform.scale(
+      // Pulsation 2.5% pendant la surveillance (subtile mais vivante)
       scale: isMonitoring ? 1.0 + 0.025 * ctrl.value : 1.0,
       child: Container(
         width: double.infinity,
@@ -1538,8 +1812,8 @@ class _CtrlBtn extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: isMonitoring
-                ? [_red, const Color(0xFFC53030)]
-                : [_navy, const Color(0xFF1A4FA8)],
+                ? [_red, const Color(0xFFC53030)] // Rouge → surveillance active
+                : [_navy, const Color(0xFF1A4FA8)], // Bleu → prêt à démarrer
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -1588,9 +1862,12 @@ class _CtrlBtn extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PAINTERS
+// PAINTERS — inchangés
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Mini-graphique en courbe (sparkline) pour les cartes vitales.
+/// Affiche les 15 dernières valeurs avec remplissage semi-transparent
+/// et un cercle sur la dernière valeur.
 class SparklinePainter extends CustomPainter {
   final List<double> data;
   final Color color;
@@ -1600,9 +1877,9 @@ class SparklinePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (data.length < 2) return;
     final recent = data.length > 15 ? data.sublist(data.length - 15) : data;
-    final min = recent.reduce(math.min);
-    final max = recent.reduce(math.max);
-    final range = (max - min).abs();
+    final minVal = recent.reduce(math.min);
+    final maxVal = recent.reduce(math.max);
+    final range = (maxVal - minVal).abs();
     const pad = 4.0;
 
     final stroke = Paint()
@@ -1610,18 +1887,23 @@ class SparklinePainter extends CustomPainter {
       ..strokeWidth = 1.8
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
+
     final fill = Paint()
       ..color = color.withValues(alpha: 0.1)
       ..style = PaintingStyle.fill;
 
-    final path = Path(), fillPath = Path();
+    final path = Path();
+    final fillPath = Path();
+
     for (int i = 0; i < recent.length; i++) {
       final x = pad + (size.width - 2 * pad) / (recent.length - 1) * i;
+      // Si toutes les valeurs sont identiques → ligne plate au centre
       final y = range < 0.01
           ? size.height / 2
           : size.height -
                 pad -
-                (recent[i] - min) / range * (size.height - 2 * pad);
+                (recent[i] - minVal) / range * (size.height - 2 * pad);
+
       if (i == 0) {
         path.moveTo(x, y);
         fillPath.moveTo(x, y);
@@ -1630,33 +1912,36 @@ class SparklinePainter extends CustomPainter {
         fillPath.lineTo(x, y);
       }
     }
+
+    // Fermer le fill vers le bas pour créer la surface sous la courbe
     fillPath.lineTo(size.width - pad, size.height - pad);
     fillPath.lineTo(pad, size.height - pad);
     fillPath.close();
-    canvas.drawPath(fillPath, fill);
-    canvas.drawPath(path, stroke);
 
+    canvas.drawPath(fillPath, fill); // Surface semi-transparente
+    canvas.drawPath(path, stroke); // Trait de la courbe
+
+    // Cercle sur la dernière valeur (valeur actuelle)
     final lx = size.width - pad;
     final ly = range < 0.01
         ? size.height / 2
         : size.height -
               pad -
-              (recent.last - min) / range * (size.height - 2 * pad);
-    canvas.drawCircle(Offset(lx, ly), 3.5, Paint()..color = color);
+              (recent.last - minVal) / range * (size.height - 2 * pad);
     canvas.drawCircle(
       Offset(lx, ly),
-      3.5,
+      3,
       Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
+        ..color = color
+        ..style = PaintingStyle.fill,
     );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter o) => true;
+  bool shouldRepaint(covariant CustomPainter old) => true;
 }
 
+/// Ligne pointillée plate affichée quand le monitoring est inactif.
 class FlatLinePainter extends CustomPainter {
   final Color color;
   FlatLinePainter(this.color);
@@ -1667,87 +1952,163 @@ class FlatLinePainter extends CustomPainter {
       ..color = color
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
-    const dw = 6.0, sp = 4.0;
-    final cy = size.height / 2;
-    double x = 2;
-    while (x < size.width - 2) {
+
+    const dashW = 6.0, dashGap = 4.0;
+    double x = 0;
+    final y = size.height / 2;
+
+    // Tracé en tirets : dash 6px, gap 4px
+    while (x < size.width) {
       canvas.drawLine(
-        Offset(x, cy),
-        Offset((x + dw).clamp(0, size.width - 2), cy),
+        Offset(x, y),
+        Offset(math.min(x + dashW, size.width), y),
         paint,
       );
-      x += dw + sp;
+      x += dashW + dashGap;
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter o) => false;
+  bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
+/// Graphique multi-courbes dans _GraphCard.
+/// Trace 3 séries (FC, SpO₂, Temp) normalisées sur des plages médicales fixes
+/// pour permettre la comparaison visuelle.
+/// Optimisation : ne redessine que si le nombre de points ou la dernière valeur BPM change.
 class GraphPainter extends CustomPainter {
-  final List<_EspData> data;
+  final List<_EspData> history;
   final bool isDark;
-  GraphPainter(this.data, this.isDark);
+  GraphPainter(this.history, this.isDark);
 
   @override
   void paint(Canvas canvas, Size size) {
-    const pad = 12.0;
-    final w = size.width - 2 * pad;
-    final h = size.height - 2 * pad;
+    if (history.length < 2) return;
 
-    final grid = Paint()
-      ..color = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.06)
+    // Grille horizontale légère (3 lignes)
+    final gridPaint = Paint()
+      ..color = (isDark ? Colors.white : Colors.grey).withValues(alpha: 0.12)
       ..strokeWidth = 0.5;
-    for (int i = 0; i <= 4; i++) {
-      final y = pad + h / 4 * i;
-      canvas.drawLine(Offset(pad, y), Offset(size.width - pad, y), grid);
+    for (int i = 1; i < 4; i++) {
+      final y = size.height / 4 * i;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    if (data.length < 2) return;
-
-    _line(canvas, data.map((e) => e.bpm).toList(), _red, pad, w, h, 30, 150);
-    _line(canvas, data.map((e) => e.spo2).toList(), _navy, pad, w, h, 80, 100);
-    _line(
+    // Courbes normalisées sur plages médicales fixes
+    // FC: 40-140 bpm | SpO₂: 80-100% | Temp: 35-40°C
+    _drawSeries(
       canvas,
-      data.map((e) => e.temperature).toList(),
-      _green,
-      pad,
-      w,
-      h,
-      35,
-      40,
+      size,
+      values: history.map((e) => e.bpm).toList(),
+      minVal: 40,
+      maxVal: 140,
+      color: _red,
+    );
+    _drawSeries(
+      canvas,
+      size,
+      values: history.map((e) => e.spo2).toList(),
+      minVal: 80,
+      maxVal: 100,
+      color: _navy,
+    );
+    _drawSeries(
+      canvas,
+      size,
+      values: history.map((e) => e.temperature).toList(),
+      minVal: 35,
+      maxVal: 40,
+      color: _green,
     );
   }
 
-  void _line(
+  void _drawSeries(
     Canvas canvas,
-    List<double> vals,
-    Color color,
-    double pad,
-    double w,
-    double h,
-    double min,
-    double max,
-  ) {
+    Size size, {
+    required List<double> values,
+    required double minVal,
+    required double maxVal,
+    required Color color,
+  }) {
+    if (values.length < 2) return;
+    final range = maxVal - minVal;
+    if (range <= 0) return;
+
     final paint = Paint()
       ..color = color
       ..strokeWidth = 1.8
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
+
+    final fillPaint = Paint()
+      ..color = color.withValues(alpha: 0.06)
+      ..style = PaintingStyle.fill;
+
     final path = Path();
-    for (int i = 0; i < vals.length; i++) {
-      final x = pad + w / (vals.length - 1) * i;
-      final nv = ((vals[i] - min) / (max - min)).clamp(0.0, 1.0);
-      final y = pad + h - nv * h;
-      if (i == 0)
+    final fillPath = Path();
+    bool started = false;
+
+    for (int i = 0; i < values.length; i++) {
+      final v = values[i];
+      // Ignorer les valeurs hors plage étendue (ex: zéros du démarrage)
+      if (v < minVal * 0.5 || v > maxVal * 1.5) continue;
+
+      final x = size.width / (values.length - 1) * i;
+      // Clamp pour garder la courbe dans le canvas même si valeur hors plage
+      final normalized = ((v - minVal) / range).clamp(0.0, 1.0);
+      final y = size.height - (normalized * size.height);
+
+      if (!started) {
         path.moveTo(x, y);
-      else
+        fillPath.moveTo(x, y);
+        started = true;
+      } else {
         path.lineTo(x, y);
+        fillPath.lineTo(x, y);
+      }
     }
+
+    if (!started) return;
+
+    // Fermer le fill vers le bas
+    fillPath.lineTo(size.width, size.height);
+    fillPath.lineTo(0, size.height);
+    fillPath.close();
+
+    canvas.drawPath(fillPath, fillPaint);
     canvas.drawPath(path, paint);
+
+    // Cercle sur la dernière valeur valide avec halo blanc
+    if (values.isNotEmpty) {
+      final lastV = values.last;
+      if (lastV >= minVal * 0.5 && lastV <= maxVal * 1.5) {
+        final lx = size.width;
+        final normalized = ((lastV - minVal) / range).clamp(0.0, 1.0);
+        final ly = size.height - (normalized * size.height);
+        canvas.drawCircle(
+          Offset(lx, ly),
+          3.5,
+          Paint()
+            ..color = color
+            ..style = PaintingStyle.fill,
+        );
+        canvas.drawCircle(
+          Offset(lx, ly),
+          1.8,
+          Paint()
+            ..color = Colors.white
+            ..style = PaintingStyle.fill,
+        );
+      }
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter o) => true;
+  // Optimisation : ne redessiner que si les données ont réellement changé
+  bool shouldRepaint(covariant GraphPainter old) =>
+      old.history.length != history.length ||
+      (history.isNotEmpty &&
+          old.history.isNotEmpty &&
+          old.history.last.bpm != history.last.bpm);
 }

@@ -1,0 +1,149 @@
+@startuml
+skinparam shadowing false
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceGroupBorderColor #888888
+skinparam sequenceGroupBackgroundColor #F8F8F8
+
+title Diagramme de séquence — Monitoring temps réel ESP32 → Flutter (v4)
+
+' ═══════════════════════════════════════════
+' PARTICIPANTS
+' ═══════════════════════════════════════════
+actor       "Patient"              as User
+participant "Flutter\nRealtimeMonitoringScreen" as FlutterUI
+participant "MonitoringProvider"   as MonProv
+participant "WebSocketService"     as WS
+participant "ESP32"                as ESP32
+participant "MQTT Broker"          as MQTT
+participant "mqtt_handler.py"      as Handler
+participant "MoteurIA v4\n(Stacking)" as IA
+participant "database.py\n(SQLite)"  as DB
+participant "FastAPI\n/ws endpoint"  as FastAPI
+participant "ContexteMedical"      as Ctx
+participant "chatbot_router.py"    as Chatbot
+participant "Groq LLaMA"           as Groq
+participant "FirebaseService"      as Firebase
+
+' ═══════════════════════════════════════════
+' PHASE 1 — Initialisation Flutter
+' ═══════════════════════════════════════════
+group #E6F1FB Phase 1 : Connexion initiale Flutter
+  User       -> FlutterUI  : Ouvre RealtimeMonitoringScreen
+  FlutterUI  -> MonProv    : startMonitoring(uid)
+  MonProv    -> WS         : connecter(uid)
+  WS         -> FastAPI    : ws://IP:8000/ws/{uid}
+  FastAPI    -> FastAPI    : clients_ws.append(websocket)
+  FastAPI   --> WS         : WebSocket accepté ✓
+  WS        --> MonProv    : onConnectionChanged(true)
+  MonProv   --> FlutterUI  : notifyListeners() → _isConnected = true
+end
+
+' ═══════════════════════════════════════════
+' PHASE 2 — Envoi données ESP32
+' ═══════════════════════════════════════════
+group #FAEEDA Phase 2 : Publication capteurs ESP32
+  loop Toutes les 500ms
+    ESP32 -> MQTT    : publish("moniteur/{id}/donnees")\n{bpm, spo2, temperature, bpm_ecg,\n electrodes_ok, position, acc_x/y/z,\n alarme_active, doigt_detecte}
+    MQTT  -> Handler : _on_message(payload)
+  end
+end
+
+' ═══════════════════════════════════════════
+' PHASE 3 — Prédiction IA
+' ═══════════════════════════════════════════
+group #FAECE7 Phase 3 : Prédiction modèle Stacking v4
+  Handler -> IA  : moteur_ia.predire(donnees)
+  note over IA   : Extraction 42 features ECG\nStacking : RF + ExtraTrees + LightGBM\nPost-traitement fenêtre 3 min
+  IA     --> Handler : {apnee, score, confiance, severite, message}
+
+  Handler -> Ctx : mettre_a_jour(donnees)
+  Handler -> Ctx : mettre_a_jour_ia(resultat)
+end
+
+' ═══════════════════════════════════════════
+' PHASE 4 — Persistance SQLite
+' ═══════════════════════════════════════════
+group #E1F5EE Phase 4 : Sauvegarde SQLite (async thread-safe)
+  Handler -> DB : sauvegarder_mesure(donnees)
+  note right of DB : Table "mesures"\n15 colonnes capteurs
+
+  alt severite != "en_attente"
+    Handler -> DB : sauvegarder_resultat_ia(resultat, timestamp)
+    note right of DB : Table "resultats_ia"\nscore + confiance + severite
+  end
+
+  alt apnee == True AND severite in ["modérée","sévère"]
+    Handler -> DB : sauvegarder_alarme(patient_id, "apnee_detectee", severite)
+    note right of DB : Table "alarmes"
+  end
+end
+
+' ═══════════════════════════════════════════
+' PHASE 5 — Diffusion WebSocket → Flutter
+' ═══════════════════════════════════════════
+group #E6F1FB Phase 5 : Diffusion temps réel vers Flutter
+  Handler   -> FastAPI   : diffuser_vers_clients({donnees, ia, timestamp})
+  FastAPI   -> WS        : ws.send_text(JSON)
+  WS       --> MonProv   : onDonnees(data)
+  MonProv  --> FlutterUI : notifyListeners()
+
+  FlutterUI -> FlutterUI : _EspData.fromWebSocket(raw)
+  FlutterUI -> FlutterUI : _onData(esp) → setState()\nVitalCard, IaBanner, GraphCard mis à jour
+
+  opt alarme_active == True
+    FlutterUI -> FlutterUI : _addEvent("Alarme critique", "critical")
+  end
+
+  opt apnee == True AND severite in ["modere","severe"]
+    FlutterUI -> FlutterUI : _addEvent("Apnée détectée", "critical")
+  end
+end
+
+' ═══════════════════════════════════════════
+' PHASE 6 — Chatbot IA (optionnel)
+' ═══════════════════════════════════════════
+group #EEEDFE Phase 6 : Chatbot IA (déclenché par l'utilisateur)
+  User      -> FlutterUI : Ouvre chatbot
+  FlutterUI -> FastAPI   : POST /chatbot/chat\n{message, role, patient_id, historique}
+
+  alt role == "doctor"
+    FastAPI -> Ctx    : construire_prompt_systeme("doctor")
+    note over Ctx     : Inject données ESP32 + résultat IA\nTerminologie AASM, Stacking v4
+    FastAPI -> Groq   : llama-3.3-70b-versatile\nmax_tokens=1000
+  else role == "patient"
+    FastAPI -> Ctx    : construire_prompt_systeme("patient")
+    note over Ctx     : Langage simple + données capteurs
+    FastAPI -> Groq   : llama-3.1-8b-instant\nmax_tokens=1000
+  end
+
+  Groq    --> FastAPI   : reponse_texte
+  FastAPI -> DB         : sauvegarder_message_chat(user)
+  FastAPI -> DB         : sauvegarder_message_chat(assistant)
+  FastAPI --> FlutterUI : {reponse, role: "assistant"}
+
+  opt quota 429 médecin
+    FastAPI -> Groq     : fallback → llama-3.1-8b-instant
+    Groq   --> FastAPI  : reponse_texte fallback
+    FastAPI -> DB       : sauvegarder_message_chat(fallback)
+  end
+end
+
+' ═══════════════════════════════════════════
+' PHASE 7 — Arrêt session
+' ═══════════════════════════════════════════
+group #F1EFE8 Phase 7 : Arrêt surveillance et sauvegarde Firebase
+  User      -> FlutterUI : Appuie "Arrêter surveillance"
+  FlutterUI -> MonProv   : stopMonitoring()
+  MonProv   -> WS        : deconnecter()
+  WS        -> FastAPI   : WebSocket fermé
+  FastAPI   -> FastAPI   : clients_ws.remove(websocket)
+
+  FlutterUI -> FlutterUI : calcul avgBPM, avgSpO2
+  FlutterUI -> Firebase  : saveMonitoringSession(\n  uid, startTime, endTime,\n  averageHeartRate, averageSpo2)
+  Firebase --> FlutterUI : session sauvegardée ✓
+
+  FlutterUI -> FlutterUI : setState(_isMonitoring = false)
+  FlutterUI --> User     : SnackBar "Surveillance arrêtée"
+end
+
+@enduml

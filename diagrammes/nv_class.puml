@@ -1,0 +1,415 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype ortho
+hide empty members
+
+title Diagramme de classes — Architecture MVVM SleepApnea Detect v4
+
+' ═══════════════════════════════════════════
+' COUCHE MODEL
+' ═══════════════════════════════════════════
+package "Model — lib/models/" #E1F5EE {
+
+  class Patient {
+    + id: String
+    + nom: String
+    + prenom: String
+    + fullName: String
+    + age: int?
+    + sexe: String?
+    + dateNaissance: DateTime?
+    + telephone: String?
+    + email: String?
+    + doctorUid: String?
+    + notesMedicales: String?
+    + toFirestore(): Map<String, dynamic>
+    + fromFirestore(data, id): Patient
+  }
+
+  class Doctor {
+    + uid: String
+    + fullName: String
+    + email: String?
+    + speciality: String?
+    + licenseNumber: String?
+    + toFirestore(): Map<String, dynamic>
+    + fromFirestore(data, id): Doctor
+  }
+
+  class Measurement {
+    + id: String
+    + patientId: String
+    + spo2: double
+    + heartRate: double
+    + temperature: double
+    + timestamp: DateTime
+    + apneaDetected: bool
+    + fromFirestore(data, id): Measurement
+  }
+
+  class SleepSession {
+    + id: String
+    + patientId: String
+    + startTime: DateTime
+    + endTime: DateTime
+    + averageSpo2: double
+    + averageHeartRate: double
+    + apneaEvents: int
+    + score: int?
+    + fromFirestore(data, id): SleepSession
+  }
+
+  class ApneaEvent {
+    + id: String
+    + patientId: String
+    + timestamp: DateTime
+    + duration: int
+    + severity: String
+    + spo2AtEvent: double
+    + fromFirestore(data, id): ApneaEvent
+  }
+
+  class Alert {
+    + id: String
+    + patientId: String
+    + type: String
+    + severity: String
+    + message: String
+    + isRead: bool
+    + createdAt: DateTime
+    + fromFirestore(data, id): Alert
+  }
+
+  class Message {
+    + id: String
+    + senderId: String
+    + senderName: String
+    + text: String
+    + timestamp: DateTime
+    + fromFirestore(data, id): Message
+  }
+
+  class ReportData {
+    + doctorName: String
+    + generatedAt: DateTime
+    + patientId: String?
+    + patientFullName: String?
+    + startDate: DateTime?
+    + endDate: DateTime?
+    + averageSpo2: double?
+    + averageHeartRate: double?
+    + totalApneas: int?
+    + totalSessions: int?
+    + measurements: List<Map>
+    + notes: List<Map>
+    + includeClinicalData: bool
+    + includeSignalGraphs: bool
+    + includeApneaEvents: bool
+    + includeDoctorDiagnosis: bool
+    + includeRecommendations: bool
+  }
+
+  class RelaxationContent {
+    + id: String
+    + title: String
+    + category: String
+    + description: String
+    + audioUrl: String?
+    + duration: int
+    + instructorName: String?
+    + difficulty: String
+    + rating: double
+    + fromFirestore(data, id): RelaxationContent
+  }
+
+  class Device {
+    + id: String
+    + patientId: String
+    + deviceType: String
+    + macAddress: String?
+    + isActive: bool
+    + lastSeen: DateTime?
+    + fromFirestore(data, id): Device
+  }
+}
+
+' ═══════════════════════════════════════════
+' COUCHE VIEWMODEL
+' ═══════════════════════════════════════════
+package "ViewModel — lib/providers/" #EEEDFE {
+
+  abstract class ChangeNotifier {
+    + notifyListeners(): void
+    + addListener(listener): void
+    + removeListener(listener): void
+    + dispose(): void
+  }
+
+  class AuthProvider {
+    - _firebaseService: FirebaseService
+    - _user: User?
+    - _role: String?
+    - _isLoadingRole: bool
+    + user: User?
+    + role: String?
+    + isLoggedIn: bool
+    + isDoctor: bool
+    + isPatient: bool
+    + isLoadingRole: bool
+    + fetchRole(uid: String): Future<void>
+    + clearSession(): void
+  }
+
+  class UserProfileProvider {
+    - _firebaseService: FirebaseService
+    - _activeUid: String?
+    - _user: Map<String, dynamic>?
+    - _isLoading: bool
+    - _lastError: String?
+    + user: Map<String, dynamic>?
+    + fullName: String
+    + role: String
+    + doctorUid: String?
+    + isLoading: bool
+    + bindAuth(auth: AuthProvider): void
+    + updateProfile(updates: Map): Future<void>
+    + refreshProfile(): Future<void>
+    + clear(): void
+  }
+
+  class MonitoringProvider {
+    - _wsService: WebSocketService
+    - _monService: MonitoringService
+    - _isConnected: bool
+    - _isMonitoring: bool
+    - _liveData: Map<String, dynamic>
+    - _iaResult: Map<String, dynamic>
+    + isConnected: bool
+    + isMonitoring: bool
+    + liveData: Map<String, dynamic>
+    + iaResult: Map<String, dynamic>
+    + onConnectionChanged: Function(bool)?
+    + onDonnees: Function(Map)?
+    + startMonitoring(patientId: String): void
+    + stopMonitoring(): void
+    + resetCallbacks(): void
+    + dispose(): void
+  }
+
+  class ThemeProvider {
+    - _settingsService: SettingsService
+    - _themeMode: ThemeMode
+    + themeMode: ThemeMode
+    + isDarkMode: bool
+    + loadTheme(): Future<void>
+    + setDarkMode(value: bool): Future<void>
+  }
+
+  class LocaleProvider {
+    - _settingsService: SettingsService
+    - _locale: Locale
+    + locale: Locale
+    + loadLocale(): Future<void>
+    + setLocale(code: String): Future<void>
+  }
+}
+
+' ═══════════════════════════════════════════
+' COUCHE SERVICE
+' ═══════════════════════════════════════════
+package "Service — lib/services/" #FAEEDA {
+
+  class FirebaseService {
+    - _auth: FirebaseAuth
+    - _firestore: FirebaseFirestore
+    + signIn(email, password): Future<UserCredential>
+    + signUp(email, password, role): Future<UserCredential>
+    + signOut(): Future<void>
+    + registerUser(...): Future<UserCredential>
+    + getUserRole(uid): Future<String?>
+    + getUserProfile(uid): Future<Map?>
+    + updateUserProfile(uid, data): Future<void>
+    + streamUserProfile(uid): Stream<Map?>
+    + addPatient(patient: Patient): Future<void>
+    + streamDoctorPatients(doctorUid): Stream<List<Map>>
+    + getMeasurementRecords(uid, limit): Future<List<Map>>
+    + streamMeasurementRecords(uid, limit): Stream<List<Map>>
+    + saveMonitoringSession(...): Future<void>
+    + getPatientStats(uid): Future<Map>
+    + streamDoctorAlerts(doctorUid): Stream<List<Map>>
+    + getOrCreateConversation(doctorUid, patientUid): Future<String>
+    + sendMessage(...): Future<void>
+    + streamMessages(conversationId): Stream<List<Map>>
+    + saveDoctorNote(...): Future<void>
+    + getPatientNotes(patientId): Future<List<Map>>
+  }
+
+  class WebSocketService {
+    + ipServeur: String = "192.168.1.18"
+    + port: int = 8000
+    - _canal: WebSocketChannel?
+    - _actif: bool
+    - _retryCount: int
+    - _maxRetries: int = 5
+    + onDonnees: Function(Map<String, dynamic>)?
+    + onConnectionChanged: Function(bool)?
+    + connecter(patientId: String): void
+    + deconnecter(): void
+    - _scheduleReconnect(patientId): void
+  }
+
+  class MonitoringService {
+    - _controller: StreamController<Map>
+    - _timer: Timer?
+    + stream: Stream<Map<String, dynamic>>
+    + isMonitoring: bool
+    + startMonitoring(): void
+    + stopMonitoring(): void
+    + dispose(): void
+  }
+
+  class GroqService {
+    - _apiKey: String
+    - _baseUrl: String
+    + sendMessage(messages, role): Future<String>
+    + buildSystemPrompt(role): String
+  }
+
+  class PdfReportService {
+    + generatePdfReport(patient, data: ReportData): Future<Uint8List>
+    + savePdfToLocal(bytes, fileName): Future<File>
+    + sharePdf(bytes, fileName): Future<void>
+  }
+
+  class AlertService {
+    - _firebaseService: FirebaseService
+    + checkAndCreateAlerts(patientId, spo2, hr, apneas, doctorId): Future<void>
+    + markAlertAsRead(alertId): Future<void>
+    + markAllAlertsAsRead(patientId): Future<void>
+    + streamPatientAlerts(patientId): Stream<List<Map>>
+  }
+
+  class SettingsService {
+    + getDarkMode(): Future<bool>
+    + setDarkMode(value): Future<void>
+    + getLanguage(): Future<String>
+    + setLanguage(code): Future<void>
+    + getNotificationsEnabled(): Future<bool>
+    + setNotificationsEnabled(value): Future<void>
+  }
+}
+
+' ═══════════════════════════════════════════
+' COUCHE VIEW
+' ═══════════════════════════════════════════
+package "View — lib/screens/" #E6F1FB {
+
+  package "screens/patient/" {
+    class DashboardPatientScreen
+    class RealtimeMonitoringScreen {
+      - _monitoringService: MonitoringService
+      - _firebaseService: FirebaseService
+      - _isMonitoring: bool
+      - _live: _EspData?
+      - _history: List<_EspData>
+      + _startMonitoring(): void
+      + _stopMonitoring(): Future<void>
+      + _onData(esp: _EspData): void
+    }
+    class PatientHistoryScreen
+    class PatientChatbotScreen
+    class PatientSettingsScreen
+  }
+
+  package "screens/doctor/" {
+    class DashboardDoctorScreen
+    class DoctorAnalysisScreen
+    class DoctorPatientsListScreen
+    class DoctorChatbotScreen
+    class DoctorReportsScreen
+    class DoctorSettingsScreen
+  }
+
+  package "screens/auth/" {
+    class LoginScreen {
+      - _firebaseService: FirebaseService
+      - _selectedRole: String?
+      - _isLoading: bool
+      + _login(): Future<void>
+    }
+    class SplashScreen
+  }
+
+  package "lib/widgets/" {
+    class PatientChatbotFAB
+    class DoctorChatbotFAB
+  }
+}
+
+' ═══════════════════════════════════════════
+' COUCHE ROUTER
+' ═══════════════════════════════════════════
+package "Router — lib/router/" #F1EFE8 {
+
+  class AppRouter {
+    + createAppRouter(authProvider, initialLocation): GoRouter
+  }
+
+  class RouteNames {
+    {static} + splash: String
+    {static} + login: String
+    {static} + patientDashboard: String
+    {static} + realtimeMonitoring: String
+    {static} + patientHistory: String
+    {static} + patientSettings: String
+    {static} + relaxation: String
+    {static} + doctorDashboard: String
+    {static} + doctorPatientsList: String
+    {static} + doctorAnalysis(id, date): String
+    {static} + nightDetail(id, date): String
+    {static} + accessDenied: String
+    {static} + fixProfile: String
+  }
+}
+
+' ═══════════════════════════════════════════
+' RELATIONS — Héritage
+' ═══════════════════════════════════════════
+AuthProvider       --|> ChangeNotifier
+UserProfileProvider --|> ChangeNotifier
+MonitoringProvider  --|> ChangeNotifier
+ThemeProvider      --|> ChangeNotifier
+LocaleProvider     --|> ChangeNotifier
+
+' ═══════════════════════════════════════════
+' RELATIONS — Composition (a-un)
+' ═══════════════════════════════════════════
+AuthProvider        *-- FirebaseService
+UserProfileProvider *-- FirebaseService
+MonitoringProvider  *-- WebSocketService
+MonitoringProvider  *-- MonitoringService
+ThemeProvider       *-- SettingsService
+LocaleProvider      *-- SettingsService
+AlertService        *-- FirebaseService
+PdfReportService    ..> ReportData
+
+' ═══════════════════════════════════════════
+' RELATIONS — Dépendances (utilise)
+' ═══════════════════════════════════════════
+LoginScreen              ..> AuthProvider      : lit role
+LoginScreen              ..> FirebaseService   : signIn()
+RealtimeMonitoringScreen ..> MonitoringProvider : startMonitoring()
+RealtimeMonitoringScreen ..> AuthProvider       : lit user.uid
+RealtimeMonitoringScreen ..> FirebaseService    : saveMonitoringSession()
+DoctorAnalysisScreen     ..> FirebaseService   : mesures/notes
+DoctorPatientsListScreen ..> FirebaseService   : streamDoctorPatients()
+
+FirebaseService ..> Patient   : persiste
+FirebaseService ..> Alert     : persiste
+FirebaseService ..> Message   : persiste
+
+AppRouter ..> AuthProvider : refreshListenable
+AppRouter ..> RouteNames
+
+@enduml

@@ -112,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 24),
 
                 // ── Email ────────────────────────────────────────────────
-                _buildLabel(l10n.emailLabel ?? 'Adresse e-mail', isDark),
+                _buildLabel(l10n.emailLabel, isDark),
                 const SizedBox(height: 6),
                 _buildTextField(
                   controller: _emailController,
@@ -130,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 18),
 
                 // ── Mot de passe ─────────────────────────────────────────
-                _buildLabel(l10n.passwordLabel ?? 'Mot de passe', isDark),
+                _buildLabel(l10n.passwordLabel, isDark),
                 const SizedBox(height: 6),
                 _buildTextField(
                   controller: _passwordController,
